@@ -10,25 +10,15 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
-from openai import AsyncOpenAI, OpenAIError
-from openai.types.chat import (
-    ChatCompletionAssistantMessageParam,
-    ChatCompletionMessageParam,
-    ChatCompletionSystemMessageParam,
-    ChatCompletionUserMessageParam,
-)
 from sse_starlette.event import ServerSentEvent
 from sse_starlette.sse import EventSourceResponse
 
-from voxpilot.dependencies import DbDep, GitHubToken
+from voxpilot.dependencies import DbDep, GitHubToken, SettingsDep
 from voxpilot.models.schemas import (
-    ChatMessage,
-    DoneEvent,
-    ErrorEvent,
     MessageEvent,
     SendMessageRequest,
-    TextDeltaEvent,
 )
+from voxpilot.services.agent import run_agent_loop
 from voxpilot.services.sessions import (
     add_message,
     auto_title_if_needed,
@@ -42,34 +32,26 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/sessions", tags=["chat"])
 
-GITHUB_MODELS_BASE_URL = "https://models.inference.ai.azure.com"
-
-
-def _to_message_param(m: ChatMessage) -> ChatCompletionMessageParam:
-    """Convert a ChatMessage schema to an OpenAI message param."""
-    if m.role == "system":
-        return ChatCompletionSystemMessageParam(role="system", content=m.content)
-    if m.role == "assistant":
-        return ChatCompletionAssistantMessageParam(role="assistant", content=m.content)
-    return ChatCompletionUserMessageParam(role="user", content=m.content)
-
 
 @router.get("/{session_id}/stream")
 async def stream_session(
-    session_id: str, token: GitHubToken, db: DbDep, request: Request
+    session_id: str, token: GitHubToken, db: DbDep, request: Request, settings: SettingsDep
 ) -> EventSourceResponse:
     """Open a persistent SSE stream for a session.
 
     On connect the stream replays all existing messages as ``message``
     events, then sends a ``ready`` event.  After that, incoming user
     messages (posted via ``POST /{session_id}/messages``) are echoed as
-    ``message`` events and the LLM response is streamed as
-    ``text-delta`` / ``done`` / ``error`` events.
+    ``message`` events and the agent loop handles LLM + tool calls,
+    streaming events as ``text-delta``, ``tool-call``, ``tool-result``,
+    ``done``, or ``error``.
 
     SSE event types:
-        message     — ``{"role": "...", "content": "...", "created_at": "..."}``
+        message     — ``{"role": "...", "content": "...", "created_at": "...", ...}``
         ready       — ``{}``
         text-delta  — ``{"content": "..."}``
+        tool-call   — ``{"id": "...", "name": "...", "arguments": "..."}``
+        tool-result — ``{"id": "...", "name": "...", "content": "...", "is_error": ...}``
         done        — ``{"model": "..."}``
         error       — ``{"message": "..."}``
     """
@@ -124,68 +106,22 @@ async def stream_session(
                     event="message",
                 )
 
-                # Load full conversation for the LLM
+                # Load full conversation for the agent loop
                 messages = await get_messages(db, session_id)
-                openai_messages = [_to_message_param(m) for m in messages]
 
-                client = AsyncOpenAI(
-                    base_url=GITHUB_MODELS_BASE_URL,
-                    api_key=gh_token,
-                )
-
-                model_name = model
-                accumulated = ""
-                try:
-                    llm_stream = await client.chat.completions.create(
-                        model=model,
-                        messages=openai_messages,
-                        stream=True,
-                    )
-                    async for chunk in llm_stream:
-                        if await request.is_disconnected():
-                            break
-
-                        choice = chunk.choices[0] if chunk.choices else None
-                        if choice and choice.delta.content:
-                            accumulated += choice.delta.content
-                            yield ServerSentEvent(
-                                data=TextDeltaEvent(
-                                    content=choice.delta.content
-                                ).model_dump_json(),
-                                event="text-delta",
-                            )
-                        if chunk.model:
-                            model_name = chunk.model
-
-                    # Persist complete assistant response
-                    if accumulated:
-                        await add_message(
-                            db, session_id, "assistant", accumulated
-                        )
-
+                async for event in run_agent_loop(
+                    messages=messages,
+                    model=model,
+                    gh_token=gh_token,
+                    work_dir=settings.work_dir,
+                    db=db,
+                    session_id=session_id,
+                    max_iterations=settings.max_agent_iterations,
+                    is_disconnected=request.is_disconnected,
+                ):
                     yield ServerSentEvent(
-                        data=DoneEvent(model=model_name).model_dump_json(),
-                        event="done",
-                    )
-                except OpenAIError as exc:
-                    logger.exception("OpenAI API error during streaming")
-                    if accumulated:
-                        await add_message(
-                            db, session_id, "assistant", accumulated
-                        )
-                    yield ServerSentEvent(
-                        data=ErrorEvent(message=str(exc)).model_dump_json(),
-                        event="error",
-                    )
-                except Exception as exc:
-                    logger.exception("Unexpected error during streaming")
-                    if accumulated:
-                        await add_message(
-                            db, session_id, "assistant", accumulated
-                        )
-                    yield ServerSentEvent(
-                        data=ErrorEvent(message=str(exc)).model_dump_json(),
-                        event="error",
+                        data=event["data"],
+                        event=event["event"],
                     )
         finally:
             registry.unregister(session_id)

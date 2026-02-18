@@ -300,3 +300,76 @@ h1 {
   display: flex;
   flex-direction: column;
 }
+
+/* ── Tool call blocks ─────────────────────────────────────────────────────── */
+
+.tool-block {
+  align-self: flex-start;
+  max-width: 90%;
+  background: #151820;
+  border: 1px solid #2a2d37;
+  border-radius: 0.5rem;
+  font-size: 0.8rem;
+  overflow: hidden;
+}
+
+.tool-block[open] {
+  border-color: var(--color-accent);
+}
+
+.tool-summary {
+  padding: 0.4rem 0.7rem;
+  cursor: pointer;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  user-select: none;
+  list-style: none;
+}
+
+.tool-summary::-webkit-details-marker {
+  display: none;
+}
+
+.tool-summary::before {
+  content: "▸ ";
+  color: var(--color-accent);
+}
+
+.tool-block[open] > .tool-summary::before {
+  content: "▾ ";
+}
+
+.tool-arguments {
+  padding: 0.4rem 0.7rem;
+  border-top: 1px solid #2a2d37;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 8rem;
+  overflow-y: auto;
+}
+
+.tool-result {
+  padding: 0.4rem 0.7rem;
+  border-top: 1px solid #2a2d37;
+  background: var(--color-bg);
+}
+
+.tool-result pre {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-text);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 20rem;
+  overflow-y: auto;
+  line-height: 1.4;
+}
+
+.tool-result.tool-error pre {
+  color: var(--color-error);
+}

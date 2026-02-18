@@ -1,6 +1,7 @@
 import createClient from "openapi-fetch";
 import type { components, paths } from "./api.js";
 import { connectSession, sendMessage as postMessage } from "./sse.js";
+import type { ToolCallPayload, ToolResultPayload, MessagePayload } from "./sse.js";
 import "./style.css";
 
 type GitHubUser = components["schemas"]["GitHubUser"];
@@ -51,6 +52,79 @@ function createStreamingBubble(): HTMLElement {
   container?.appendChild(div);
   if (container) container.scrollTop = container.scrollHeight;
   return div;
+}
+
+/** Render a tool call as a collapsible block. */
+function appendToolCall(payload: ToolCallPayload): HTMLElement {
+  const container = $("#messages");
+  const details = document.createElement("details");
+  details.className = "tool-block";
+  details.dataset.toolCallId = payload.id;
+
+  const summary = document.createElement("summary");
+  summary.className = "tool-summary";
+  summary.textContent = `⚙ ${payload.name}`;
+  details.appendChild(summary);
+
+  // Show arguments
+  const argsDiv = document.createElement("div");
+  argsDiv.className = "tool-arguments";
+  try {
+    const parsed = JSON.parse(payload.arguments);
+    argsDiv.textContent = JSON.stringify(parsed, null, 2);
+  } catch {
+    argsDiv.textContent = payload.arguments;
+  }
+  details.appendChild(argsDiv);
+
+  container?.appendChild(details);
+  if (container) container.scrollTop = container.scrollHeight;
+  return details;
+}
+
+/** Append a tool result inside the tool block or as a new block. */
+function appendToolResult(payload: ToolResultPayload): void {
+  const container = $("#messages");
+  // Find the matching tool-call block
+  const block = container?.querySelector(
+    `details.tool-block[data-tool-call-id="${payload.id}"]`,
+  ) as HTMLDetailsElement | null;
+
+  const resultDiv = document.createElement("div");
+  resultDiv.className = `tool-result${payload.is_error ? " tool-error" : ""}`;
+
+  const pre = document.createElement("pre");
+  pre.textContent = payload.content;
+  resultDiv.appendChild(pre);
+
+  if (block) {
+    block.appendChild(resultDiv);
+  } else {
+    // Fallback: append directly
+    container?.appendChild(resultDiv);
+  }
+  if (container) container.scrollTop = container.scrollHeight;
+}
+
+/** Render a tool call from history replay (combined call + result). */
+function appendToolCallFromHistory(payload: MessagePayload): void {
+  if (payload.tool_calls) {
+    for (const tc of payload.tool_calls) {
+      appendToolCall({ id: tc.id, name: tc.name, arguments: tc.arguments });
+    }
+  }
+}
+
+/** Render a tool result from history replay. */
+function appendToolResultFromHistory(payload: MessagePayload): void {
+  if (payload.tool_call_id) {
+    appendToolResult({
+      id: payload.tool_call_id,
+      name: "", // name not stored on tool result messages
+      content: payload.content,
+      is_error: payload.content.startsWith("Error:"),
+    });
+  }
 }
 
 function setInputEnabled(enabled: boolean): void {
@@ -136,8 +210,20 @@ async function switchSession(sessionId: string): Promise<void> {
 
   activeStream = connectSession(sessionId, {
     onMessage(payload) {
-      if (payload.role === "user" || payload.role === "assistant") {
-        appendMessage(payload.role, payload.content);
+      if (payload.role === "user") {
+        appendMessage("user", payload.content);
+      } else if (payload.role === "assistant") {
+        if (payload.tool_calls && payload.tool_calls.length > 0) {
+          // Assistant message that invoked tools — render tool calls
+          if (payload.content) {
+            appendMessage("assistant", payload.content);
+          }
+          appendToolCallFromHistory(payload);
+        } else {
+          appendMessage("assistant", payload.content);
+        }
+      } else if (payload.role === "tool") {
+        appendToolResultFromHistory(payload);
       }
     },
     onReady() {
@@ -155,6 +241,18 @@ async function switchSession(sessionId: string): Promise<void> {
       currentBubble.textContent = accumulated;
       const container = $("#messages");
       if (container) container.scrollTop = container.scrollHeight;
+    },
+    onToolCall(payload) {
+      // Finalize any in-progress streaming bubble before showing tool call
+      if (currentBubble) {
+        currentBubble.classList.remove("streaming");
+        currentBubble = null;
+        accumulated = "";
+      }
+      appendToolCall(payload);
+    },
+    onToolResult(payload) {
+      appendToolResult(payload);
     },
     onDone(_model) {
       if (currentBubble) {

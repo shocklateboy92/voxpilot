@@ -13,15 +13,21 @@ from voxpilot.models.schemas import DoneEvent, ErrorEvent, MessageEvent, TextDel
 from voxpilot.services.sessions import add_message, create_session
 from voxpilot.services.streams import registry
 
+AGENT_OPENAI_PATCH = "voxpilot.services.agent.AsyncOpenAI"
+
 
 def _make_chunk(
-    content: str | None = None, model: str | None = None
+    content: str | None = None,
+    model: str | None = None,
+    finish_reason: str | None = None,
 ) -> MagicMock:
     """Create a mock ChatCompletionChunk."""
     chunk = MagicMock()
     choice = MagicMock()
     choice.delta.content = content
-    chunk.choices = [choice] if content is not None else []
+    choice.delta.tool_calls = None
+    choice.finish_reason = finish_reason
+    chunk.choices = [choice] if content is not None or finish_reason is not None else []
     chunk.model = model
     return chunk
 
@@ -226,11 +232,11 @@ async def test_stream_processes_message_and_streams_response(
 
     chunks = [
         _make_chunk(content="Hello", model="gpt-4o"),
-        _make_chunk(content=" world", model="gpt-4o"),
+        _make_chunk(content=" world", model="gpt-4o", finish_reason="stop"),
     ]
     mock_create = AsyncMock(return_value=_mock_stream(chunks))
 
-    with patch("voxpilot.api.routes.chat.AsyncOpenAI") as mock_openai_cls:
+    with patch(AGENT_OPENAI_PATCH) as mock_openai_cls:
         mock_client = MagicMock()
         mock_client.chat.completions.create = mock_create
         mock_openai_cls.return_value = mock_client
@@ -284,10 +290,10 @@ async def test_stream_persists_messages(client: httpx.AsyncClient) -> None:
     session_id = await _create_test_session()
     client.cookies.set("gh_token", "gho_fake")
 
-    chunks = [_make_chunk(content="Hey!", model="gpt-4o")]
+    chunks = [_make_chunk(content="Hey!", model="gpt-4o", finish_reason="stop")]
     mock_create = AsyncMock(return_value=_mock_stream(chunks))
 
-    with patch("voxpilot.api.routes.chat.AsyncOpenAI") as mock_openai_cls:
+    with patch(AGENT_OPENAI_PATCH) as mock_openai_cls:
         mock_client = MagicMock()
         mock_client.chat.completions.create = mock_create
         mock_openai_cls.return_value = mock_client
@@ -323,10 +329,10 @@ async def test_stream_auto_titles_session(client: httpx.AsyncClient) -> None:
     session_id = await _create_test_session()
     client.cookies.set("gh_token", "gho_fake")
 
-    chunks = [_make_chunk(content="Reply", model="gpt-4o")]
+    chunks = [_make_chunk(content="Reply", model="gpt-4o", finish_reason="stop")]
     mock_create = AsyncMock(return_value=_mock_stream(chunks))
 
-    with patch("voxpilot.api.routes.chat.AsyncOpenAI") as mock_openai_cls:
+    with patch(AGENT_OPENAI_PATCH) as mock_openai_cls:
         mock_client = MagicMock()
         mock_client.chat.completions.create = mock_create
         mock_openai_cls.return_value = mock_client
@@ -363,7 +369,7 @@ async def test_stream_error_on_openai_failure(
 
     mock_create = AsyncMock(side_effect=OpenAIError("rate limit exceeded"))
 
-    with patch("voxpilot.api.routes.chat.AsyncOpenAI") as mock_openai_cls:
+    with patch(AGENT_OPENAI_PATCH) as mock_openai_cls:
         mock_client = MagicMock()
         mock_client.chat.completions.create = mock_create
         mock_openai_cls.return_value = mock_client

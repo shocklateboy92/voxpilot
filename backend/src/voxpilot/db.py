@@ -13,11 +13,13 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 
 CREATE TABLE IF NOT EXISTS messages (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    session_id TEXT    NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-    role       TEXT    NOT NULL,
-    content    TEXT    NOT NULL,
-    created_at TEXT    NOT NULL
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id   TEXT    NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    role         TEXT    NOT NULL,
+    content      TEXT    NOT NULL,
+    tool_calls   TEXT,
+    tool_call_id TEXT,
+    created_at   TEXT    NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS ix_messages_session

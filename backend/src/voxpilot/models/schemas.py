@@ -26,11 +26,24 @@ class GitHubUser(BaseModel):
     avatar_url: str
 
 
+# ── Tool call data ────────────────────────────────────────────────────────────
+
+
+class ToolCallInfo(BaseModel):
+    """A single tool call within an assistant message."""
+
+    id: str
+    name: str
+    arguments: str  # JSON-encoded arguments string
+
+
 class ChatMessage(BaseModel):
     """A single message in a chat conversation."""
 
-    role: Literal["user", "assistant", "system"]
+    role: Literal["user", "assistant", "system", "tool"]
     content: str
+    tool_calls: list[ToolCallInfo] | None = None
+    tool_call_id: str | None = None
 
 
 class SendMessageRequest(BaseModel):
@@ -43,10 +56,6 @@ class SendMessageRequest(BaseModel):
 # ── SSE event payloads ────────────────────────────────────────────────────────
 # Each model maps to one SSE event type.  The event name goes in the SSE
 # `event:` field; the JSON-serialised model goes in `data:`.
-#
-# Future phases will add:
-#   ToolCallEvent   (event: tool-call)   — {id, name, arguments}
-#   ToolResultEvent (event: tool-result) — {id, content}
 
 
 class MessageEvent(BaseModel):
@@ -55,9 +64,28 @@ class MessageEvent(BaseModel):
     Used for history replay on connect and echoing new user messages.
     """
 
-    role: Literal["user", "assistant", "system"]
+    role: Literal["user", "assistant", "system", "tool"]
     content: str
     created_at: str
+    tool_calls: list[ToolCallInfo] | None = None
+    tool_call_id: str | None = None
+
+
+class ToolCallEvent(BaseModel):
+    """A tool call requested by the assistant (event: tool-call)."""
+
+    id: str
+    name: str
+    arguments: str  # JSON-encoded arguments string
+
+
+class ToolResultEvent(BaseModel):
+    """Result of a tool execution (event: tool-result)."""
+
+    id: str
+    name: str
+    content: str
+    is_error: bool = False
 
 
 class TextDeltaEvent(BaseModel):
@@ -84,9 +112,11 @@ class ErrorEvent(BaseModel):
 class MessageRead(BaseModel):
     """A message as returned from the API (excludes DB-internal fields)."""
 
-    role: Literal["user", "assistant", "system"]
+    role: Literal["user", "assistant", "system", "tool"]
     content: str
     created_at: str
+    tool_calls: list[ToolCallInfo] | None = None
+    tool_call_id: str | None = None
 
 
 class SessionSummary(BaseModel):

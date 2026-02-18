@@ -5,23 +5,46 @@
  * All event payloads are JSON.
  *
  * Event types:
- *   message     → onMessage(payload)    — history replay + echoed user messages
- *   ready       → onReady()             — end of history replay
- *   text-delta  → onTextDelta(content)  — streamed assistant token
- *   done        → onDone(model)         — assistant response complete
- *   error       → onError(message)      — something went wrong
+ *   message     → onMessage(payload)        — history replay + echoed user messages
+ *   ready       → onReady()                 — end of history replay
+ *   text-delta  → onTextDelta(content)      — streamed assistant token
+ *   tool-call   → onToolCall(payload)       — agent tool invocation
+ *   tool-result → onToolResult(payload)     — tool execution result
+ *   done        → onDone(model)             — assistant response complete
+ *   error       → onError(message)          — something went wrong
  */
 
 // ── SSE event payload types (mirror backend schemas) ────────────────────────
 
+export interface ToolCallInfo {
+  id: string;
+  name: string;
+  arguments: string;
+}
+
 export interface MessagePayload {
-  role: "user" | "assistant" | "system";
+  role: "user" | "assistant" | "system" | "tool";
   content: string;
   created_at: string;
+  tool_calls?: ToolCallInfo[] | null;
+  tool_call_id?: string | null;
 }
 
 export interface TextDeltaPayload {
   content: string;
+}
+
+export interface ToolCallPayload {
+  id: string;
+  name: string;
+  arguments: string;
+}
+
+export interface ToolResultPayload {
+  id: string;
+  name: string;
+  content: string;
+  is_error: boolean;
 }
 
 export interface DonePayload {
@@ -36,6 +59,8 @@ export interface SessionStreamCallbacks {
   onMessage: (payload: MessagePayload) => void;
   onReady: () => void;
   onTextDelta: (content: string) => void;
+  onToolCall: (payload: ToolCallPayload) => void;
+  onToolResult: (payload: ToolResultPayload) => void;
   onDone: (model: string) => void;
   onError: (message: string) => void;
 }
@@ -74,6 +99,24 @@ export function connectSession(
       callbacks.onTextDelta(payload.content);
     } catch {
       callbacks.onError(`Failed to parse text-delta event: ${e.data}`);
+    }
+  });
+
+  es.addEventListener("tool-call", (e: MessageEvent) => {
+    try {
+      const payload = JSON.parse(e.data) as ToolCallPayload;
+      callbacks.onToolCall(payload);
+    } catch {
+      callbacks.onError(`Failed to parse tool-call event: ${e.data}`);
+    }
+  });
+
+  es.addEventListener("tool-result", (e: MessageEvent) => {
+    try {
+      const payload = JSON.parse(e.data) as ToolResultPayload;
+      callbacks.onToolResult(payload);
+    } catch {
+      callbacks.onError(`Failed to parse tool-result event: ${e.data}`);
     }
   });
 

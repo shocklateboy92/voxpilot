@@ -1,5 +1,6 @@
 """Session and message persistence backed by aiosqlite."""
 
+import json
 import uuid
 from datetime import UTC, datetime
 
@@ -11,6 +12,7 @@ from voxpilot.models.schemas import (
     MessageRead,
     SessionDetail,
     SessionSummary,
+    ToolCallInfo,
 )
 
 
@@ -33,7 +35,20 @@ def _row_to_message_read(row: aiosqlite.Row) -> MessageRead:
         role=row["role"],
         content=row["content"],
         created_at=row["created_at"],
+        tool_calls=_parse_tool_calls(row["tool_calls"]),
+        tool_call_id=row["tool_call_id"],
     )
+
+
+def _parse_tool_calls(raw: str | None) -> list[ToolCallInfo] | None:
+    """Parse a JSON-encoded tool_calls column, or return None."""
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+        return [ToolCallInfo(**tc) for tc in data]
+    except (json.JSONDecodeError, TypeError, KeyError):
+        return None
 
 
 # ── Session CRUD ──────────────────────────────────────────────────────────────
@@ -71,7 +86,8 @@ async def get_session(db: aiosqlite.Connection, session_id: str) -> SessionDetai
         return None
 
     msg_cursor = await db.execute(
-        "SELECT role, content, created_at FROM messages WHERE session_id = ? ORDER BY id",
+        "SELECT role, content, created_at, tool_calls, tool_call_id"
+        " FROM messages WHERE session_id = ? ORDER BY id",
         (session_id,),
     )
     msg_rows = await msg_cursor.fetchall()
@@ -119,13 +135,20 @@ async def update_session_title(
 
 
 async def add_message(
-    db: aiosqlite.Connection, session_id: str, role: str, content: str
+    db: aiosqlite.Connection,
+    session_id: str,
+    role: str,
+    content: str,
+    *,
+    tool_calls: str | None = None,
+    tool_call_id: str | None = None,
 ) -> None:
     """Insert a message and bump the session's ``updated_at`` timestamp."""
     now = _now_iso()
     await db.execute(
-        "INSERT INTO messages (session_id, role, content, created_at) VALUES (?, ?, ?, ?)",
-        (session_id, role, content, now),
+        "INSERT INTO messages (session_id, role, content, tool_calls, tool_call_id, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (session_id, role, content, tool_calls, tool_call_id, now),
     )
     await db.execute(
         "UPDATE sessions SET updated_at = ? WHERE id = ?",
@@ -137,11 +160,20 @@ async def add_message(
 async def get_messages(db: aiosqlite.Connection, session_id: str) -> list[ChatMessage]:
     """Return all messages for a session in insertion order (for OpenAI)."""
     cursor = await db.execute(
-        "SELECT role, content FROM messages WHERE session_id = ? ORDER BY id",
+        "SELECT role, content, tool_calls, tool_call_id"
+        " FROM messages WHERE session_id = ? ORDER BY id",
         (session_id,),
     )
     rows = await cursor.fetchall()
-    return [ChatMessage(role=row["role"], content=row["content"]) for row in rows]
+    return [
+        ChatMessage(
+            role=row["role"],
+            content=row["content"],
+            tool_calls=_parse_tool_calls(row["tool_calls"]),
+            tool_call_id=row["tool_call_id"],
+        )
+        for row in rows
+    ]
 
 
 async def get_messages_with_timestamps(
@@ -149,12 +181,19 @@ async def get_messages_with_timestamps(
 ) -> list[MessageEvent]:
     """Return all messages with timestamps for history replay via SSE."""
     cursor = await db.execute(
-        "SELECT role, content, created_at FROM messages WHERE session_id = ? ORDER BY id",
+        "SELECT role, content, created_at, tool_calls, tool_call_id"
+        " FROM messages WHERE session_id = ? ORDER BY id",
         (session_id,),
     )
     rows = await cursor.fetchall()
     return [
-        MessageEvent(role=row["role"], content=row["content"], created_at=row["created_at"])
+        MessageEvent(
+            role=row["role"],
+            content=row["content"],
+            created_at=row["created_at"],
+            tool_calls=_parse_tool_calls(row["tool_calls"]),
+            tool_call_id=row["tool_call_id"],
+        )
         for row in rows
     ]
 
