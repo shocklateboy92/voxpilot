@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "generate": "openapi-typescript openapi.json -o src/api.d.ts",
     "build": "node build.mjs",
     "watch": "node build.mjs --watch",
     "typecheck": "tsc --noEmit",
@@ -11,6 +12,10 @@
   },
   "devDependencies": {
     "esbuild": "^0.24.0",
+    "openapi-typescript": "^7.13.0",
     "typescript": "^5.7.0"
+  },
+  "dependencies": {
+    "openapi-fetch": "^0.17.0"
   }
 }

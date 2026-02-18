@@ -5,6 +5,12 @@ from typing import Literal
 from pydantic import BaseModel
 
 
+class StatusResponse(BaseModel):
+    """Generic status response."""
+
+    status: str
+
+
 class HealthResponse(BaseModel):
     """Health check response."""
 

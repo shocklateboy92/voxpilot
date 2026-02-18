@@ -1,10 +1,10 @@
 """Authentication routes for GitHub OAuth."""
 
 from fastapi import APIRouter, HTTPException, status
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from voxpilot.dependencies import GitHubToken, SettingsDep
-from voxpilot.models.schemas import GitHubUser
+from voxpilot.models.schemas import GitHubUser, StatusResponse
 from voxpilot.services.github import (
     build_authorization_url,
     exchange_code_for_token,
@@ -65,16 +65,12 @@ async def callback(
     return response
 
 
-@router.post("/logout")
-def logout() -> dict[str, str]:
+@router.post("/logout", response_model=StatusResponse)
+def logout() -> JSONResponse:
     """Clear the authentication cookie."""
-    response_data = {"status": "ok"}
-    # We need to construct the response manually to clear the cookie
-    from fastapi.responses import JSONResponse
-
-    response = JSONResponse(content=response_data)
+    response = JSONResponse(content={"status": "ok"})
     response.delete_cookie(key="gh_token")
-    return response  # type: ignore[return-value]
+    return response
 
 
 @router.get("/me", response_model=GitHubUser)

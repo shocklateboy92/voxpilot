@@ -17,6 +17,11 @@ dev-backend:
 dev-frontend:
     cd frontend && npm run watch
 
+# Generate OpenAPI spec and TypeScript client
+generate:
+    cd backend && uv run python scripts/export_openapi.py
+    cd frontend && npm run generate
+
 # Run backend tests
 test:
     cd backend && uv run pytest
@@ -41,7 +46,7 @@ format:
     cd backend && uv run ruff check --fix src tests
 
 # Build frontend for production
-build:
+build: generate
     cd frontend && npm run build
 
 # Clean build artifacts
@@ -50,4 +55,4 @@ clean:
     find backend -type d -name __pycache__ -exec rm -rf {} +
 
 # Run everything (install, lint, typecheck, test)
-check: install lint typecheck test
+check: install generate lint typecheck test

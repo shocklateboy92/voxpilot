@@ -1,24 +1,17 @@
+import createClient from "openapi-fetch";
+import type { components, paths } from "./api.js";
 import "./style.css";
 
-interface GitHubUser {
-  login: string;
-  name: string | null;
-  avatar_url: string;
-}
+type GitHubUser = components["schemas"]["GitHubUser"];
+type ChatMessage = components["schemas"]["ChatMessage"];
 
-interface ChatResponse {
-  message: string;
-  model: string;
-}
-
-interface ChatMessage {
-  role: "user" | "assistant" | "system";
-  content: string;
-}
+const client = createClient<paths>({
+  baseUrl: window.location.origin,
+  credentials: "include",
+});
 
 const $ = (sel: string): HTMLElement | null => document.querySelector(sel);
 
-const API_BASE = window.location.origin;
 const messages: ChatMessage[] = [];
 
 function show(id: string): void {
@@ -41,13 +34,12 @@ function appendMessage(role: "user" | "assistant" | "error", content: string): v
 
 async function checkAuth(): Promise<void> {
   try {
-    const res = await fetch(`${API_BASE}/api/auth/me`, { credentials: "include" });
-    if (!res.ok) {
+    const { data, error } = await client.GET("/api/auth/me");
+    if (error) {
       showLogin();
       return;
     }
-    const user: GitHubUser = (await res.json()) as GitHubUser;
-    showChat(user);
+    showChat(data);
   } catch {
     showLogin();
   }
@@ -75,20 +67,15 @@ async function sendMessage(content: string): Promise<void> {
   appendMessage("user", content);
 
   try {
-    const res = await fetch(`${API_BASE}/api/chat`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages, model: "gpt-4o" }),
+    const { data, error } = await client.POST("/api/chat", {
+      body: { messages, model: "gpt-4o" },
     });
 
-    if (!res.ok) {
-      const text = await res.text();
-      appendMessage("error", `Error: ${res.status.toString()} ${text}`);
+    if (error) {
+      appendMessage("error", `Error: ${JSON.stringify(error)}`);
       return;
     }
 
-    const data: ChatResponse = (await res.json()) as ChatResponse;
     messages.push({ role: "assistant", content: data.message });
     appendMessage("assistant", data.message);
   } catch (err: unknown) {
@@ -98,10 +85,7 @@ async function sendMessage(content: string): Promise<void> {
 }
 
 async function handleLogout(): Promise<void> {
-  await fetch(`${API_BASE}/api/auth/logout`, {
-    method: "POST",
-    credentials: "include",
-  });
+  await client.POST("/api/auth/logout");
   window.location.reload();
 }
 
