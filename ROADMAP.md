@@ -36,20 +36,20 @@ After Phase 4, VoxPilot is a **functional coding agent** you can use from your p
 
 ---
 
-## Phase 2: Tool Framework + Read-Only Tools
+## Phase 2: Tool Framework + Read-Only Tools ✅
 
-**Why next:** This is the first thing that makes VoxPilot an agent instead of a chatbot, and it's **safe** — no destructive operations. Already valuable from your phone: "explain this file", "find where auth is handled", "what does this function do?"
+**Status:** Complete.
 
-**What to build:**
+**What was built:**
 
-- Tool base class / registry on the backend
-- **Tools:** `read_file`, `list_directory`, `grep_search`, `glob_search`
-- Agentic loop: LLM responds with tool calls → backend executes → results fed back → repeat until LLM emits text
-- Working directory = directory where VoxPilot was launched (matches Claude Code's model)
-- Frontend: display tool calls and results inline in the conversation (collapsible blocks)
-- Stream tool calls/results via the SSE protocol from Phase 1
-
-**Useful after this phase:** Codebase Q&A from any device. "How does the auth flow work?" "Find all TODO comments." "What files would I need to change to add a new API endpoint?"
+- Tool framework: abstract `Tool` base class (`services/tools/base.py`), `ToolRegistry` (`services/tools/registry.py`), path traversal guards via `resolve()` + `relative_to()`
+- 4 read-only tools: `read_file` (line ranges, 100KB limit), `list_directory` (noise-dir filtering, dirs-first), `grep_search` (regex, include globs, 200-match cap), `glob_search` (recursive, 500-result cap)
+- Agentic loop (`services/agent.py`): streaming LLM → detect tool calls → execute → feed results back → repeat until text response or 25-iteration safety cap. Errors are returned to the LLM (not the user) so it can self-correct.
+- SSE event protocol extended: `tool-call` and `tool-result` events alongside existing `text-delta`/`done`/`error`
+- DB schema extended: `tool_calls` (JSON) and `tool_call_id` columns on messages table
+- Frontend: collapsible `<details>` blocks for tool calls/results, history replay on reconnect
+- `requires_confirmation: bool` hook on Tool base class (forward-looking for Phase 3 write tools)
+- Config: `work_dir` (Path, defaults to cwd) and `max_agent_iterations` (int, default 25)
 
 ---
 
