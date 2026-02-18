@@ -1,0 +1,66 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --color-bg: #0f1117;
+  --color-surface: #1a1d27;
+  --color-text: #e4e4e7;
+  --color-muted: #71717a;
+  --color-ok: #22c55e;
+  --color-error: #ef4444;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "JetBrains Mono", monospace;
+}
+
+html {
+  font-family: var(--font-sans);
+  background: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.6;
+}
+
+body {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#app {
+  text-align: center;
+  padding: 2rem;
+  background: var(--color-surface);
+  border-radius: 1rem;
+  box-shadow: 0 4px 24px rgb(0 0 0 / 0.3);
+  max-width: 28rem;
+  width: 100%;
+}
+
+h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  letter-spacing: -0.02em;
+}
+
+#status {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  color: var(--color-muted);
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  background: var(--color-bg);
+}
+
+#status.ok {
+  color: var(--color-ok);
+}
+
+#status.error {
+  color: var(--color-error);
+}
