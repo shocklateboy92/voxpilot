@@ -294,10 +294,9 @@ async function switchSession(sessionId: string): Promise<void> {
 
 async function handleNewSession(): Promise<void> {
   const session = await createSession();
-  currentSessionId = session.id;
-  clearMessages();
   const sessions = await fetchSessions();
   renderSessionList(sessions);
+  await switchSession(session.id);
 }
 
 async function handleDeleteSession(sessionId: string): Promise<void> {
