@@ -1,10 +1,12 @@
 import createClient from "openapi-fetch";
 import type { components, paths } from "./api.js";
+import { streamChat } from "./sse.js";
+import type { ChatMessage } from "./sse.js";
 import "./style.css";
 
 type GitHubUser = components["schemas"]["GitHubUser"];
-type ChatMessage = components["schemas"]["ChatMessage"];
 
+// openapi-fetch client for non-streaming endpoints (auth, health)
 const client = createClient<paths>({
   baseUrl: window.location.origin,
   credentials: "include",
@@ -13,6 +15,7 @@ const client = createClient<paths>({
 const $ = (sel: string): HTMLElement | null => document.querySelector(sel);
 
 const messages: ChatMessage[] = [];
+let streaming = false;
 
 function show(id: string): void {
   $(id)?.classList.remove("hidden");
@@ -22,14 +25,32 @@ function hide(id: string): void {
   $(id)?.classList.add("hidden");
 }
 
-function appendMessage(role: "user" | "assistant" | "error", content: string): void {
+/** Append a completed message bubble to the chat. */
+function appendMessage(role: "user" | "assistant" | "error", content: string): HTMLElement {
   const container = $("#messages");
-  if (!container) return;
   const div = document.createElement("div");
   div.className = `message ${role}`;
   div.textContent = content;
-  container.appendChild(div);
-  container.scrollTop = container.scrollHeight;
+  container?.appendChild(div);
+  if (container) container.scrollTop = container.scrollHeight;
+  return div;
+}
+
+/** Create an empty assistant bubble with a streaming cursor. */
+function createStreamingBubble(): HTMLElement {
+  const container = $("#messages");
+  const div = document.createElement("div");
+  div.className = "message assistant streaming";
+  container?.appendChild(div);
+  if (container) container.scrollTop = container.scrollHeight;
+  return div;
+}
+
+function setInputEnabled(enabled: boolean): void {
+  const input = $("#chat-input") as HTMLInputElement | null;
+  const btn = $("#chat-form")?.querySelector("button[type=submit]") as HTMLButtonElement | null;
+  if (input) input.disabled = !enabled;
+  if (btn) btn.disabled = !enabled;
 }
 
 async function checkAuth(): Promise<void> {
@@ -63,24 +84,54 @@ function showChat(user: GitHubUser): void {
 }
 
 async function sendMessage(content: string): Promise<void> {
+  if (streaming) return;
+
   messages.push({ role: "user", content });
   appendMessage("user", content);
 
+  const bubble = createStreamingBubble();
+  let accumulated = "";
+
+  streaming = true;
+  setInputEnabled(false);
+
   try {
-    const { data, error } = await client.POST("/api/chat", {
-      body: { messages, model: "gpt-4o" },
+    await streamChat(messages, "gpt-4o", {
+      onTextDelta(delta) {
+        accumulated += delta;
+        bubble.textContent = accumulated;
+        const container = $("#messages");
+        if (container) container.scrollTop = container.scrollHeight;
+      },
+      onDone(_model) {
+        bubble.classList.remove("streaming");
+        messages.push({ role: "assistant", content: accumulated });
+      },
+      onError(message) {
+        bubble.classList.remove("streaming");
+        if (accumulated === "") {
+          // No content received — turn the bubble into an error
+          bubble.className = "message error";
+          bubble.textContent = `Error: ${message}`;
+        } else {
+          // Partial content received — append error below
+          appendMessage("error", `Stream error: ${message}`);
+        }
+      },
     });
-
-    if (error) {
-      appendMessage("error", `Error: ${JSON.stringify(error)}`);
-      return;
-    }
-
-    messages.push({ role: "assistant", content: data.message });
-    appendMessage("assistant", data.message);
   } catch (err: unknown) {
+    bubble.classList.remove("streaming");
     const msg = err instanceof Error ? err.message : "Unknown error";
-    appendMessage("error", `Network error: ${msg}`);
+    if (accumulated === "") {
+      bubble.className = "message error";
+      bubble.textContent = `Network error: ${msg}`;
+    } else {
+      appendMessage("error", `Network error: ${msg}`);
+    }
+  } finally {
+    streaming = false;
+    setInputEnabled(true);
+    ($("#chat-input") as HTMLInputElement | null)?.focus();
   }
 }
 

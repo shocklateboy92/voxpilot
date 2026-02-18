@@ -10,6 +10,7 @@ dependencies = [
     "pydantic-settings>=2.7",
     "httpx>=0.28",
     "openai>=2.21",
+    "sse-starlette>=3.2",
 ]
 
 [project.optional-dependencies]

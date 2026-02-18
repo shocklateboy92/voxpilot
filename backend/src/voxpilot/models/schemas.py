@@ -40,8 +40,28 @@ class ChatRequest(BaseModel):
     model: str = "gpt-4o"
 
 
-class ChatResponse(BaseModel):
-    """Response from the chat endpoint."""
+# ── SSE event payloads ────────────────────────────────────────────────────────
+# Each model maps to one SSE event type.  The event name goes in the SSE
+# `event:` field; the JSON-serialised model goes in `data:`.
+#
+# Future phases will add:
+#   ToolCallEvent   (event: tool-call)   — {id, name, arguments}
+#   ToolResultEvent (event: tool-result) — {id, content}
+
+
+class TextDeltaEvent(BaseModel):
+    """A single streamed token chunk (event: text-delta)."""
+
+    content: str
+
+
+class DoneEvent(BaseModel):
+    """Signals the stream is complete (event: done)."""
+
+    model: str
+
+
+class ErrorEvent(BaseModel):
+    """Signals an error during streaming (event: error)."""
 
     message: str
-    model: str

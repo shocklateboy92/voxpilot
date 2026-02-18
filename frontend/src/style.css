@@ -173,6 +173,20 @@ h1 {
   background: var(--color-bg);
 }
 
+/* Streaming cursor — blinking block at end of assistant message while streaming */
+.message.streaming::after {
+  content: "▊";
+  animation: blink 0.7s step-end infinite;
+  color: var(--color-accent);
+  margin-left: 1px;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
 /* Chat form */
 #chat-form {
   display: flex;
