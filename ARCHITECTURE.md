@@ -20,15 +20,16 @@ Chat interface to AI models (GPT-4o, etc.) via the **GitHub Models API**. Users 
 
 ```
 Browser (vanilla TS SPA)
-  │  openapi-fetch, type-safe, cookies
+  │  openapi-fetch, EventSource, cookies
   │
   ▼  HTTP/JSON + SSE
 FastAPI (uvicorn :8000)
-  ├── /api/auth/*         → GitHub OAuth (httpx)        → github.com
-  ├── /api/sessions/*     → Session CRUD (aiosqlite)    → voxpilot.db
-  ├── /api/chat           → OpenAI SDK (AsyncOpenAI)    → models.inference.ai.azure.com
+  ├── /api/auth/*                    → GitHub OAuth (httpx)     → github.com
+  ├── /api/sessions/*                → Session CRUD (aiosqlite) → voxpilot.db
+  │   ├── GET  /{id}/stream          → persistent SSE stream    → models.inference.ai.azure.com
+  │   └── POST /{id}/messages        → enqueue user message (202)
   ├── /api/health
-  └── /* (production)     → static files from frontend/dist/
+  └── /* (production)                → static files from frontend/dist/
 ```
 
 ## Data Model
@@ -55,9 +56,9 @@ sessions                          messages
 - **Config**: `pydantic-settings` with `VOXPILOT_` env prefix. `.env` auto-loaded by Justfile. Key settings: `db_path` (default `voxpilot.db`), `github_client_id`, `github_client_secret`.
 - **DB lifecycle**: `init_db()`/`close_db()` managed via FastAPI `lifespan`. Single shared `aiosqlite.Connection` (sufficient for single-user). `get_db()` dependency provides it to routes.
 - **Backend layout**: src layout (`backend/src/voxpilot/`). Routes in `api/routes/`, services in `services/`, schemas in `models/schemas.py`, DB in `db.py`.
-- **Chat flow**: Frontend sends `{ session_id, content, model }`. Backend persists user message → loads full history from DB → streams to LLM → persists assistant message on completion. Auto-titles session from first message (first 50 chars).
+- **Chat flow**: Frontend opens a browser-native `EventSource` on `GET /api/sessions/{id}/stream`. The stream replays all existing messages, then sends a `ready` event. User messages are submitted via `POST /api/sessions/{id}/messages` (returns 202). The stream echoes the user message, calls the LLM, streams `text-delta` tokens, and persists the assistant response on completion. An in-memory `asyncio.Queue` per session (in `services/streams.py`) bridges the POST endpoint to the SSE generator. Auto-titles session from first message (first 50 chars).
 - **Row mapping**: `aiosqlite.Row` (dict-like access) → Pydantic models via explicit constructors in `services/sessions.py`. ~15 lines total, fully typed.
-- **Frontend**: `main.ts` manages session sidebar + chat area. No in-memory message array; state lives in the DB. Sessions loaded via REST, chat streamed via SSE.
+- **Frontend**: `main.ts` manages session sidebar + chat area. No in-memory message array; state lives in the DB. History replayed via the session stream on connect; `sse.ts` wraps `EventSource` and exposes typed callbacks.
 - **Production**: `just build` bundles frontend; `create_app()` auto-mounts `frontend/dist/` if it exists. Single uvicorn process serves everything.
 - **Tests**: `conftest.py` has `autouse` fixture calling `init_db(":memory:")` — every test gets a fresh in-memory DB.
 
@@ -70,7 +71,8 @@ sessions                          messages
 | **GitHub token as Models API key** | GitHub Models accepts OAuth tokens directly; no separate key management |
 | **Cookie auth (no JWT)** | Simpler; `HttpOnly` mitigates XSS; no refresh logic needed |
 | **SQLite via raw aiosqlite** | Async-safe, single-file DB, no ORM. SQLModel rejected for poor Pyright strict compat |
-| **Backend owns history** | Frontend sends only session_id + new message; single source of truth |
+| **Backend owns history** | Frontend sends only content + model; single source of truth. Stream replays full history on connect. |
+| **Session-scoped SSE stream** | Browser-native `EventSource` (GET) with separate POST for messages. Simpler than POST-based SSE; supports reconnection. |
 | **Auto-title from first message** | No extra LLM call; `content[:50]` is fast and sufficient |
 | **OpenAI SDK for GitHub Models** | Compatible API; reuses mature SDK |
 | **src layout** | Python packaging best practice; prevents root imports |

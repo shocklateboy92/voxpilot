@@ -1,14 +1,17 @@
-"""Tests for the streaming chat endpoint."""
+"""Tests for session-scoped SSE stream and message submission endpoints."""
 
+import asyncio
 from collections.abc import AsyncIterator
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
 
 from voxpilot.db import get_db
-from voxpilot.models.schemas import DoneEvent, ErrorEvent, TextDeltaEvent
-from voxpilot.services.sessions import create_session
+from voxpilot.models.schemas import DoneEvent, ErrorEvent, MessageEvent, TextDeltaEvent
+from voxpilot.services.sessions import add_message, create_session
+from voxpilot.services.streams import registry
 
 
 def _make_chunk(
@@ -36,7 +39,6 @@ def _parse_sse_events(text: str) -> list[tuple[str, str]]:
     events: list[tuple[str, str]] = []
     event_type = ""
     data = ""
-    # Normalize \r\n to \n for consistent parsing
     for line in text.replace("\r\n", "\n").split("\n"):
         if line.startswith("event:"):
             event_type = line[len("event:"):].strip()
@@ -46,7 +48,6 @@ def _parse_sse_events(text: str) -> list[tuple[str, str]]:
             events.append((event_type, data))
             event_type = ""
             data = ""
-    # Handle final event if no trailing blank line
     if event_type and data:
         events.append((event_type, data))
     return events
@@ -59,15 +60,174 @@ async def _create_test_session() -> str:
     return session.id
 
 
+async def _wait_for_queue(
+    session_id: str,
+) -> asyncio.Queue[dict[str, Any] | None]:
+    """Poll until the stream registers a queue, then return it."""
+    for _ in range(200):
+        q = registry.get(session_id)
+        if q is not None:
+            return q
+        await asyncio.sleep(0.01)
+    raise RuntimeError(f"Stream queue for {session_id} never registered")
+
+
+# ── POST /api/sessions/{id}/messages tests ────────────────────────────────────
+
+
 @pytest.mark.asyncio
-async def test_chat_streams_text_deltas(client: httpx.AsyncClient) -> None:
-    """POST /api/chat should stream text-delta events followed by done."""
+async def test_send_message_returns_202(client: httpx.AsyncClient) -> None:
+    """POST /messages with an active stream should return 202."""
     session_id = await _create_test_session()
+    client.cookies.set("gh_token", "gho_fake")
+
+    # Simulate an active stream by registering a queue
+    registry.register(session_id)
+    try:
+        response = await client.post(
+            f"/api/sessions/{session_id}/messages",
+            json={"content": "Hello", "model": "gpt-4o"},
+        )
+        assert response.status_code == 202
+    finally:
+        registry.unregister(session_id)
+
+
+@pytest.mark.asyncio
+async def test_send_message_returns_409_without_stream(
+    client: httpx.AsyncClient,
+) -> None:
+    """POST /messages without an active stream should return 409."""
+    session_id = await _create_test_session()
+    client.cookies.set("gh_token", "gho_fake")
+
+    response = await client.post(
+        f"/api/sessions/{session_id}/messages",
+        json={"content": "Hello", "model": "gpt-4o"},
+    )
+    assert response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_send_message_returns_401_without_cookie(
+    client: httpx.AsyncClient,
+) -> None:
+    """POST /messages without auth cookie should return 401."""
+    response = await client.post(
+        "/api/sessions/some-id/messages",
+        json={"content": "Hi"},
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_send_message_returns_404_for_invalid_session(
+    client: httpx.AsyncClient,
+) -> None:
+    """POST /messages with non-existent session should return 404."""
+    client.cookies.set("gh_token", "gho_fake")
+    response = await client.post(
+        "/api/sessions/nonexistent/messages",
+        json={"content": "Hi"},
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_send_message_enqueues_payload(
+    client: httpx.AsyncClient,
+) -> None:
+    """POST /messages should place the correct payload on the queue."""
+    session_id = await _create_test_session()
+    client.cookies.set("gh_token", "gho_fake_token_123")
+
+    queue = registry.register(session_id)
+    try:
+        await client.post(
+            f"/api/sessions/{session_id}/messages",
+            json={"content": "Hello world", "model": "gpt-4o"},
+        )
+        payload = queue.get_nowait()
+        assert payload is not None
+        assert payload["content"] == "Hello world"
+        assert payload["model"] == "gpt-4o"
+        assert payload["gh_token"] == "gho_fake_token_123"  # noqa: S105
+    finally:
+        registry.unregister(session_id)
+
+
+# ── GET /api/sessions/{id}/stream tests ───────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_stream_replays_history(client: httpx.AsyncClient) -> None:
+    """GET /stream should replay existing messages, then send ready."""
+    session_id = await _create_test_session()
+    db = get_db()
+    await add_message(db, session_id, "user", "Hello")
+    await add_message(db, session_id, "assistant", "Hi there!")
+
+    client.cookies.set("gh_token", "gho_fake")
+
+    async def _feed_sentinel() -> None:
+        """Wait for stream registration, then send sentinel to end it."""
+        q = await _wait_for_queue(session_id)
+        await q.put(None)
+
+    feed_task = asyncio.create_task(_feed_sentinel())
+    response = await client.get(f"/api/sessions/{session_id}/stream")
+    await feed_task
+
+    events = _parse_sse_events(response.text)
+
+    # Should have: message (user), message (assistant), ready
+    msg_events = [(t, d) for t, d in events if t == "message"]
+    ready_events = [t for t, _ in events if t == "ready"]
+
+    assert len(msg_events) == 2
+
+    msg_0 = MessageEvent.model_validate_json(msg_events[0][1])
+    assert msg_0.role == "user"
+    assert msg_0.content == "Hello"
+
+    msg_1 = MessageEvent.model_validate_json(msg_events[1][1])
+    assert msg_1.role == "assistant"
+    assert msg_1.content == "Hi there!"
+
+    assert len(ready_events) == 1
+
+
+@pytest.mark.asyncio
+async def test_stream_returns_401_without_cookie(
+    client: httpx.AsyncClient,
+) -> None:
+    """GET /stream without auth cookie should return 401."""
+    response = await client.get("/api/sessions/some-id/stream")
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_stream_returns_404_for_invalid_session(
+    client: httpx.AsyncClient,
+) -> None:
+    """GET /stream with non-existent session should return 404."""
+    client.cookies.set("gh_token", "gho_fake")
+    response = await client.get("/api/sessions/nonexistent/stream")
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_stream_processes_message_and_streams_response(
+    client: httpx.AsyncClient,
+) -> None:
+    """Full flow: GET /stream → push message → get text-delta + done."""
+    session_id = await _create_test_session()
+    client.cookies.set("gh_token", "gho_fake")
+
     chunks = [
         _make_chunk(content="Hello", model="gpt-4o"),
         _make_chunk(content=" world", model="gpt-4o"),
     ]
-
     mock_create = AsyncMock(return_value=_mock_stream(chunks))
 
     with patch("voxpilot.api.routes.chat.AsyncOpenAI") as mock_openai_cls:
@@ -75,26 +235,39 @@ async def test_chat_streams_text_deltas(client: httpx.AsyncClient) -> None:
         mock_client.chat.completions.create = mock_create
         mock_openai_cls.return_value = mock_client
 
-        client.cookies.set("gh_token", "gho_fake_token_123")
-        response = await client.post(
-            "/api/chat",
-            json={"session_id": session_id, "content": "Hi", "model": "gpt-4o"},
-        )
+        async def _feed_message() -> None:
+            q = await _wait_for_queue(session_id)
+            await q.put({
+                "content": "Hi",
+                "model": "gpt-4o",
+                "gh_token": "gho_fake",
+            })
+            # Wait for processing then send sentinel
+            await asyncio.sleep(0.2)
+            await q.put(None)
 
-    assert response.status_code == 200
-    assert "text/event-stream" in response.headers.get("content-type", "")
+        feed_task = asyncio.create_task(_feed_message())
+        response = await client.get(f"/api/sessions/{session_id}/stream")
+        await feed_task
 
     events = _parse_sse_events(response.text)
 
-    # Should have 2 text-delta events + 1 done event
+    # Should have: ready, message (user echo), text-delta x2, done
+    ready_events = [t for t, _ in events if t == "ready"]
+    msg_events = [(t, d) for t, d in events if t == "message"]
     text_deltas = [(t, d) for t, d in events if t == "text-delta"]
     done_events = [(t, d) for t, d in events if t == "done"]
 
-    assert len(text_deltas) == 2
+    assert len(ready_events) == 1
+    assert len(msg_events) == 1
 
+    user_msg = MessageEvent.model_validate_json(msg_events[0][1])
+    assert user_msg.role == "user"
+    assert user_msg.content == "Hi"
+
+    assert len(text_deltas) == 2
     delta_0 = TextDeltaEvent.model_validate_json(text_deltas[0][1])
     assert delta_0.content == "Hello"
-
     delta_1 = TextDeltaEvent.model_validate_json(text_deltas[1][1])
     assert delta_1.content == " world"
 
@@ -104,11 +277,13 @@ async def test_chat_streams_text_deltas(client: httpx.AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_chat_persists_messages(client: httpx.AsyncClient) -> None:
-    """POST /api/chat should persist user + assistant messages in the DB."""
+async def test_stream_persists_messages(client: httpx.AsyncClient) -> None:
+    """Messages sent through the stream should be persisted in the DB."""
     from voxpilot.services.sessions import get_messages
 
     session_id = await _create_test_session()
+    client.cookies.set("gh_token", "gho_fake")
+
     chunks = [_make_chunk(content="Hey!", model="gpt-4o")]
     mock_create = AsyncMock(return_value=_mock_stream(chunks))
 
@@ -117,11 +292,19 @@ async def test_chat_persists_messages(client: httpx.AsyncClient) -> None:
         mock_client.chat.completions.create = mock_create
         mock_openai_cls.return_value = mock_client
 
-        client.cookies.set("gh_token", "gho_fake_token_123")
-        await client.post(
-            "/api/chat",
-            json={"session_id": session_id, "content": "Hello", "model": "gpt-4o"},
-        )
+        async def _feed() -> None:
+            q = await _wait_for_queue(session_id)
+            await q.put({
+                "content": "Hello",
+                "model": "gpt-4o",
+                "gh_token": "gho_fake",
+            })
+            await asyncio.sleep(0.2)
+            await q.put(None)
+
+        feed_task = asyncio.create_task(_feed())
+        await client.get(f"/api/sessions/{session_id}/stream")
+        await feed_task
 
     db = get_db()
     messages = await get_messages(db, session_id)
@@ -133,11 +316,13 @@ async def test_chat_persists_messages(client: httpx.AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_chat_auto_titles_session(client: httpx.AsyncClient) -> None:
-    """POST /api/chat should auto-title the session from the first message."""
+async def test_stream_auto_titles_session(client: httpx.AsyncClient) -> None:
+    """First message through the stream should auto-title the session."""
     from voxpilot.services.sessions import get_session
 
     session_id = await _create_test_session()
+    client.cookies.set("gh_token", "gho_fake")
+
     chunks = [_make_chunk(content="Reply", model="gpt-4o")]
     mock_create = AsyncMock(return_value=_mock_stream(chunks))
 
@@ -146,11 +331,19 @@ async def test_chat_auto_titles_session(client: httpx.AsyncClient) -> None:
         mock_client.chat.completions.create = mock_create
         mock_openai_cls.return_value = mock_client
 
-        client.cookies.set("gh_token", "gho_fake_token_123")
-        await client.post(
-            "/api/chat",
-            json={"session_id": session_id, "content": "Tell me about cats", "model": "gpt-4o"},
-        )
+        async def _feed() -> None:
+            q = await _wait_for_queue(session_id)
+            await q.put({
+                "content": "Tell me about cats",
+                "model": "gpt-4o",
+                "gh_token": "gho_fake",
+            })
+            await asyncio.sleep(0.2)
+            await q.put(None)
+
+        feed_task = asyncio.create_task(_feed())
+        await client.get(f"/api/sessions/{session_id}/stream")
+        await feed_task
 
     db = get_db()
     session = await get_session(db, session_id)
@@ -159,11 +352,14 @@ async def test_chat_auto_titles_session(client: httpx.AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_chat_streams_error_on_openai_failure(client: httpx.AsyncClient) -> None:
-    """POST /api/chat should yield an error event if OpenAI raises."""
+async def test_stream_error_on_openai_failure(
+    client: httpx.AsyncClient,
+) -> None:
+    """OpenAI error during streaming should yield an error event."""
     from openai import OpenAIError
 
     session_id = await _create_test_session()
+    client.cookies.set("gh_token", "gho_fake")
 
     mock_create = AsyncMock(side_effect=OpenAIError("rate limit exceeded"))
 
@@ -172,13 +368,19 @@ async def test_chat_streams_error_on_openai_failure(client: httpx.AsyncClient) -
         mock_client.chat.completions.create = mock_create
         mock_openai_cls.return_value = mock_client
 
-        client.cookies.set("gh_token", "gho_fake_token_123")
-        response = await client.post(
-            "/api/chat",
-            json={"session_id": session_id, "content": "Hi", "model": "gpt-4o"},
-        )
+        async def _feed() -> None:
+            q = await _wait_for_queue(session_id)
+            await q.put({
+                "content": "Hi",
+                "model": "gpt-4o",
+                "gh_token": "gho_fake",
+            })
+            await asyncio.sleep(0.2)
+            await q.put(None)
 
-    assert response.status_code == 200
+        feed_task = asyncio.create_task(_feed())
+        response = await client.get(f"/api/sessions/{session_id}/stream")
+        await feed_task
 
     events = _parse_sse_events(response.text)
     error_events = [(t, d) for t, d in events if t == "error"]
@@ -189,48 +391,17 @@ async def test_chat_streams_error_on_openai_failure(client: httpx.AsyncClient) -
 
 
 @pytest.mark.asyncio
-async def test_chat_returns_401_without_cookie(client: httpx.AsyncClient) -> None:
-    """POST /api/chat without auth cookie should return 401."""
-    response = await client.post(
-        "/api/chat",
-        json={"session_id": "some-id", "content": "Hi", "model": "gpt-4o"},
-    )
-    assert response.status_code == 401
-
-
-@pytest.mark.asyncio
-async def test_chat_returns_404_for_invalid_session(client: httpx.AsyncClient) -> None:
-    """POST /api/chat with non-existent session_id should return 404."""
-    client.cookies.set("gh_token", "gho_fake_token_123")
-    response = await client.post(
-        "/api/chat",
-        json={"session_id": "nonexistent", "content": "Hi", "model": "gpt-4o"},
-    )
-    assert response.status_code == 404
-
-
-@pytest.mark.asyncio
-async def test_chat_empty_response(client: httpx.AsyncClient) -> None:
-    """POST /api/chat with model returning no content should still send done."""
+async def test_stream_unregisters_on_exit(client: httpx.AsyncClient) -> None:
+    """Stream should unregister from the registry when it finishes."""
     session_id = await _create_test_session()
-    chunks = [_make_chunk(content=None, model="gpt-4o")]
+    client.cookies.set("gh_token", "gho_fake")
 
-    mock_create = AsyncMock(return_value=_mock_stream(chunks))
+    async def _feed_sentinel() -> None:
+        q = await _wait_for_queue(session_id)
+        await q.put(None)
 
-    with patch("voxpilot.api.routes.chat.AsyncOpenAI") as mock_openai_cls:
-        mock_client = MagicMock()
-        mock_client.chat.completions.create = mock_create
-        mock_openai_cls.return_value = mock_client
+    feed_task = asyncio.create_task(_feed_sentinel())
+    await client.get(f"/api/sessions/{session_id}/stream")
+    await feed_task
 
-        client.cookies.set("gh_token", "gho_fake_token_123")
-        response = await client.post(
-            "/api/chat",
-            json={"session_id": session_id, "content": "Hi", "model": "gpt-4o"},
-        )
-
-    events = _parse_sse_events(response.text)
-    text_deltas = [t for t, _ in events if t == "text-delta"]
-    done_events = [t for t, _ in events if t == "done"]
-
-    assert len(text_deltas) == 0
-    assert len(done_events) == 1
+    assert registry.get(session_id) is None

@@ -33,10 +33,9 @@ class ChatMessage(BaseModel):
     content: str
 
 
-class ChatRequest(BaseModel):
-    """Request body for the chat endpoint."""
+class SendMessageRequest(BaseModel):
+    """Request body for posting a user message to a session stream."""
 
-    session_id: str
     content: str
     model: str = "gpt-4o"
 
@@ -48,6 +47,17 @@ class ChatRequest(BaseModel):
 # Future phases will add:
 #   ToolCallEvent   (event: tool-call)   — {id, name, arguments}
 #   ToolResultEvent (event: tool-result) — {id, content}
+
+
+class MessageEvent(BaseModel):
+    """A persisted chat message (event: message).
+
+    Used for history replay on connect and echoing new user messages.
+    """
+
+    role: Literal["user", "assistant", "system"]
+    content: str
+    created_at: str
 
 
 class TextDeltaEvent(BaseModel):

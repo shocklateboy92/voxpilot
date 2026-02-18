@@ -21,18 +21,18 @@ After Phase 4, VoxPilot is a **functional coding agent** you can use from your p
 
 ---
 
-## Phase 1: Streaming Chat
+## Phase 1: Streaming Chat ✅
 
-**Why first:** Every subsequent phase depends on streaming. An agent loop with 5–10 tool calls takes 30+ seconds — without streaming, the UI is a spinner. Building it now also improves the existing plain chat immediately.
+**Status:** Complete.
 
-**What to build:**
+**What was built:**
 
-- Replace the REST `POST /api/chat` → JSON response with **Server-Sent Events** (SSE)
-- Stream token-by-token text deltas to the frontend
-- Frontend renders tokens as they arrive
-- Design the SSE event protocol to include event types for `text-delta`, `tool-call`, `tool-result`, `error`, `done` — even though only `text-delta` is used initially
-
-**Useful after this phase:** Chat feels responsive instead of blocking.
+- Session-scoped SSE stream: `GET /api/sessions/{id}/stream` opens a persistent `EventSource` connection that replays message history on connect, then delivers live events
+- Separate message submission: `POST /api/sessions/{id}/messages` enqueues a user message (returns 202); all events flow through the SSE stream
+- In-memory `asyncio.Queue` per session (`services/streams.py`) bridges POST → SSE generator
+- SSE event protocol: `message` (history + echo), `ready`, `text-delta`, `done`, `error` — all JSON payloads
+- Frontend uses browser-native `EventSource` (no custom SSE parser)
+- Future phases will add `tool-call` and `tool-result` event types
 
 ---
 
@@ -82,18 +82,17 @@ After Phase 4, VoxPilot is a **functional coding agent** you can use from your p
 
 ---
 
-## Phase 5: Session Persistence + History
+## Phase 5: Session Persistence + History ✅
 
-**Why next:** Without this, every page reload loses context. Critical for mobile (where you switch apps constantly) and for multi-session workflows.
+**Status:** Complete.
 
-**What to build:**
+**What was built:**
 
-- Persist conversation history (SQLite or JSON files)
-- Resume sessions (session list in the UI)
-- New conversation / clear context controls
-- Auto-title sessions based on first message
-
-**Useful after this phase:** Start a task on your laptop, continue from your phone. Come back tomorrow and pick up where you left off.
+- SQLite-backed conversation history (sessions + messages tables)
+- Session list in the UI with create, switch, delete
+- Resume sessions across page reloads and devices
+- Auto-title sessions from first user message (first 50 chars)
+- History replayed via the session SSE stream on connect (no separate REST fetch needed)
 
 ---
 

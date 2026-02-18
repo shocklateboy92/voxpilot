@@ -1,9 +1,15 @@
-"""Chat completions route using GitHub Models API with SSE streaming."""
+"""Session-scoped SSE stream and message submission endpoints.
 
+GET  /api/sessions/{session_id}/stream   — persistent EventSource stream
+POST /api/sessions/{session_id}/messages — fire-and-forget message submission
+"""
+
+import asyncio
 import logging
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Request, Response, status
 from openai import AsyncOpenAI, OpenAIError
 from openai.types.chat import (
     ChatCompletionAssistantMessageParam,
@@ -17,21 +23,24 @@ from sse_starlette.sse import EventSourceResponse
 from voxpilot.dependencies import DbDep, GitHubToken
 from voxpilot.models.schemas import (
     ChatMessage,
-    ChatRequest,
     DoneEvent,
     ErrorEvent,
+    MessageEvent,
+    SendMessageRequest,
     TextDeltaEvent,
 )
 from voxpilot.services.sessions import (
     add_message,
     auto_title_if_needed,
     get_messages,
+    get_messages_with_timestamps,
     session_exists,
 )
+from voxpilot.services.streams import registry
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api", tags=["chat"])
+router = APIRouter(prefix="/api/sessions", tags=["chat"])
 
 GITHUB_MODELS_BASE_URL = "https://models.inference.ai.azure.com"
 
@@ -45,89 +54,175 @@ def _to_message_param(m: ChatMessage) -> ChatCompletionMessageParam:
     return ChatCompletionUserMessageParam(role="user", content=m.content)
 
 
-@router.post("/chat")
-async def chat(
-    body: ChatRequest, token: GitHubToken, db: DbDep, request: Request
+@router.get("/{session_id}/stream")
+async def stream_session(
+    session_id: str, token: GitHubToken, db: DbDep, request: Request
 ) -> EventSourceResponse:
-    """Stream a chat completion response as Server-Sent Events.
+    """Open a persistent SSE stream for a session.
 
-    The user message is persisted before streaming.  The assistant response
-    is accumulated and persisted when the stream completes.
+    On connect the stream replays all existing messages as ``message``
+    events, then sends a ``ready`` event.  After that, incoming user
+    messages (posted via ``POST /{session_id}/messages``) are echoed as
+    ``message`` events and the LLM response is streamed as
+    ``text-delta`` / ``done`` / ``error`` events.
 
     SSE event types:
-        text-delta  — ``{"content": "..."}``  (one per token)
-        done        — ``{"model": "..."}``    (final event)
-        error       — ``{"message": "..."}``  (on failure)
+        message     — ``{"role": "...", "content": "...", "created_at": "..."}``
+        ready       — ``{}``
+        text-delta  — ``{"content": "..."}``
+        done        — ``{"model": "..."}``
+        error       — ``{"message": "..."}``
     """
-    # Validate session
-    if not await session_exists(db, body.session_id):
+    if not await session_exists(db, session_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found",
         )
 
-    # Persist user message and auto-title the session
-    await add_message(db, body.session_id, "user", body.content)
-    await auto_title_if_needed(db, body.session_id, body.content)
-
-    # Load full conversation history for the LLM
-    history = await get_messages(db, body.session_id)
-
-    client = AsyncOpenAI(
-        base_url=GITHUB_MODELS_BASE_URL,
-        api_key=token,
-    )
-    messages = [_to_message_param(m) for m in history]
+    queue = registry.register(session_id)
 
     async def _generate() -> AsyncIterator[ServerSentEvent]:
-        model_name = body.model
-        accumulated = ""
         try:
-            stream = await client.chat.completions.create(
-                model=body.model,
-                messages=messages,
-                stream=True,
-            )
-            async for chunk in stream:
-                # Check for client disconnect
-                if await request.is_disconnected():
+            # ── Replay history ────────────────────────────────────────
+            history = await get_messages_with_timestamps(db, session_id)
+            for msg in history:
+                yield ServerSentEvent(
+                    data=msg.model_dump_json(),
+                    event="message",
+                )
+
+            yield ServerSentEvent(data="{}", event="ready")
+
+            # ── Live loop ─────────────────────────────────────────────
+            while True:
+                # Wait for a message from the POST endpoint
+                try:
+                    payload = await asyncio.wait_for(queue.get(), timeout=30.0)
+                except TimeoutError:
+                    # Send keepalive comment to prevent connection timeout
+                    yield ServerSentEvent(comment="keepalive")
+                    continue
+
+                # Sentinel — clean shutdown (used by tests)
+                if payload is None:
                     break
 
-                choice = chunk.choices[0] if chunk.choices else None
-                if choice and choice.delta.content:
-                    accumulated += choice.delta.content
-                    yield ServerSentEvent(
-                        data=TextDeltaEvent(content=choice.delta.content).model_dump_json(),
-                        event="text-delta",
+                content: str = payload["content"]
+                model: str = payload["model"]
+                gh_token: str = payload["gh_token"]
+
+                # Persist user message and auto-title
+                await add_message(db, session_id, "user", content)
+                await auto_title_if_needed(db, session_id, content)
+
+                # Echo user message back to the stream
+                now = datetime.now(UTC).isoformat()
+                yield ServerSentEvent(
+                    data=MessageEvent(
+                        role="user", content=content, created_at=now
+                    ).model_dump_json(),
+                    event="message",
+                )
+
+                # Load full conversation for the LLM
+                messages = await get_messages(db, session_id)
+                openai_messages = [_to_message_param(m) for m in messages]
+
+                client = AsyncOpenAI(
+                    base_url=GITHUB_MODELS_BASE_URL,
+                    api_key=gh_token,
+                )
+
+                model_name = model
+                accumulated = ""
+                try:
+                    llm_stream = await client.chat.completions.create(
+                        model=model,
+                        messages=openai_messages,
+                        stream=True,
                     )
-                # Capture model name from first chunk that has it
-                if chunk.model:
-                    model_name = chunk.model
+                    async for chunk in llm_stream:
+                        if await request.is_disconnected():
+                            break
 
-            # Persist the complete assistant response
-            if accumulated:
-                await add_message(db, body.session_id, "assistant", accumulated)
+                        choice = chunk.choices[0] if chunk.choices else None
+                        if choice and choice.delta.content:
+                            accumulated += choice.delta.content
+                            yield ServerSentEvent(
+                                data=TextDeltaEvent(
+                                    content=choice.delta.content
+                                ).model_dump_json(),
+                                event="text-delta",
+                            )
+                        if chunk.model:
+                            model_name = chunk.model
 
-            yield ServerSentEvent(
-                data=DoneEvent(model=model_name).model_dump_json(),
-                event="done",
-            )
-        except OpenAIError as exc:
-            logger.exception("OpenAI API error during streaming")
-            # Persist partial response if any
-            if accumulated:
-                await add_message(db, body.session_id, "assistant", accumulated)
-            yield ServerSentEvent(
-                data=ErrorEvent(message=str(exc)).model_dump_json(),
-                event="error",
-            )
-        except Exception as exc:
-            logger.exception("Unexpected error during streaming")
-            if accumulated:
-                await add_message(db, body.session_id, "assistant", accumulated)
-            yield ServerSentEvent(
-                data=ErrorEvent(message=str(exc)).model_dump_json(),
-                event="error",
-            )
+                    # Persist complete assistant response
+                    if accumulated:
+                        await add_message(
+                            db, session_id, "assistant", accumulated
+                        )
+
+                    yield ServerSentEvent(
+                        data=DoneEvent(model=model_name).model_dump_json(),
+                        event="done",
+                    )
+                except OpenAIError as exc:
+                    logger.exception("OpenAI API error during streaming")
+                    if accumulated:
+                        await add_message(
+                            db, session_id, "assistant", accumulated
+                        )
+                    yield ServerSentEvent(
+                        data=ErrorEvent(message=str(exc)).model_dump_json(),
+                        event="error",
+                    )
+                except Exception as exc:
+                    logger.exception("Unexpected error during streaming")
+                    if accumulated:
+                        await add_message(
+                            db, session_id, "assistant", accumulated
+                        )
+                    yield ServerSentEvent(
+                        data=ErrorEvent(message=str(exc)).model_dump_json(),
+                        event="error",
+                    )
+        finally:
+            registry.unregister(session_id)
 
     return EventSourceResponse(_generate())
+
+
+@router.post(
+    "/{session_id}/messages",
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def send_message(
+    session_id: str,
+    body: SendMessageRequest,
+    token: GitHubToken,
+    db: DbDep,
+) -> Response:
+    """Submit a user message to an active session stream.
+
+    The message is placed on the session's queue for processing by the
+    SSE generator.  Returns **202 Accepted** immediately.  If no stream
+    is connected, returns **409 Conflict**.
+    """
+    if not await session_exists(db, session_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        )
+
+    sent = await registry.send(
+        session_id,
+        {"content": body.content, "model": body.model, "gh_token": token},
+    )
+    if not sent:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No active stream for this session",
+        )
+
+    return Response(status_code=status.HTTP_202_ACCEPTED)

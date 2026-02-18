@@ -1,6 +1,6 @@
 import createClient from "openapi-fetch";
 import type { components, paths } from "./api.js";
-import { streamChat } from "./sse.js";
+import { connectSession, sendMessage as postMessage } from "./sse.js";
 import "./style.css";
 
 type GitHubUser = components["schemas"]["GitHubUser"];
@@ -8,20 +8,6 @@ type GitHubUser = components["schemas"]["GitHubUser"];
 interface SessionSummary {
   id: string;
   title: string;
-  created_at: string;
-  updated_at: string;
-}
-
-interface MessageRead {
-  role: "user" | "assistant" | "system";
-  content: string;
-  created_at: string;
-}
-
-interface SessionDetail {
-  id: string;
-  title: string;
-  messages: MessageRead[];
   created_at: string;
   updated_at: string;
 }
@@ -36,6 +22,7 @@ const $ = (sel: string): HTMLElement | null => document.querySelector(sel);
 
 let currentSessionId: string | null = null;
 let streaming = false;
+let activeStream: EventSource | null = null;
 
 function show(id: string): void {
   $(id)?.classList.remove("hidden");
@@ -94,11 +81,6 @@ async function createSession(): Promise<SessionSummary> {
   return (await res.json()) as SessionSummary;
 }
 
-async function fetchSession(id: string): Promise<SessionDetail> {
-  const res = await fetch(`/api/sessions/${id}`, { credentials: "include" });
-  return (await res.json()) as SessionDetail;
-}
-
 async function deleteSessionApi(id: string): Promise<void> {
   await fetch(`/api/sessions/${id}`, {
     method: "DELETE",
@@ -139,15 +121,72 @@ function renderSessionList(sessions: SessionSummary[]): void {
 }
 
 async function switchSession(sessionId: string): Promise<void> {
+  // Close any existing stream
+  if (activeStream) {
+    activeStream.close();
+    activeStream = null;
+  }
+
   currentSessionId = sessionId;
   clearMessages();
+  setInputEnabled(false);
 
-  const detail = await fetchSession(sessionId);
-  for (const msg of detail.messages) {
-    if (msg.role === "user" || msg.role === "assistant") {
-      appendMessage(msg.role, msg.content);
-    }
-  }
+  let currentBubble: HTMLElement | null = null;
+  let accumulated = "";
+
+  activeStream = connectSession(sessionId, {
+    onMessage(payload) {
+      if (payload.role === "user" || payload.role === "assistant") {
+        appendMessage(payload.role, payload.content);
+      }
+    },
+    onReady() {
+      // History replay complete — enable input and scroll to bottom
+      setInputEnabled(true);
+      const container = $("#messages");
+      if (container) container.scrollTop = container.scrollHeight;
+    },
+    onTextDelta(content) {
+      if (!currentBubble) {
+        currentBubble = createStreamingBubble();
+        accumulated = "";
+      }
+      accumulated += content;
+      currentBubble.textContent = accumulated;
+      const container = $("#messages");
+      if (container) container.scrollTop = container.scrollHeight;
+    },
+    onDone(_model) {
+      if (currentBubble) {
+        currentBubble.classList.remove("streaming");
+        currentBubble = null;
+        accumulated = "";
+      }
+      streaming = false;
+      setInputEnabled(true);
+      ($("#chat-input") as HTMLInputElement | null)?.focus();
+
+      // Refresh session list (title may have been set by auto-title)
+      void fetchSessions().then(renderSessionList);
+    },
+    onError(message) {
+      if (currentBubble) {
+        currentBubble.classList.remove("streaming");
+        if (accumulated === "") {
+          currentBubble.className = "message error";
+          currentBubble.textContent = `Error: ${message}`;
+        } else {
+          appendMessage("error", `Stream error: ${message}`);
+        }
+        currentBubble = null;
+        accumulated = "";
+      } else {
+        appendMessage("error", `Error: ${message}`);
+      }
+      streaming = false;
+      setInputEnabled(true);
+    },
+  });
 
   // Update active state in sidebar
   document.querySelectorAll(".session-item").forEach((el) => {
@@ -231,52 +270,23 @@ async function showChat(user: GitHubUser): Promise<void> {
 async function sendMessage(content: string): Promise<void> {
   if (streaming || !currentSessionId) return;
 
-  appendMessage("user", content);
-
-  const bubble = createStreamingBubble();
-  let accumulated = "";
-
   streaming = true;
   setInputEnabled(false);
 
   try {
-    await streamChat(currentSessionId, content, "gpt-4o", {
-      onTextDelta(delta) {
-        accumulated += delta;
-        bubble.textContent = accumulated;
-        const container = $("#messages");
-        if (container) container.scrollTop = container.scrollHeight;
-      },
-      onDone(_model) {
-        bubble.classList.remove("streaming");
-      },
-      onError(message) {
-        bubble.classList.remove("streaming");
-        if (accumulated === "") {
-          bubble.className = "message error";
-          bubble.textContent = `Error: ${message}`;
-        } else {
-          appendMessage("error", `Stream error: ${message}`);
-        }
-      },
-    });
-
-    // Refresh session list (title may have been set by auto-title)
-    const sessions = await fetchSessions();
-    renderSessionList(sessions);
-  } catch (err: unknown) {
-    bubble.classList.remove("streaming");
-    const msg = err instanceof Error ? err.message : "Unknown error";
-    if (accumulated === "") {
-      bubble.className = "message error";
-      bubble.textContent = `Network error: ${msg}`;
-    } else {
-      appendMessage("error", `Network error: ${msg}`);
+    const response = await postMessage(currentSessionId, content);
+    if (!response.ok && response.status !== 202) {
+      const text = await response.text();
+      appendMessage("error", `Failed to send: HTTP ${response.status} — ${text}`);
+      streaming = false;
+      setInputEnabled(true);
     }
-  } finally {
+    // On 202, the stream will deliver the echoed user message + assistant response
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    appendMessage("error", `Network error: ${msg}`);
     streaming = false;
     setInputEnabled(true);
-    ($("#chat-input") as HTMLInputElement | null)?.focus();
   }
 }
 

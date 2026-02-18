@@ -5,7 +5,13 @@ from datetime import UTC, datetime
 
 import aiosqlite
 
-from voxpilot.models.schemas import ChatMessage, MessageRead, SessionDetail, SessionSummary
+from voxpilot.models.schemas import (
+    ChatMessage,
+    MessageEvent,
+    MessageRead,
+    SessionDetail,
+    SessionSummary,
+)
 
 
 def _now_iso() -> str:
@@ -136,6 +142,21 @@ async def get_messages(db: aiosqlite.Connection, session_id: str) -> list[ChatMe
     )
     rows = await cursor.fetchall()
     return [ChatMessage(role=row["role"], content=row["content"]) for row in rows]
+
+
+async def get_messages_with_timestamps(
+    db: aiosqlite.Connection, session_id: str
+) -> list[MessageEvent]:
+    """Return all messages with timestamps for history replay via SSE."""
+    cursor = await db.execute(
+        "SELECT role, content, created_at FROM messages WHERE session_id = ? ORDER BY id",
+        (session_id,),
+    )
+    rows = await cursor.fetchall()
+    return [
+        MessageEvent(role=row["role"], content=row["content"], created_at=row["created_at"])
+        for row in rows
+    ]
 
 
 async def session_exists(db: aiosqlite.Connection, session_id: str) -> bool:
