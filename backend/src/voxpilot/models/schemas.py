@@ -36,7 +36,8 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     """Request body for the chat endpoint."""
 
-    messages: list[ChatMessage]
+    session_id: str
+    content: str
     model: str = "gpt-4o"
 
 
@@ -65,3 +66,39 @@ class ErrorEvent(BaseModel):
     """Signals an error during streaming (event: error)."""
 
     message: str
+
+
+# ── Session schemas ───────────────────────────────────────────────────────────
+
+
+class MessageRead(BaseModel):
+    """A message as returned from the API (excludes DB-internal fields)."""
+
+    role: Literal["user", "assistant", "system"]
+    content: str
+    created_at: str
+
+
+class SessionSummary(BaseModel):
+    """Session metadata for list views."""
+
+    id: str
+    title: str
+    created_at: str
+    updated_at: str
+
+
+class SessionDetail(BaseModel):
+    """Full session with its message history."""
+
+    id: str
+    title: str
+    messages: list[MessageRead]
+    created_at: str
+    updated_at: str
+
+
+class SessionUpdate(BaseModel):
+    """Request body for updating a session."""
+
+    title: str

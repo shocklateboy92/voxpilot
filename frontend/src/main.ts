@@ -1,10 +1,30 @@
 import createClient from "openapi-fetch";
 import type { components, paths } from "./api.js";
 import { streamChat } from "./sse.js";
-import type { ChatMessage } from "./sse.js";
 import "./style.css";
 
 type GitHubUser = components["schemas"]["GitHubUser"];
+
+interface SessionSummary {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface MessageRead {
+  role: "user" | "assistant" | "system";
+  content: string;
+  created_at: string;
+}
+
+interface SessionDetail {
+  id: string;
+  title: string;
+  messages: MessageRead[];
+  created_at: string;
+  updated_at: string;
+}
 
 // openapi-fetch client for non-streaming endpoints (auth, health)
 const client = createClient<paths>({
@@ -14,7 +34,7 @@ const client = createClient<paths>({
 
 const $ = (sel: string): HTMLElement | null => document.querySelector(sel);
 
-const messages: ChatMessage[] = [];
+let currentSessionId: string | null = null;
 let streaming = false;
 
 function show(id: string): void {
@@ -53,6 +73,118 @@ function setInputEnabled(enabled: boolean): void {
   if (btn) btn.disabled = !enabled;
 }
 
+function clearMessages(): void {
+  const container = $("#messages");
+  if (container) container.innerHTML = "";
+}
+
+// ── Session API helpers ───────────────────────────────────────────────────────
+
+async function fetchSessions(): Promise<SessionSummary[]> {
+  const res = await fetch("/api/sessions", { credentials: "include" });
+  if (!res.ok) return [];
+  return (await res.json()) as SessionSummary[];
+}
+
+async function createSession(): Promise<SessionSummary> {
+  const res = await fetch("/api/sessions", {
+    method: "POST",
+    credentials: "include",
+  });
+  return (await res.json()) as SessionSummary;
+}
+
+async function fetchSession(id: string): Promise<SessionDetail> {
+  const res = await fetch(`/api/sessions/${id}`, { credentials: "include" });
+  return (await res.json()) as SessionDetail;
+}
+
+async function deleteSessionApi(id: string): Promise<void> {
+  await fetch(`/api/sessions/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+}
+
+// ── Session sidebar ──────────────────────────────────────────────────────────
+
+function renderSessionList(sessions: SessionSummary[]): void {
+  const list = $("#session-list");
+  if (!list) return;
+  list.innerHTML = "";
+
+  for (const session of sessions) {
+    const item = document.createElement("div");
+    item.className = `session-item${session.id === currentSessionId ? " active" : ""}`;
+    item.dataset.id = session.id;
+
+    const titleSpan = document.createElement("span");
+    titleSpan.className = "session-title";
+    titleSpan.textContent = session.title || "New chat";
+    titleSpan.addEventListener("click", () => void switchSession(session.id));
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.className = "session-delete";
+    deleteBtn.textContent = "×";
+    deleteBtn.title = "Delete session";
+    deleteBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      void handleDeleteSession(session.id);
+    });
+
+    item.appendChild(titleSpan);
+    item.appendChild(deleteBtn);
+    list.appendChild(item);
+  }
+}
+
+async function switchSession(sessionId: string): Promise<void> {
+  currentSessionId = sessionId;
+  clearMessages();
+
+  const detail = await fetchSession(sessionId);
+  for (const msg of detail.messages) {
+    if (msg.role === "user" || msg.role === "assistant") {
+      appendMessage(msg.role, msg.content);
+    }
+  }
+
+  // Update active state in sidebar
+  document.querySelectorAll(".session-item").forEach((el) => {
+    el.classList.toggle("active", (el as HTMLElement).dataset.id === sessionId);
+  });
+}
+
+async function handleNewSession(): Promise<void> {
+  const session = await createSession();
+  currentSessionId = session.id;
+  clearMessages();
+  const sessions = await fetchSessions();
+  renderSessionList(sessions);
+}
+
+async function handleDeleteSession(sessionId: string): Promise<void> {
+  await deleteSessionApi(sessionId);
+  const sessions = await fetchSessions();
+
+  if (sessionId === currentSessionId) {
+    const first = sessions[0];
+    if (first) {
+      await switchSession(first.id);
+    } else {
+      // Create a new session if all were deleted
+      const fresh = await createSession();
+      sessions.push(fresh);
+      currentSessionId = fresh.id;
+      clearMessages();
+    }
+  }
+
+  renderSessionList(sessions);
+}
+
+// ── Auth & app boot ──────────────────────────────────────────────────────────
+
 async function checkAuth(): Promise<void> {
   try {
     const { data, error } = await client.GET("/api/auth/me");
@@ -60,7 +192,7 @@ async function checkAuth(): Promise<void> {
       showLogin();
       return;
     }
-    showChat(data);
+    await showChat(data);
   } catch {
     showLogin();
   }
@@ -72,7 +204,7 @@ function showLogin(): void {
   show("#login-view");
 }
 
-function showChat(user: GitHubUser): void {
+async function showChat(user: GitHubUser): Promise<void> {
   hide("#status");
   hide("#login-view");
   show("#chat-view");
@@ -81,12 +213,24 @@ function showChat(user: GitHubUser): void {
   const name = $("#user-name");
   if (avatar) avatar.src = user.avatar_url;
   if (name) name.textContent = user.name ?? user.login;
+
+  // Load sessions
+  let sessions = await fetchSessions();
+  if (sessions.length === 0) {
+    const fresh = await createSession();
+    sessions = [fresh];
+  }
+  const first = sessions[0];
+  if (first) {
+    currentSessionId = first.id;
+    renderSessionList(sessions);
+    await switchSession(first.id);
+  }
 }
 
 async function sendMessage(content: string): Promise<void> {
-  if (streaming) return;
+  if (streaming || !currentSessionId) return;
 
-  messages.push({ role: "user", content });
   appendMessage("user", content);
 
   const bubble = createStreamingBubble();
@@ -96,7 +240,7 @@ async function sendMessage(content: string): Promise<void> {
   setInputEnabled(false);
 
   try {
-    await streamChat(messages, "gpt-4o", {
+    await streamChat(currentSessionId, content, "gpt-4o", {
       onTextDelta(delta) {
         accumulated += delta;
         bubble.textContent = accumulated;
@@ -105,20 +249,21 @@ async function sendMessage(content: string): Promise<void> {
       },
       onDone(_model) {
         bubble.classList.remove("streaming");
-        messages.push({ role: "assistant", content: accumulated });
       },
       onError(message) {
         bubble.classList.remove("streaming");
         if (accumulated === "") {
-          // No content received — turn the bubble into an error
           bubble.className = "message error";
           bubble.textContent = `Error: ${message}`;
         } else {
-          // Partial content received — append error below
           appendMessage("error", `Stream error: ${message}`);
         }
       },
     });
+
+    // Refresh session list (title may have been set by auto-title)
+    const sessions = await fetchSessions();
+    renderSessionList(sessions);
   } catch (err: unknown) {
     bubble.classList.remove("streaming");
     const msg = err instanceof Error ? err.message : "Unknown error";
@@ -156,5 +301,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   $("#logout-btn")?.addEventListener("click", () => {
     void handleLogout();
+  });
+
+  $("#new-session-btn")?.addEventListener("click", () => {
+    void handleNewSession();
   });
 });

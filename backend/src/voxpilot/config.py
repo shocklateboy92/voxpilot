@@ -13,4 +13,6 @@ class Settings(BaseSettings):
     github_client_id: str = ""
     github_client_secret: str = ""
 
+    db_path: str = "voxpilot.db"
+
     model_config = {"env_prefix": "VOXPILOT_"}

@@ -5,7 +5,16 @@ from collections.abc import AsyncIterator
 import httpx
 import pytest
 
+from voxpilot.db import close_db, init_db
 from voxpilot.main import app
+
+
+@pytest.fixture(autouse=True)
+async def _init_test_db() -> AsyncIterator[None]:
+    """Initialise an in-memory SQLite database for every test."""
+    await init_db(":memory:")
+    yield
+    await close_db()
 
 
 @pytest.fixture

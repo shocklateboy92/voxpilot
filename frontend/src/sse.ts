@@ -21,11 +21,6 @@ export interface ErrorPayload {
   message: string;
 }
 
-export interface ChatMessage {
-  role: "user" | "assistant" | "system";
-  content: string;
-}
-
 export interface StreamChatCallbacks {
   onTextDelta: (content: string) => void;
   onDone: (model: string) => void;
@@ -39,7 +34,8 @@ export interface StreamChatCallbacks {
  * Throws only on network-level failures (fetch itself failing).
  */
 export async function streamChat(
-  messages: ChatMessage[],
+  sessionId: string,
+  content: string,
   model: string,
   callbacks: StreamChatCallbacks,
 ): Promise<void> {
@@ -47,7 +43,7 @@ export async function streamChat(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify({ messages, model }),
+    body: JSON.stringify({ session_id: sessionId, content, model }),
   });
 
   if (!response.ok) {

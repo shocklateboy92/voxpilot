@@ -11,6 +11,7 @@ dependencies = [
     "httpx>=0.28",
     "openai>=2.21",
     "sse-starlette>=3.2",
+    "aiosqlite>=0.21",
 ]
 
 [project.optional-dependencies]

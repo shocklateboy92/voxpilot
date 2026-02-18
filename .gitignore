@@ -30,3 +30,8 @@ Thumbs.db
 # Environment
 .env
 .env.local
+
+# Database
+*.db
+*.db-shm
+*.db-wal
