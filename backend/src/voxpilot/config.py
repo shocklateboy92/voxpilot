@@ -10,4 +10,7 @@ class Settings(BaseSettings):
     debug: bool = False
     cors_origins: list[str] = ["http://localhost:3000"]
 
+    github_client_id: str = ""
+    github_client_secret: str = ""
+
     model_config = {"env_prefix": "VOXPILOT_"}

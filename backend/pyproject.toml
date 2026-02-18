@@ -8,12 +8,13 @@ dependencies = [
     "uvicorn[standard]>=0.32",
     "pydantic>=2.10",
     "pydantic-settings>=2.7",
+    "httpx>=0.28",
+    "openai>=2.21",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
-    "httpx>=0.28",
     "pytest-asyncio>=0.25",
     "ruff>=0.9",
     "pyright>=1.1.390",

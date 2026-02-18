@@ -9,7 +9,34 @@
 <body>
   <main id="app">
     <h1>VoxPilot</h1>
-    <p id="status">Checking backend status…</p>
+
+    <!-- Login view -->
+    <div id="login-view" class="hidden">
+      <p>Sign in with GitHub to start chatting with AI models.</p>
+      <a href="/api/auth/login" class="btn btn-github">Sign in with GitHub</a>
+    </div>
+
+    <!-- Chat view -->
+    <div id="chat-view" class="hidden">
+      <div id="user-info">
+        <img id="user-avatar" src="" alt="avatar" />
+        <span id="user-name"></span>
+        <button id="logout-btn" class="btn btn-small">Sign out</button>
+      </div>
+      <div id="messages"></div>
+      <form id="chat-form">
+        <input
+          id="chat-input"
+          type="text"
+          placeholder="Send a message…"
+          autocomplete="off"
+        />
+        <button type="submit" class="btn">Send</button>
+      </form>
+    </div>
+
+    <!-- Loading state -->
+    <p id="status">Loading…</p>
   </main>
   <script type="module" src="main.js"></script>
 </body>

@@ -13,6 +13,10 @@
   --color-muted: #71717a;
   --color-ok: #22c55e;
   --color-error: #ef4444;
+  --color-accent: #3b82f6;
+  --color-accent-hover: #2563eb;
+  --color-user-msg: #1e293b;
+  --color-assistant-msg: #1a1d27;
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "Cascadia Code", "JetBrains Mono", monospace;
 }
@@ -37,7 +41,7 @@ body {
   background: var(--color-surface);
   border-radius: 1rem;
   box-shadow: 0 4px 24px rgb(0 0 0 / 0.3);
-  max-width: 28rem;
+  max-width: 40rem;
   width: 100%;
 }
 
@@ -48,6 +52,11 @@ h1 {
   letter-spacing: -0.02em;
 }
 
+.hidden {
+  display: none !important;
+}
+
+/* Status */
 #status {
   font-family: var(--font-mono);
   font-size: 0.9rem;
@@ -63,4 +72,125 @@ h1 {
 
 #status.error {
   color: var(--color-error);
+}
+
+/* Buttons */
+.btn {
+  display: inline-block;
+  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: #fff;
+  background: var(--color-accent);
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.btn:hover {
+  background: var(--color-accent-hover);
+}
+
+.btn-github {
+  background: #24292f;
+  margin-top: 1rem;
+}
+
+.btn-github:hover {
+  background: #3a3f47;
+}
+
+.btn-small {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.8rem;
+}
+
+/* Login view */
+#login-view p {
+  color: var(--color-muted);
+  margin-bottom: 0.5rem;
+}
+
+/* User info bar */
+#user-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--color-bg);
+  border-radius: 0.5rem;
+}
+
+#user-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+
+#user-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+  flex: 1;
+  text-align: left;
+}
+
+/* Messages */
+#messages {
+  text-align: left;
+  max-height: 24rem;
+  overflow-y: auto;
+  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.message {
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.message.user {
+  background: var(--color-user-msg);
+  align-self: flex-end;
+  max-width: 80%;
+}
+
+.message.assistant {
+  background: var(--color-bg);
+  align-self: flex-start;
+  max-width: 80%;
+}
+
+.message.error {
+  color: var(--color-error);
+  background: var(--color-bg);
+}
+
+/* Chat form */
+#chat-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+#chat-input {
+  flex: 1;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid #2a2d37;
+  border-radius: 0.5rem;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  outline: none;
+}
+
+#chat-input:focus {
+  border-color: var(--color-accent);
 }
