@@ -4,6 +4,19 @@
 
 Migrate the backend from Python 3.13 / FastAPI / aiosqlite to **TypeScript / Bun / Hono**, unifying the stack into a single language across frontend and backend. The migration must preserve all existing behavior, API contract, and test coverage.
 
+## Progress
+
+- [x] Phase 1 — Scaffold & Infrastructure (complete)
+- [ ] Phase 2 — Schemas & Middleware
+- [ ] Phase 3 — Health & Auth Routes
+- [ ] Phase 4 — Session CRUD
+- [ ] Phase 5 — Markdown Service
+- [ ] Phase 6 — Tool Framework
+- [ ] Phase 7 — Stream Registry & Confirmation
+- [ ] Phase 8 — Agent Loop
+- [ ] Phase 9 — Chat Routes (SSE)
+- [ ] Phase 10 — Integration & Cleanup
+
 ## Stack Mapping
 
 | Role | Current (Python) | Target (TypeScript) |
