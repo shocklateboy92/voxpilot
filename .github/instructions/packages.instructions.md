@@ -1,5 +1,4 @@
 ---
-description: when adding any new dependencies
-# applyTo: 'Describe when these instructions should be loaded' # when provided, instructions will automatically be added to the request context when the pattern matches an attached file
+applyTo: '**/package.json, **/pyproject.toml'
 ---
-always make sure you introduce the latest version of any new dependencies you add
+always make sure you use the latest version of any new dependencies you introduce
