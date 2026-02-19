@@ -1,8 +1,5 @@
 /**
- * Bottom navigation bar — mobile only.
- *
- * Shows current session title (tap to open picker) and + button.
- * Hidden on desktop via CSS media query.
+ * Bottom navigation bar — session title (tap to open picker) and + button.
  */
 
 import { activeSession, setPickerOpen } from "../store";

@@ -1,12 +1,11 @@
 /**
- * Main chat view — sidebar (desktop) + chat area + bottom nav (mobile).
+ * Main chat view — chat area + bottom nav with session picker.
  */
 
 import { onMount } from "solid-js";
 import type { GitHubUser } from "../store";
 import { logout } from "../api-client";
 import { initSessions } from "../sessions";
-import { Sidebar } from "./Sidebar";
 import { ChatMain } from "./ChatMain";
 import { BottomNav } from "./BottomNav";
 import { SessionPicker } from "./SessionPicker";
@@ -29,10 +28,7 @@ export function ChatView(props: Props) {
           Sign out
         </button>
       </div>
-      <div id="chat-layout">
-        <Sidebar />
-        <ChatMain />
-      </div>
+      <ChatMain />
       <BottomNav />
       <SessionPicker />
     </main>
