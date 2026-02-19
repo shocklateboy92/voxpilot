@@ -12,6 +12,7 @@ dependencies = [
     "openai>=2.21",
     "sse-starlette>=3.2",
     "aiosqlite>=0.21",
+    "markdown-it-py>=4.0",
 ]
 
 [project.optional-dependencies]

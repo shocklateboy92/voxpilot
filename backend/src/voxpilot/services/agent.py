@@ -36,6 +36,7 @@ from voxpilot.models.schemas import (
     ToolConfirmEvent,
     ToolResultEvent,
 )
+from voxpilot.services.markdown import render_markdown
 from voxpilot.services.sessions import add_message
 from voxpilot.services.tools import default_registry
 
@@ -338,9 +339,10 @@ async def run_agent_loop(
         if accumulated_text:
             await add_message(db, session_id, "assistant", accumulated_text)
 
+        html = render_markdown(accumulated_text) if accumulated_text else None
         yield {
             "event": "done",
-            "data": DoneEvent(model=model_name).model_dump_json(),
+            "data": DoneEvent(model=model_name, html=html).model_dump_json(),
         }
         return
 

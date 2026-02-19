@@ -15,7 +15,12 @@ export function MessageBubble(props: Props) {
       {/* For assistant messages with tool calls, render the tool blocks */}
       <Show when={props.message.role === "assistant" && props.message.tool_calls?.length}>
         <Show when={props.message.content}>
-          <div class="message assistant">{props.message.content}</div>
+          <Show
+            when={props.message.html}
+            fallback={<div class="message assistant">{props.message.content}</div>}
+          >
+            <div class="message assistant markdown-body" innerHTML={props.message.html ?? undefined} />
+          </Show>
         </Show>
         <For each={props.message.tool_calls}>
           {(tc) => <HistoryToolCall call={tc} />}
@@ -34,7 +39,12 @@ export function MessageBubble(props: Props) {
           props.message.role !== "tool"
         }
       >
-        <div class={`message ${props.message.role}`}>{props.message.content}</div>
+        <Show
+          when={props.message.role === "assistant" && props.message.html}
+          fallback={<div class={`message ${props.message.role}`}>{props.message.content}</div>}
+        >
+          <div class="message assistant markdown-body" innerHTML={props.message.html ?? undefined} />
+        </Show>
       </Show>
     </>
   );

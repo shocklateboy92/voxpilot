@@ -12,7 +12,7 @@ import type { components } from "./api";
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export type SessionSummary = components["schemas"]["SessionSummary"];
-export type MessageRead = components["schemas"]["MessageRead"];
+export type MessageRead = components["schemas"]["MessageRead"] & { html?: string | null };
 export type ToolCallInfo = components["schemas"]["ToolCallInfo"];
 export type GitHubUser = components["schemas"]["GitHubUser"];
 

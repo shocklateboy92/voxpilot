@@ -28,6 +28,7 @@ export interface MessagePayload {
   created_at: string;
   tool_calls?: ToolCallInfo[] | null;
   tool_call_id?: string | null;
+  html?: string | null;
 }
 
 export interface TextDeltaPayload {
@@ -49,6 +50,7 @@ export interface ToolResultPayload {
 
 export interface DonePayload {
   model: string;
+  html?: string | null;
 }
 
 export interface ErrorPayload {
@@ -68,7 +70,7 @@ export interface SessionStreamCallbacks {
   onToolCall: (payload: ToolCallPayload) => void;
   onToolResult: (payload: ToolResultPayload) => void;
   onToolConfirm: (payload: ToolConfirmPayload) => void;
-  onDone: (model: string) => void;
+  onDone: (model: string, html: string | null) => void;
   onError: (message: string) => void;
 }
 
@@ -139,7 +141,7 @@ export function connectSession(
   es.addEventListener("done", (e: MessageEvent) => {
     try {
       const payload = JSON.parse(e.data) as DonePayload;
-      callbacks.onDone(payload.model);
+      callbacks.onDone(payload.model, payload.html ?? null);
     } catch {
       callbacks.onError(`Failed to parse done event: ${e.data}`);
     }

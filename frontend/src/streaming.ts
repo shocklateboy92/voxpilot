@@ -81,6 +81,7 @@ export function openStream(sessionId: string): void {
         created_at: payload.created_at,
         tool_calls: payload.tool_calls ?? null,
         tool_call_id: payload.tool_call_id ?? null,
+        html: payload.html ?? null,
       };
       setMessages((prev) => [...prev, msg]);
     },
@@ -140,7 +141,7 @@ export function openStream(sessionId: string): void {
       });
     },
 
-    onDone(_model) {
+    onDone(_model, html) {
       stopRafLoop();
       setPendingConfirm(null);
 
@@ -152,7 +153,7 @@ export function openStream(sessionId: string): void {
         setStreamingText(null);
         setMessages((prev) => [
           ...prev,
-          { role: "assistant", content: text, created_at: new Date().toISOString() },
+          { role: "assistant", content: text, created_at: new Date().toISOString(), html },
         ]);
       } else {
         setStreamingText(null);

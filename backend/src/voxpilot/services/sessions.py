@@ -14,6 +14,7 @@ from voxpilot.models.schemas import (
     SessionSummary,
     ToolCallInfo,
 )
+from voxpilot.services.markdown import render_markdown
 
 
 def _now_iso() -> str:
@@ -179,23 +180,32 @@ async def get_messages(db: aiosqlite.Connection, session_id: str) -> list[ChatMe
 async def get_messages_with_timestamps(
     db: aiosqlite.Connection, session_id: str
 ) -> list[MessageEvent]:
-    """Return all messages with timestamps for history replay via SSE."""
+    """Return all messages with timestamps for history replay via SSE.
+
+    Assistant messages include pre-rendered ``html``.
+    """
     cursor = await db.execute(
         "SELECT role, content, created_at, tool_calls, tool_call_id"
         " FROM messages WHERE session_id = ? ORDER BY id",
         (session_id,),
     )
     rows = await cursor.fetchall()
-    return [
-        MessageEvent(
-            role=row["role"],
-            content=row["content"],
-            created_at=row["created_at"],
-            tool_calls=_parse_tool_calls(row["tool_calls"]),
-            tool_call_id=row["tool_call_id"],
+    events: list[MessageEvent] = []
+    for row in rows:
+        role: str = row["role"]
+        content: str = row["content"]
+        html = render_markdown(content) if role == "assistant" and content else None
+        events.append(
+            MessageEvent(
+                role=row["role"],
+                content=content,
+                created_at=row["created_at"],
+                tool_calls=_parse_tool_calls(row["tool_calls"]),
+                tool_call_id=row["tool_call_id"],
+                html=html,
+            )
         )
-        for row in rows
-    ]
+    return events
 
 
 async def session_exists(db: aiosqlite.Connection, session_id: str) -> bool:

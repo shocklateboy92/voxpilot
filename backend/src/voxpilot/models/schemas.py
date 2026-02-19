@@ -62,6 +62,7 @@ class MessageEvent(BaseModel):
     """A persisted chat message (event: message).
 
     Used for history replay on connect and echoing new user messages.
+    ``html`` carries pre-rendered Markdown→HTML for assistant messages.
     """
 
     role: Literal["user", "assistant", "system", "tool"]
@@ -69,6 +70,7 @@ class MessageEvent(BaseModel):
     created_at: str
     tool_calls: list[ToolCallInfo] | None = None
     tool_call_id: str | None = None
+    html: str | None = None
 
 
 class ToolCallEvent(BaseModel):
@@ -95,9 +97,14 @@ class TextDeltaEvent(BaseModel):
 
 
 class DoneEvent(BaseModel):
-    """Signals the stream is complete (event: done)."""
+    """Signals the stream is complete (event: done).
+
+    ``html`` carries the fully rendered Markdown→HTML for the
+    complete assistant response that was just streamed.
+    """
 
     model: str
+    html: str | None = None
 
 
 class ErrorEvent(BaseModel):
