@@ -124,7 +124,7 @@ export function attachSwipeHandler(
     tracking = false;
   }
 
-  // Use passive: false on touchmove so we can preventDefault
+  // passive: false on touchmove so we can preventDefault during horizontal swipes
   element.addEventListener("touchstart", onTouchStart, { passive: true });
   element.addEventListener("touchmove", onTouchMove, { passive: false });
   element.addEventListener("touchend", onTouchEnd, { passive: true });

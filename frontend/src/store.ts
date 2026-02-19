@@ -56,11 +56,10 @@ export const [errorMessage, setErrorMessage] = createSignal<string | null>(null)
 /** Whether the session picker overlay is open (mobile). */
 export const [pickerOpen, setPickerOpen] = createSignal(false);
 
-/** Horizontal swipe offset in px (for slide transition). */
+/** Horizontal swipe offset in px (dampened rubber-band hint). */
 export const [swipeOffset, setSwipeOffset] = createSignal(0);
 
-/** Whether a swipe transition is animating. */
-export const [swipeAnimating, setSwipeAnimating] = createSignal(false);
+
 
 // ── Derived ──────────────────────────────────────────────────────────────────
 

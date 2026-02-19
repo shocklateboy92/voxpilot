@@ -249,6 +249,29 @@ h1 {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Swipe direction arrows */
+.swipe-arrow {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 7rem;
+  font-weight: 300;
+  color: var(--color-muted);
+  pointer-events: none;
+  z-index: 10;
+  transition: opacity 60ms ease-out;
+  user-select: none;
+  line-height: 1;
+}
+.swipe-arrow-left {
+  left: 6px;
+}
+.swipe-arrow-right {
+  right: 6px;
 }
 
 #messages {

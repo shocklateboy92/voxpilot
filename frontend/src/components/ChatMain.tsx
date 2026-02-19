@@ -13,9 +13,7 @@ import {
   isStreaming,
   errorMessage,
   swipeOffset,
-  swipeAnimating,
   setSwipeOffset,
-  setSwipeAnimating,
   sessions,
   activeIndex,
 } from "../store";
@@ -58,59 +56,24 @@ export function ChatMain() {
 
     const cleanup = attachSwipeHandler(messagesRef, {
       onSwipeMove(deltaX) {
-        // Dampen swipe if at boundary (no prev/next session)
-        const idx = activeIndex();
-        const len = sessions().length;
-        const atStart = idx === 0 && deltaX > 0;
-        const atEnd = idx === len - 1 && deltaX < 0;
-
-        if (atStart || atEnd) {
-          // Rubber-band effect: reduce movement to 30%
-          setSwipeOffset(deltaX * 0.3);
-        } else {
-          setSwipeOffset(deltaX);
-        }
+        // Dampened rubber-band: cap at ~60px with sqrt falloff
+        const damped = Math.sign(deltaX) * Math.min(Math.sqrt(Math.abs(deltaX)) * 5, 100);
+        setSwipeOffset(damped);
       },
       onSwipeLeft() {
-        const idx = activeIndex();
-        if (idx < sessions().length - 1) {
-          // Animate slide out to the left
-          setSwipeAnimating(true);
-          setSwipeOffset(-window.innerWidth);
-          setTimeout(() => {
-            navigateNext();
-            setSwipeOffset(0);
-            setSwipeAnimating(false);
-          }, 250);
-        } else {
-          // Snap back
-          setSwipeAnimating(true);
-          setSwipeOffset(0);
-          setTimeout(() => setSwipeAnimating(false), 250);
+        setSwipeOffset(0);
+        if (activeIndex() < sessions().length - 1) {
+          navigateNext();
         }
       },
       onSwipeRight() {
-        const idx = activeIndex();
-        if (idx > 0) {
-          // Animate slide out to the right
-          setSwipeAnimating(true);
-          setSwipeOffset(window.innerWidth);
-          setTimeout(() => {
-            navigatePrev();
-            setSwipeOffset(0);
-            setSwipeAnimating(false);
-          }, 250);
-        } else {
-          // Snap back
-          setSwipeAnimating(true);
-          setSwipeOffset(0);
-          setTimeout(() => setSwipeAnimating(false), 250);
+        setSwipeOffset(0);
+        if (activeIndex() > 0) {
+          navigatePrev();
         }
       },
       onSwipeCancel() {
-        setSwipeAnimating(true);
         setSwipeOffset(0);
-        setTimeout(() => setSwipeAnimating(false), 250);
       },
     });
 
@@ -127,14 +90,40 @@ export function ChatMain() {
     void sendUserMessage(value);
   }
 
+  // Derive whether arrows should show and their opacity from swipeOffset
+  const showLeftArrow = () => {
+    const off = swipeOffset();
+    return off > 0 && activeIndex() > 0;
+  };
+  const showRightArrow = () => {
+    const off = swipeOffset();
+    return off < 0 && activeIndex() < sessions().length - 1;
+  };
+  const arrowOpacity = () => Math.min(Math.abs(swipeOffset()) / 60, 1);
+
   return (
     <div id="chat-main">
+      {/* Swipe direction arrows */}
+      <div
+        class="swipe-arrow swipe-arrow-left"
+        style={{ opacity: showLeftArrow() ? arrowOpacity() : 0 }}
+        aria-hidden="true"
+      >
+        ‹
+      </div>
+      <div
+        class="swipe-arrow swipe-arrow-right"
+        style={{ opacity: showRightArrow() ? arrowOpacity() : 0 }}
+        aria-hidden="true"
+      >
+        ›
+      </div>
       <div
         id="messages"
         ref={messagesRef}
         style={{
-          transform: `translateX(${swipeOffset()}px)`,
-          transition: swipeAnimating() ? "transform 250ms ease-out" : "none",
+          transform: swipeOffset() ? `translateX(${swipeOffset()}px)` : undefined,
+          transition: swipeOffset() ? "none" : "transform 200ms ease-out",
         }}
       >
         <For each={messages()}>
