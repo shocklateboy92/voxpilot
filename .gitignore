@@ -14,6 +14,7 @@ build/
 # Frontend
 frontend/node_modules/
 frontend/dist/
+.vite/
 frontend/openapi.json
 frontend/src/api.d.ts
 

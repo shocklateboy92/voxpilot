@@ -13,9 +13,9 @@ install:
 dev-backend:
     cd backend && uv run uvicorn voxpilot.main:app --reload --port 8000
 
-# Run frontend dev watcher
+# Run frontend dev server
 dev-frontend:
-    cd frontend && npm run watch
+    cd frontend && npm run dev
 
 # Generate OpenAPI spec and TypeScript client
 generate:
@@ -48,6 +48,11 @@ format:
 # Build frontend for production
 build: generate
     cd frontend && npm run build
+
+# Build frontend and copy to backend static dir
+build-static: build
+    mkdir -p backend/static
+    cp -r frontend/dist/* backend/static/
 
 # Clean build artifacts
 clean:
