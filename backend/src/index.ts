@@ -34,4 +34,5 @@ process.on("SIGINT", () => {
 export default {
   port: 8000,
   fetch: app.fetch,
+  idleTimeout: 255, // seconds — max value; keeps SSE connections alive
 };
