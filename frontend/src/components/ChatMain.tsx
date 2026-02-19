@@ -5,7 +5,7 @@
  * auto-scrolls during streaming via a scroll sentinel.
  */
 
-import { For, Show, createEffect, onMount, onCleanup } from "solid-js";
+import { For, Show, createEffect, createSignal, onMount, onCleanup } from "solid-js";
 import {
   messages,
   streamingText,
@@ -30,6 +30,9 @@ export function ChatMain() {
   let messagesRef: HTMLDivElement | undefined;
   let scrollSentinel: HTMLDivElement | undefined;
   let inputRef: HTMLInputElement | undefined;
+
+  // Only animate the snap-back on cancelled swipes, not committed navigations
+  const [animateSnap, setAnimateSnap] = createSignal(false);
 
   // Auto-scroll when messages change or streaming text updates
   createEffect(() => {
@@ -59,23 +62,30 @@ export function ChatMain() {
 
     const cleanup = attachSwipeHandler(messagesRef, {
       onSwipeMove(deltaX) {
+        setAnimateSnap(false);
         // Dampened rubber-band: cap at ~60px with sqrt falloff
         const damped = Math.sign(deltaX) * Math.min(Math.sqrt(Math.abs(deltaX)) * 5, 100);
         setSwipeOffset(damped);
       },
       onSwipeLeft() {
+        // Committed swipe — reset instantly (content will change)
+        setAnimateSnap(false);
         setSwipeOffset(0);
         if (activeIndex() < sessions().length - 1) {
           navigateNext();
         }
       },
       onSwipeRight() {
+        // Committed swipe — reset instantly (content will change)
+        setAnimateSnap(false);
         setSwipeOffset(0);
         if (activeIndex() > 0) {
           navigatePrev();
         }
       },
       onSwipeCancel() {
+        // Animate the snap-back to rest position
+        setAnimateSnap(true);
         setSwipeOffset(0);
       },
     });
@@ -125,9 +135,10 @@ export function ChatMain() {
         id="messages"
         ref={messagesRef}
         style={{
-          transform: swipeOffset() ? `translateX(${swipeOffset()}px)` : undefined,
-          transition: swipeOffset() ? "none" : "transform 200ms ease-out",
+          transform: `translateX(${swipeOffset()}px)`,
+          transition: animateSnap() ? "transform 200ms ease-out" : "none",
         }}
+        onTransitionEnd={() => setAnimateSnap(false)}
       >
         <For each={messages()}>
           {(msg) => <MessageBubble message={msg} />}
