@@ -6,12 +6,12 @@ default:
 
 # Install all dependencies
 install:
-    cd backend && uv sync --all-extras
+    cd backend && bun install
     cd frontend && npm install
 
 # Run backend dev server
 dev-backend:
-    cd backend && uv run uvicorn voxpilot.main:app --reload --port 8000
+    cd backend && bun run --hot src/index.ts
 
 # Run frontend dev server
 dev-frontend:
@@ -19,31 +19,26 @@ dev-frontend:
 
 # Generate OpenAPI spec and TypeScript client
 generate:
-    cd backend && uv run python scripts/export_openapi.py
+    cd backend && bun run src/export-openapi.ts
     cd frontend && npm run generate
 
 # Run backend tests
 test:
-    cd backend && uv run pytest
-
-# Run backend tests with coverage
-test-cov:
-    cd backend && uv run pytest --cov=voxpilot --cov-report=term-missing
+    cd backend && bun test
 
 # Lint everything
 lint:
-    cd backend && uv run ruff check src tests
+    bunx @biomejs/biome check backend/src backend/tests
     cd frontend && npx tsc --noEmit
 
 # Type check everything
 typecheck:
-    cd backend && uv run pyright
+    cd backend && bunx tsc --noEmit
     cd frontend && npx tsc --noEmit
 
 # Format backend code
 format:
-    cd backend && uv run ruff format src tests
-    cd backend && uv run ruff check --fix src tests
+    bunx @biomejs/biome check --write backend/src backend/tests
 
 # Build frontend for production
 build: generate
@@ -57,7 +52,7 @@ build-static: build
 # Clean build artifacts
 clean:
     cd frontend && npm run clean
-    find backend -type d -name __pycache__ -exec rm -rf {} +
+    find backend -type d -name node_modules -prune -o -name '*.tsbuildinfo' -print -exec rm {} +
 
-# Run everything (install, lint, typecheck, test)
+# Run everything (install, generate, lint, typecheck, test)
 check: install generate lint typecheck test
