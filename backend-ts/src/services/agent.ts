@@ -1,0 +1,336 @@
+/**
+ * Agentic loop — call LLM, execute tools, feed results back, repeat.
+ *
+ * The `runAgentLoop` async generator yields SSE-ready event objects that
+ * the chat route streams to the frontend.  It handles:
+ *
+ * - Streaming text deltas from every LLM call
+ * - Detecting tool-call finish reasons and executing tools
+ * - Persisting assistant + tool messages to the DB
+ * - Capping iterations to prevent runaway loops
+ */
+
+import OpenAI from "openai";
+import type {
+  ChatCompletionChunk,
+  ChatCompletionMessageParam,
+  ChatCompletionAssistantMessageParam,
+  ChatCompletionSystemMessageParam,
+  ChatCompletionToolMessageParam,
+  ChatCompletionUserMessageParam,
+} from "openai/resources/chat/completions";
+import type { getDb } from "../db";
+import type { ChatMessage, ToolCallInfo } from "../schemas/api";
+import type {
+  TextDeltaEvent,
+  ToolCallEvent,
+  ToolResultEvent,
+  ToolConfirmEvent,
+  DoneEvent,
+  ErrorEvent,
+} from "../schemas/events";
+import { renderMarkdown } from "./markdown";
+import { addMessage } from "./sessions";
+import { defaultRegistry } from "../tools";
+
+type Db = ReturnType<typeof getDb>;
+
+const GITHUB_MODELS_BASE_URL = "https://models.inference.ai.azure.com";
+
+// ── SSE event types ─────────────────────────────────────────────────────────
+
+export interface SseEvent {
+  event: string;
+  data: string;
+}
+
+// ── Convert ChatMessage → OpenAI SDK message param ──────────────────────────
+
+function toMessageParam(m: ChatMessage): ChatCompletionMessageParam {
+  if (m.role === "system") {
+    return { role: "system", content: m.content } satisfies ChatCompletionSystemMessageParam;
+  }
+
+  if (m.role === "tool") {
+    return {
+      role: "tool",
+      content: m.content,
+      tool_call_id: m.tool_call_id ?? "",
+    } satisfies ChatCompletionToolMessageParam;
+  }
+
+  if (m.role === "assistant") {
+    if (m.tool_calls && m.tool_calls.length > 0) {
+      return {
+        role: "assistant",
+        content: m.content || null,
+        tool_calls: m.tool_calls.map((tc) => ({
+          id: tc.id,
+          type: "function" as const,
+          function: { name: tc.name, arguments: tc.arguments },
+        })),
+      } satisfies ChatCompletionAssistantMessageParam;
+    }
+    return { role: "assistant", content: m.content } satisfies ChatCompletionAssistantMessageParam;
+  }
+
+  return { role: "user", content: m.content } satisfies ChatCompletionUserMessageParam;
+}
+
+// ── Accumulated tool call from streaming ────────────────────────────────────
+
+class StreamedToolCall {
+  id = "";
+  name = "";
+  arguments = "";
+}
+
+// ── Agent loop options ──────────────────────────────────────────────────────
+
+export interface AgentLoopOptions {
+  messages: ChatMessage[];
+  model: string;
+  ghToken: string;
+  workDir: string;
+  db: Db;
+  sessionId: string;
+  maxIterations?: number;
+  isDisconnected?: () => boolean;
+  requestConfirmation?: (
+    toolCallId: string,
+    toolName: string,
+    toolArgs: string,
+  ) => Promise<boolean>;
+}
+
+// ── Agent loop ──────────────────────────────────────────────────────────────
+
+export async function* runAgentLoop(
+  opts: AgentLoopOptions,
+): AsyncGenerator<SseEvent> {
+  const {
+    messages,
+    model,
+    ghToken,
+    workDir,
+    db,
+    sessionId,
+    maxIterations = 25,
+    isDisconnected,
+    requestConfirmation,
+  } = opts;
+
+  const openaiMessages: ChatCompletionMessageParam[] = messages.map(toMessageParam);
+  const toolsSpec = defaultRegistry.toOpenAiTools();
+
+  for (let iteration = 0; iteration < maxIterations; iteration++) {
+    const client = new OpenAI({
+      baseURL: GITHUB_MODELS_BASE_URL,
+      apiKey: ghToken,
+    });
+
+    let modelName = model;
+    let accumulatedText = "";
+    const toolCalls: StreamedToolCall[] = [];
+    let finishReason: string | null = null;
+
+    try {
+      const llmStream = await client.chat.completions.create({
+        model,
+        messages: openaiMessages,
+        tools: toolsSpec,
+        stream: true,
+      });
+
+      for await (const chunk of llmStream as AsyncIterable<ChatCompletionChunk>) {
+        if (isDisconnected?.()) return;
+
+        const choice = chunk.choices[0];
+        if (!choice) {
+          if (chunk.model) modelName = chunk.model;
+          continue;
+        }
+
+        const delta = choice.delta;
+
+        // Accumulate text content
+        if (delta.content) {
+          accumulatedText += delta.content;
+          const payload: TextDeltaEvent = { content: delta.content };
+          yield { event: "text-delta", data: JSON.stringify(payload) };
+        }
+
+        // Accumulate tool calls (streamed incrementally)
+        if (delta.tool_calls) {
+          for (const tcDelta of delta.tool_calls) {
+            const idx = tcDelta.index;
+            while (toolCalls.length <= idx) {
+              toolCalls.push(new StreamedToolCall());
+            }
+            const tc = toolCalls[idx];
+            if (tc) {
+              if (tcDelta.id) tc.id = tcDelta.id;
+              if (tcDelta.function) {
+                if (tcDelta.function.name) tc.name = tcDelta.function.name;
+                if (tcDelta.function.arguments) {
+                  tc.arguments += tcDelta.function.arguments;
+                }
+              }
+            }
+          }
+        }
+
+        if (choice.finish_reason) finishReason = choice.finish_reason;
+        if (chunk.model) modelName = chunk.model;
+      }
+    } catch (exc) {
+      if (accumulatedText) {
+        await addMessage(db, sessionId, "assistant", accumulatedText);
+      }
+      const errorMsg = exc instanceof Error ? exc.message : String(exc);
+      const payload: ErrorEvent = { message: errorMsg };
+      yield { event: "error", data: JSON.stringify(payload) };
+      return;
+    }
+
+    // ── Handle finish reason ──────────────────────────────────────
+    if (finishReason === "tool_calls" && toolCalls.length > 0) {
+      // Persist the assistant message with tool calls
+      const toolCallInfos: ToolCallInfo[] = toolCalls.map((tc) => ({
+        id: tc.id,
+        name: tc.name,
+        arguments: tc.arguments,
+      }));
+
+      await addMessage(db, sessionId, "assistant", accumulatedText, {
+        toolCalls: JSON.stringify(toolCallInfos),
+      });
+
+      // Add assistant message to conversation for the next LLM call
+      openaiMessages.push({
+        role: "assistant",
+        content: accumulatedText || null,
+        tool_calls: toolCalls.map((tc) => ({
+          id: tc.id,
+          type: "function" as const,
+          function: { name: tc.name, arguments: tc.arguments },
+        })),
+      } satisfies ChatCompletionAssistantMessageParam);
+
+      // Execute each tool
+      for (const tc of toolCalls) {
+        const toolCallPayload: ToolCallEvent = {
+          id: tc.id,
+          name: tc.name,
+          arguments: tc.arguments,
+        };
+        yield { event: "tool-call", data: JSON.stringify(toolCallPayload) };
+
+        const tool = defaultRegistry.get(tc.name);
+        if (tool == null) {
+          const resultText = `Error: unknown tool '${tc.name}'.`;
+          const resultPayload: ToolResultEvent = {
+            id: tc.id,
+            name: tc.name,
+            content: resultText,
+            is_error: true,
+          };
+          yield { event: "tool-result", data: JSON.stringify(resultPayload) };
+          await addMessage(db, sessionId, "tool", resultText, {
+            toolCallId: tc.id,
+          });
+          openaiMessages.push({
+            role: "tool",
+            content: resultText,
+            tool_call_id: tc.id,
+          } satisfies ChatCompletionToolMessageParam);
+          continue;
+        }
+
+        // Check if tool requires confirmation
+        if (tool.requiresConfirmation) {
+          const confirmPayload: ToolConfirmEvent = {
+            id: tc.id,
+            name: tc.name,
+            arguments: tc.arguments,
+          };
+          yield { event: "tool-confirm", data: JSON.stringify(confirmPayload) };
+
+          let approved = false;
+          if (requestConfirmation) {
+            approved = await requestConfirmation(tc.id, tc.name, tc.arguments);
+          }
+
+          if (!approved) {
+            const resultText = "Error: user declined to run this tool.";
+            const resultPayload: ToolResultEvent = {
+              id: tc.id,
+              name: tc.name,
+              content: resultText,
+              is_error: true,
+            };
+            yield { event: "tool-result", data: JSON.stringify(resultPayload) };
+            await addMessage(db, sessionId, "tool", resultText, {
+              toolCallId: tc.id,
+            });
+            openaiMessages.push({
+              role: "tool",
+              content: resultText,
+              tool_call_id: tc.id,
+            } satisfies ChatCompletionToolMessageParam);
+            continue;
+          }
+        }
+
+        let resultText: string;
+        let isError: boolean;
+        try {
+          const args: Record<string, unknown> = tc.arguments
+            ? (JSON.parse(tc.arguments) as Record<string, unknown>)
+            : {};
+          resultText = await tool.execute(args, workDir);
+          isError = resultText.startsWith("Error:");
+        } catch {
+          resultText = `Error: failed to parse arguments for tool '${tc.name}': ${tc.arguments}`;
+          isError = true;
+        }
+
+        const resultPayload: ToolResultEvent = {
+          id: tc.id,
+          name: tc.name,
+          content: resultText,
+          is_error: isError,
+        };
+        yield { event: "tool-result", data: JSON.stringify(resultPayload) };
+
+        await addMessage(db, sessionId, "tool", resultText, {
+          toolCallId: tc.id,
+        });
+        openaiMessages.push({
+          role: "tool",
+          content: resultText,
+          tool_call_id: tc.id,
+        } satisfies ChatCompletionToolMessageParam);
+      }
+
+      // Loop back — call the LLM again with tool results
+      continue;
+    }
+
+    // ── Normal text response (finish_reason == "stop" or similar) ─
+    if (accumulatedText) {
+      await addMessage(db, sessionId, "assistant", accumulatedText);
+    }
+
+    const html = accumulatedText ? renderMarkdown(accumulatedText) : undefined;
+    const donePayload: DoneEvent = { model: modelName, html: html ?? null };
+    yield { event: "done", data: JSON.stringify(donePayload) };
+    return;
+  }
+
+  // ── Loop limit exceeded ─────────────────────────────────────────
+  const limitPayload: ErrorEvent = {
+    message: `Agent loop exceeded maximum iterations (${maxIterations}).`,
+  };
+  yield { event: "error", data: JSON.stringify(limitPayload) };
+}
