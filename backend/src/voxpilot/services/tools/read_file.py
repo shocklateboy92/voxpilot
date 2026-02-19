@@ -48,7 +48,10 @@ class ReadFileTool(Tool):
 
         resolved = self._resolve_path(raw_path, work_dir)
         if resolved is None:
-            return f"Error: path '{raw_path}' is outside the working directory."
+            return (
+                f"Error: path '{raw_path}' is outside the working directory. "
+                "Use the read_file_external tool to read files outside the project."
+            )
 
         if not resolved.exists():
             return f"Error: file '{raw_path}' does not exist."
