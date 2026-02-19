@@ -34,6 +34,18 @@ export function ChatMain() {
   // Only animate the snap-back on cancelled swipes, not committed navigations
   const [animateSnap, setAnimateSnap] = createSignal(false);
 
+  // Deferred navigation: snap back first, then switch session
+  let pendingNav: (() => void) | null = null;
+
+  function handleTransitionEnd(): void {
+    setAnimateSnap(false);
+    if (pendingNav) {
+      const nav = pendingNav;
+      pendingNav = null;
+      nav();
+    }
+  }
+
   // Auto-scroll when messages change or streaming text updates
   createEffect(() => {
     // Track these signals to re-run when they change
@@ -63,25 +75,26 @@ export function ChatMain() {
     const cleanup = attachSwipeHandler(messagesRef, {
       onSwipeMove(deltaX) {
         setAnimateSnap(false);
+        pendingNav = null;
         // Dampened rubber-band: cap at ~60px with sqrt falloff
         const damped = Math.sign(deltaX) * Math.min(Math.sqrt(Math.abs(deltaX)) * 5, 100);
         setSwipeOffset(damped);
       },
       onSwipeLeft() {
-        // Committed swipe — reset instantly (content will change)
-        setAnimateSnap(false);
-        setSwipeOffset(0);
         if (activeIndex() < sessions().length - 1) {
-          navigateNext();
+          // Snap back first, navigate after transition finishes
+          pendingNav = navigateNext;
         }
+        setAnimateSnap(true);
+        setSwipeOffset(0);
       },
       onSwipeRight() {
-        // Committed swipe — reset instantly (content will change)
-        setAnimateSnap(false);
-        setSwipeOffset(0);
         if (activeIndex() > 0) {
-          navigatePrev();
+          // Snap back first, navigate after transition finishes
+          pendingNav = navigatePrev;
         }
+        setAnimateSnap(true);
+        setSwipeOffset(0);
       },
       onSwipeCancel() {
         // Animate the snap-back to rest position
@@ -138,7 +151,7 @@ export function ChatMain() {
           transform: `translateX(${swipeOffset()}px)`,
           transition: animateSnap() ? "transform 200ms ease-out" : "none",
         }}
-        onTransitionEnd={() => setAnimateSnap(false)}
+        onTransitionEnd={handleTransitionEnd}
       >
         <For each={messages()}>
           {(msg) => <MessageBubble message={msg} />}
