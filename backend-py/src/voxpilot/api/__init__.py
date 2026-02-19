@@ -1,1 +1,0 @@
-"""VoxPilot API package."""
