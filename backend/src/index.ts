@@ -13,6 +13,7 @@ app.use(
   "*",
   cors({
     origin: config.corsOrigins,
+    credentials: true,
   }),
 );
 

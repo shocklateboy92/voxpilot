@@ -1,9 +1,15 @@
 /**
- * In-memory stream registry bridging message POST and SSE stream endpoints.
+ * In-memory pub/sub stream registry bridging message POST and SSE stream
+ * endpoints.
  *
- * Replaces the Python version that used asyncio.Queue / asyncio.Event with:
- * - AsyncChannel<T> for multi-value producer/consumer (message delivery)
- * - PromiseWithResolvers<boolean> for single-value confirmation futures
+ * Supports multiple concurrent SSE listeners per session:
+ * - SessionBroadcaster: per-session message queue + event fan-out
+ * - AsyncChannel<T>: multi-value producer/consumer primitive
+ * - PromiseWithResolvers<boolean>: single-value confirmation futures
+ *
+ * Each listener receives its own AsyncChannel of BroadcastEvents so that
+ * slow consumers don't block others.  Event IDs are monotonically
+ * increasing per session so the client can track `Last-Event-ID`.
  */
 
 // ── AsyncChannel ────────────────────────────────────────────────────────────
@@ -46,6 +52,15 @@ export class AsyncChannel<T> {
   }
 }
 
+// ── Broadcast event ─────────────────────────────────────────────────────────
+
+/** An SSE event with a monotonically increasing ID for Last-Event-ID. */
+export interface BroadcastEvent {
+  id: string;
+  event: string;
+  data: string;
+}
+
 // ── Confirmation ────────────────────────────────────────────────────────────
 
 interface PendingConfirm {
@@ -61,36 +76,202 @@ export interface MessagePayload {
   gh_token: string;
 }
 
+// ── MessageHandler callback ─────────────────────────────────────────────────
+
+/**
+ * Callback invoked for each user message. The handler should process the
+ * message (persist it, run the agent loop, etc.) and call
+ * `broadcaster.broadcast()` to fan events out to all listeners.
+ */
+export type MessageHandler = (
+  payload: MessagePayload,
+  broadcaster: SessionBroadcaster,
+) => Promise<void>;
+
+// ── SessionBroadcaster ──────────────────────────────────────────────────────
+
+/**
+ * Per-session pub/sub broadcaster.
+ *
+ * - **Message queue**: single-consumer queue for incoming user messages.
+ * - **Listeners**: set of per-listener event channels for fan-out.
+ * - **Event IDs**: monotonically increasing counter for Last-Event-ID.
+ * - **Processor**: a single async loop that reads from the message queue,
+ *   invokes the provided handler, and broadcasts events.  Started lazily
+ *   on the first `subscribe()` when a handler is provided.
+ */
+export class SessionBroadcaster {
+  /** Queue for incoming user messages (single consumer — the processor). */
+  readonly messageQueue = new AsyncChannel<MessagePayload | null>();
+
+  private listeners = new Map<string, AsyncChannel<BroadcastEvent | null>>();
+  private nextEventId = 1;
+  private _processorRunning = false;
+
+  // ── Listener management ───────────────────────────────────────────────
+
+  /** Subscribe a new listener. Returns a unique ID and a personal channel. */
+  subscribe(): { listenerId: string; events: AsyncChannel<BroadcastEvent | null> } {
+    const listenerId = crypto.randomUUID();
+    const events = new AsyncChannel<BroadcastEvent | null>();
+    this.listeners.set(listenerId, events);
+    return { listenerId, events };
+  }
+
+  /**
+   * Unsubscribe a listener.  Sends a null sentinel to the listener's
+   * channel so its relay loop exits.  If this was the last listener,
+   * a null sentinel is also sent to the message queue to stop the processor.
+   */
+  unsubscribe(listenerId: string): void {
+    const channel = this.listeners.get(listenerId);
+    if (channel) {
+      channel.send(null);
+      this.listeners.delete(listenerId);
+    }
+    if (this.listeners.size === 0) {
+      this.messageQueue.send(null);
+    }
+  }
+
+  // ── Event broadcast ───────────────────────────────────────────────────
+
+  /**
+   * Broadcast an event to every subscribed listener.
+   * Assigns a monotonically increasing event ID and returns it.
+   */
+  broadcast(event: string, data: string): string {
+    const id = String(this.nextEventId++);
+    const be: BroadcastEvent = { id, event, data };
+    for (const channel of this.listeners.values()) {
+      channel.send(be);
+    }
+    return id;
+  }
+
+  // ── Processor ─────────────────────────────────────────────────────────
+
+  /** Whether the background message processor is currently running. */
+  get processorRunning(): boolean {
+    return this._processorRunning;
+  }
+
+  /** Number of currently subscribed listeners. */
+  get listenerCount(): number {
+    return this.listeners.size;
+  }
+
+  /**
+   * Start the message processor loop.  Reads from the message queue and
+   * invokes `handler` for each payload.  The handler should call
+   * `broadcaster.broadcast()` to fan events to listeners.
+   *
+   * Only one processor runs at a time — subsequent calls are no-ops.
+   * The processor exits when a null sentinel is received (triggered by
+   * the last listener unsubscribing) or when no listeners remain.
+   *
+   * This is fire-and-forget: callers should `void broadcaster.runProcessor(…)`.
+   */
+  async runProcessor(handler: MessageHandler): Promise<void> {
+    if (this._processorRunning) return;
+    this._processorRunning = true;
+
+    try {
+      while (this.listenerCount > 0) {
+        let payload: MessagePayload | null;
+        try {
+          payload = await this.messageQueue.receive(
+            AbortSignal.timeout(30_000),
+          );
+        } catch {
+          // Timeout — loop back and check if listeners remain
+          continue;
+        }
+
+        // Null sentinel — processor shutdown
+        if (payload === null) break;
+
+        try {
+          await handler(payload, this);
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : String(err);
+          console.error("Message processor error:", err);
+          this.broadcast("error", JSON.stringify({ message }));
+        }
+      }
+    } finally {
+      this._processorRunning = false;
+      // Notify remaining listeners that processing has stopped so their
+      // relay loops exit cleanly (e.g. when a null shutdown sentinel was
+      // received on the message queue).
+      for (const channel of this.listeners.values()) {
+        channel.send(null);
+      }
+    }
+  }
+}
+
 // ── SessionStreamRegistry ───────────────────────────────────────────────────
 
 export class SessionStreamRegistry {
-  private channels = new Map<string, AsyncChannel<MessagePayload | null>>();
+  private sessions = new Map<string, SessionBroadcaster>();
   private pending = new Map<string, PendingConfirm>();
 
-  // ── Message channel ─────────────────────────────────────────────────────
+  // ── Session broadcaster ─────────────────────────────────────────────────
 
-  /** Create and register a channel for the session, returning it. */
-  register(sessionId: string): AsyncChannel<MessagePayload | null> {
-    const channel = new AsyncChannel<MessagePayload | null>();
-    this.channels.set(sessionId, channel);
-    return channel;
+  /**
+   * Get or create the broadcaster for a session.
+   * Returns the broadcaster and whether it was freshly created.
+   */
+  getOrCreate(sessionId: string): { broadcaster: SessionBroadcaster; created: boolean } {
+    const existing = this.sessions.get(sessionId);
+    if (existing) return { broadcaster: existing, created: false };
+
+    const broadcaster = new SessionBroadcaster();
+    this.sessions.set(sessionId, broadcaster);
+    return { broadcaster, created: true };
   }
 
-  /** Remove the channel for the session (no-op if not registered). */
-  unregister(sessionId: string): void {
-    this.channels.delete(sessionId);
+  /**
+   * Subscribe a new listener to a session's broadcaster.
+   * Creates the broadcaster on first subscription.
+   */
+  subscribe(sessionId: string): {
+    broadcaster: SessionBroadcaster;
+    listenerId: string;
+    events: AsyncChannel<BroadcastEvent | null>;
+  } {
+    const { broadcaster } = this.getOrCreate(sessionId);
+    const { listenerId, events } = broadcaster.subscribe();
+    return { broadcaster, listenerId, events };
   }
 
-  /** Return the channel for the session, or undefined. */
-  get(sessionId: string): AsyncChannel<MessagePayload | null> | undefined {
-    return this.channels.get(sessionId);
+  /**
+   * Unsubscribe a listener.  Cleans up the broadcaster from the registry
+   * when the last listener unsubscribes.
+   */
+  unsubscribe(sessionId: string, listenerId: string): void {
+    const broadcaster = this.sessions.get(sessionId);
+    if (!broadcaster) return;
+    broadcaster.unsubscribe(listenerId);
+    if (broadcaster.listenerCount === 0) {
+      this.sessions.delete(sessionId);
+    }
   }
 
-  /** Put a payload on the session's channel. Returns false if no channel. */
+  /** Get the broadcaster for a session, or undefined. */
+  get(sessionId: string): SessionBroadcaster | undefined {
+    return this.sessions.get(sessionId);
+  }
+
+  /**
+   * Enqueue a user message on the session's message queue.
+   * Returns false if no broadcaster exists (no listeners connected).
+   */
   send(sessionId: string, payload: MessagePayload | null): boolean {
-    const channel = this.channels.get(sessionId);
-    if (!channel) return false;
-    channel.send(payload);
+    const broadcaster = this.sessions.get(sessionId);
+    if (!broadcaster) return false;
+    broadcaster.messageQueue.send(payload);
     return true;
   }
 

@@ -76,23 +76,29 @@ async function createTestSession(): Promise<string> {
   return session.id;
 }
 
-function parseSseEvents(text: string): { event: string; data: string }[] {
-  const events: { event: string; data: string }[] = [];
+function parseSseEvents(
+  text: string,
+): { event: string; data: string; id?: string }[] {
+  const events: { event: string; data: string; id?: string }[] = [];
   let eventType = "";
   let data = "";
+  let id: string | undefined;
   for (const line of text.replace(/\r\n/g, "\n").split("\n")) {
     if (line.startsWith("event:")) {
       eventType = line.slice(6).trim();
     } else if (line.startsWith("data:")) {
       data = line.slice(5).trim();
+    } else if (line.startsWith("id:")) {
+      id = line.slice(3).trim();
     } else if (line === "" && eventType && data) {
-      events.push({ event: eventType, data });
+      events.push({ event: eventType, data, id });
       eventType = "";
       data = "";
+      id = undefined;
     }
   }
   if (eventType && data) {
-    events.push({ event: eventType, data });
+    events.push({ event: eventType, data, id });
   }
   return events;
 }
@@ -107,7 +113,7 @@ describe("chat", () => {
   describe("POST /messages", () => {
     it("returns 202 with active stream", async () => {
       const sessionId = await createTestSession();
-      registry.register(sessionId);
+      const { listenerId } = registry.subscribe(sessionId);
       try {
         const res = await app.request(
           `/api/sessions/${sessionId}/messages`,
@@ -122,7 +128,7 @@ describe("chat", () => {
         );
         expect(res.status).toBe(202);
       } finally {
-        registry.unregister(sessionId);
+        registry.unsubscribe(sessionId, listenerId);
       }
     });
 
@@ -168,7 +174,7 @@ describe("chat", () => {
 
     it("enqueues correct payload", async () => {
       const sessionId = await createTestSession();
-      const channel = registry.register(sessionId);
+      const { broadcaster, listenerId } = registry.subscribe(sessionId);
       try {
         await app.request(`/api/sessions/${sessionId}/messages`, {
           method: "POST",
@@ -178,7 +184,9 @@ describe("chat", () => {
             "Content-Type": "application/json",
           },
         });
-        const payload = await channel.receive(AbortSignal.timeout(1000));
+        const payload = await broadcaster.messageQueue.receive(
+          AbortSignal.timeout(1000),
+        );
         expect(payload).not.toBeNull();
         if (payload) {
           expect(payload.content).toBe("Hello world");
@@ -186,7 +194,7 @@ describe("chat", () => {
           expect(payload.gh_token).toBe("gho_fake_token_123");
         }
       } finally {
-        registry.unregister(sessionId);
+        registry.unsubscribe(sessionId, listenerId);
       }
     });
   });
@@ -200,7 +208,10 @@ describe("chat", () => {
     });
 
     it("returns 404 for nonexistent session", async () => {
-      const res = await app.request("/api/sessions/nonexistent/stream", AUTH);
+      const res = await app.request(
+        "/api/sessions/nonexistent/stream",
+        AUTH,
+      );
       expect(res.status).toBe(404);
     });
 
@@ -217,7 +228,7 @@ describe("chat", () => {
       );
 
       // Wait for the stream to register, then send sentinel
-      await waitForChannel(sessionId);
+      await waitForBroadcaster(sessionId);
       registry.send(sessionId, null);
 
       const response = await streamPromise;
@@ -247,7 +258,11 @@ describe("chat", () => {
 
       const chunks = [
         makeTextChunk({ content: "Hello", model: "gpt-4o" }),
-        makeTextChunk({ content: " world", model: "gpt-4o", finishReason: "stop" }),
+        makeTextChunk({
+          content: " world",
+          model: "gpt-4o",
+          finishReason: "stop",
+        }),
       ];
       createFn = () => mockStream(chunks);
 
@@ -256,7 +271,7 @@ describe("chat", () => {
         AUTH,
       );
 
-      await waitForChannel(sessionId);
+      await waitForBroadcaster(sessionId);
       registry.send(sessionId, {
         content: "Hi",
         model: "gpt-4o",
@@ -292,13 +307,21 @@ describe("chat", () => {
       // Check done
       const done = events.filter((e) => e.event === "done");
       expect(JSON.parse(done[0].data).model).toBe("gpt-4o");
+
+      // Check that broadcast events have IDs
+      const liveEvents = events.filter((e) => e.id !== undefined);
+      expect(liveEvents.length).toBeGreaterThan(0);
     });
 
     it("persists messages to db", async () => {
       const sessionId = await createTestSession();
 
       const chunks = [
-        makeTextChunk({ content: "Hey!", model: "gpt-4o", finishReason: "stop" }),
+        makeTextChunk({
+          content: "Hey!",
+          model: "gpt-4o",
+          finishReason: "stop",
+        }),
       ];
       createFn = () => mockStream(chunks);
 
@@ -307,7 +330,7 @@ describe("chat", () => {
         AUTH,
       );
 
-      await waitForChannel(sessionId);
+      await waitForBroadcaster(sessionId);
       registry.send(sessionId, {
         content: "Hello",
         model: "gpt-4o",
@@ -320,8 +343,6 @@ describe("chat", () => {
 
       const db = getDb();
       const msgs = await getMessages(db, sessionId);
-      // At minimum the user message is persisted by the stream handler.
-      // The assistant message is persisted by the agent loop if it completes.
       expect(msgs.length).toBeGreaterThanOrEqual(1);
       expect(msgs[0].role).toBe("user");
       expect(msgs[0].content).toBe("Hello");
@@ -335,7 +356,11 @@ describe("chat", () => {
       const sessionId = await createTestSession();
 
       const chunks = [
-        makeTextChunk({ content: "Reply", model: "gpt-4o", finishReason: "stop" }),
+        makeTextChunk({
+          content: "Reply",
+          model: "gpt-4o",
+          finishReason: "stop",
+        }),
       ];
       createFn = () => mockStream(chunks);
 
@@ -344,7 +369,7 @@ describe("chat", () => {
         AUTH,
       );
 
-      await waitForChannel(sessionId);
+      await waitForBroadcaster(sessionId);
       registry.send(sessionId, {
         content: "Tell me about cats",
         model: "gpt-4o",
@@ -373,7 +398,7 @@ describe("chat", () => {
         AUTH,
       );
 
-      await waitForChannel(sessionId);
+      await waitForBroadcaster(sessionId);
       registry.send(sessionId, {
         content: "Hi",
         model: "gpt-4o",
@@ -392,7 +417,7 @@ describe("chat", () => {
       expect(JSON.parse(errors[0].data).message).toContain("rate limit");
     });
 
-    it("unregisters on exit", async () => {
+    it("cleans up on exit", async () => {
       const sessionId = await createTestSession();
 
       const streamPromise = app.request(
@@ -400,7 +425,7 @@ describe("chat", () => {
         AUTH,
       );
 
-      await waitForChannel(sessionId);
+      await waitForBroadcaster(sessionId);
       registry.send(sessionId, null);
       await streamPromise;
       // Allow the finally block in streamSSE to execute
@@ -418,7 +443,10 @@ describe("chat", () => {
         "/api/sessions/nonexistent/confirm",
         {
           method: "POST",
-          body: JSON.stringify({ tool_call_id: "call_xxx", approved: true }),
+          body: JSON.stringify({
+            tool_call_id: "call_xxx",
+            approved: true,
+          }),
           headers: {
             ...AUTH.headers,
             "Content-Type": "application/json",
@@ -434,7 +462,10 @@ describe("chat", () => {
         `/api/sessions/${sessionId}/confirm`,
         {
           method: "POST",
-          body: JSON.stringify({ tool_call_id: "call_xxx", approved: true }),
+          body: JSON.stringify({
+            tool_call_id: "call_xxx",
+            approved: true,
+          }),
           headers: {
             ...AUTH.headers,
             "Content-Type": "application/json",
@@ -446,7 +477,6 @@ describe("chat", () => {
 
     it("returns 409 when tool_call_id doesn't match", async () => {
       const sessionId = await createTestSession();
-      // Set up a pending confirm manually
       registry.awaitConfirmation(sessionId, "call_real");
       try {
         const res = await app.request(
@@ -465,7 +495,6 @@ describe("chat", () => {
         );
         expect(res.status).toBe(409);
       } finally {
-        // Clean up pending
         registry.resolveConfirmation(sessionId, "call_real", false);
       }
     });
@@ -496,13 +525,16 @@ describe("chat", () => {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-async function waitForChannel(sessionId: string, timeoutMs = 2000): Promise<void> {
+async function waitForBroadcaster(
+  sessionId: string,
+  timeoutMs = 2000,
+): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (registry.get(sessionId)) return;
     await sleep(10);
   }
-  throw new Error(`Channel for ${sessionId} never registered`);
+  throw new Error(`Broadcaster for ${sessionId} never registered`);
 }
 
 function sleep(ms: number): Promise<void> {

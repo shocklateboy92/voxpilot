@@ -4,6 +4,9 @@
  * GET  /api/sessions/:id/stream   — persistent EventSource stream
  * POST /api/sessions/:id/messages — fire-and-forget message submission
  * POST /api/sessions/:id/confirm  — approve or deny a tool call
+ *
+ * Multiple SSE connections per session are supported.  A single background
+ * processor runs the agent loop and broadcasts events to all listeners.
  */
 
 import { Hono } from "hono";
@@ -20,6 +23,7 @@ import {
   sessionExists,
 } from "../services/sessions";
 import { registry } from "../services/streams";
+import type { MessagePayload, SessionBroadcaster } from "../services/streams";
 import { runAgentLoop } from "../services/agent";
 import type { SendMessageRequest, ToolConfirmRequest } from "../schemas/api";
 
@@ -28,6 +32,63 @@ const KEEPALIVE_TIMEOUT_MS = 30_000; // 30 seconds
 
 export const chatRouter = new Hono<AuthEnv>();
 chatRouter.use("*", authMiddleware);
+
+// ── Message processor (one per session) ─────────────────────────────────────
+
+/**
+ * Build a message handler closure for a session.  The handler is invoked
+ * once per user message by the SessionBroadcaster's processor loop.
+ */
+function makeMessageHandler(sessionId: string) {
+  return async (payload: MessagePayload, broadcaster: SessionBroadcaster) => {
+    const db = getDb();
+    const { content, model, gh_token: ghToken } = payload;
+
+    // Persist user message and auto-title
+    await addMessage(db, sessionId, "user", content);
+    await autoTitleIfNeeded(db, sessionId, content);
+
+    // Echo user message to all listeners
+    broadcaster.broadcast(
+      "message",
+      JSON.stringify({
+        role: "user",
+        content,
+        created_at: new Date().toISOString(),
+      }),
+    );
+
+    // Load full conversation for the agent loop
+    const messages = await getMessages(db, sessionId);
+
+    // Confirmation callback for tools that need approval
+    const requestConfirmation = async (
+      callId: string,
+      _name: string,
+      _args: string,
+    ): Promise<boolean> => {
+      return registry.awaitConfirmation(
+        sessionId,
+        callId,
+        AbortSignal.timeout(CONFIRM_TIMEOUT_MS),
+      );
+    };
+
+    for await (const event of runAgentLoop({
+      messages,
+      model,
+      ghToken,
+      workDir: config.workDir,
+      db,
+      sessionId,
+      maxIterations: config.maxAgentIterations,
+      isDisconnected: () => broadcaster.listenerCount === 0,
+      requestConfirmation,
+    })) {
+      broadcaster.broadcast(event.event, event.data);
+    }
+  };
+}
 
 // ── GET /api/sessions/:id/stream ────────────────────────────────────────────
 
@@ -39,11 +100,21 @@ chatRouter.get("/api/sessions/:id/stream", async (c) => {
     return c.json({ detail: "Session not found" }, 404);
   }
 
-  const channel = registry.register(sessionId);
+  const { broadcaster, listenerId, events } = registry.subscribe(sessionId);
+
+  // Start the message processor if not already running
+  if (!broadcaster.processorRunning) {
+    void broadcaster.runProcessor(makeMessageHandler(sessionId));
+  }
 
   return streamSSE(
     c,
     async (stream: SSEStreamingApi) => {
+      let disconnected = false;
+      stream.onAbort(() => {
+        disconnected = true;
+      });
+
       try {
         // ── Replay history ──────────────────────────────────────────
         const history = await getMessagesWithTimestamps(db, sessionId);
@@ -56,73 +127,32 @@ chatRouter.get("/api/sessions/:id/stream", async (c) => {
 
         await stream.writeSSE({ event: "ready", data: "{}" });
 
-        // ── Live loop ───────────────────────────────────────────────
-        while (true) {
-          let payload: Awaited<ReturnType<typeof channel.receive>>;
+        // ── Event relay loop ────────────────────────────────────────
+        while (!disconnected) {
+          let event: Awaited<ReturnType<typeof events.receive>>;
           try {
-            payload = await channel.receive(
+            event = await events.receive(
               AbortSignal.timeout(KEEPALIVE_TIMEOUT_MS),
             );
           } catch {
-            // Timeout — send keepalive
-            await stream.writeSSE({ event: "keepalive", data: "" });
+            // Timeout — send keepalive (if still connected)
+            if (!disconnected) {
+              await stream.writeSSE({ event: "keepalive", data: "" });
+            }
             continue;
           }
 
-          // Sentinel — clean shutdown
-          if (payload === null) break;
+          // Null sentinel — clean shutdown
+          if (event === null) break;
 
-          const { content, model, gh_token: ghToken } = payload;
-
-          // Persist user message and auto-title
-          await addMessage(db, sessionId, "user", content);
-          await autoTitleIfNeeded(db, sessionId, content);
-
-          // Echo user message back to the stream
-          const now = new Date().toISOString();
           await stream.writeSSE({
-            event: "message",
-            data: JSON.stringify({
-              role: "user",
-              content,
-              created_at: now,
-            }),
+            event: event.event,
+            data: event.data,
+            id: event.id,
           });
-
-          // Load full conversation for the agent loop
-          const messages = await getMessages(db, sessionId);
-
-          // Confirmation callback for tools that need approval
-          const requestConfirmation = async (
-            callId: string,
-            _name: string,
-            _args: string,
-          ): Promise<boolean> => {
-            return registry.awaitConfirmation(
-              sessionId,
-              callId,
-              AbortSignal.timeout(CONFIRM_TIMEOUT_MS),
-            );
-          };
-
-          for await (const event of runAgentLoop({
-            messages,
-            model,
-            ghToken,
-            workDir: config.workDir,
-            db,
-            sessionId,
-            maxIterations: config.maxAgentIterations,
-            requestConfirmation,
-          })) {
-            await stream.writeSSE({
-              event: event.event,
-              data: event.data,
-            });
-          }
         }
       } finally {
-        registry.unregister(sessionId);
+        registry.unsubscribe(sessionId, listenerId);
       }
     },
     async (err) => {
