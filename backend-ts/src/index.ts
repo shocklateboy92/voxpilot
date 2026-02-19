@@ -4,6 +4,7 @@ import { config } from "./config";
 import { closeDb, initDb } from "./db";
 import { healthRouter } from "./routes/health";
 import { authRouter } from "./routes/auth";
+import { sessionsRouter } from "./routes/sessions";
 
 export const app = new Hono();
 
@@ -16,6 +17,7 @@ app.use(
 
 app.route("/", healthRouter);
 app.route("/", authRouter);
+app.route("/", sessionsRouter);
 
 initDb(config.dbPath);
 console.log(

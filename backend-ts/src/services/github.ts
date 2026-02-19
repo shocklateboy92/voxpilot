@@ -45,7 +45,8 @@ export async function exchangeCodeForToken(
   ) {
     throw new Error("GitHub token exchange response missing access_token");
   }
-  return (data as Record<string, string>)["access_token"];
+  const token = (data as Record<string, unknown>)["access_token"];
+  return token as string;
 }
 
 export async function getGithubUser(accessToken: string): Promise<GitHubUser> {

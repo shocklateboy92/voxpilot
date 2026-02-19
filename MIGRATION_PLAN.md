@@ -9,7 +9,7 @@ Migrate the backend from Python 3.13 / FastAPI / aiosqlite to **TypeScript / Bun
 - [x] Phase 1 — Scaffold & Infrastructure (complete)
 - [x] Phase 2 — Schemas & Middleware (complete)
 - [x] Phase 3 — Health & Auth Routes (complete)
-- [ ] Phase 4 — Session CRUD
+- [x] Phase 4 — Session CRUD (complete)
 - [ ] Phase 5 — Markdown Service
 - [ ] Phase 6 — Tool Framework
 - [ ] Phase 7 — Stream Registry & Confirmation
