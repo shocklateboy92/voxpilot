@@ -2,8 +2,10 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { config } from "./config";
 import { closeDb, initDb } from "./db";
+import { healthRouter } from "./routes/health";
+import { authRouter } from "./routes/auth";
 
-const app = new Hono();
+export const app = new Hono();
 
 app.use(
   "*",
@@ -12,9 +14,8 @@ app.use(
   }),
 );
 
-app.get("/", (c) => {
-  return c.json({ name: config.appName, status: "ok" });
-});
+app.route("/", healthRouter);
+app.route("/", authRouter);
 
 initDb(config.dbPath);
 console.log(
