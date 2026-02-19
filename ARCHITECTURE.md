@@ -11,7 +11,7 @@ VoxPilot is a **self-hosted, web-based AI coding assistant** — an alternative 
 ## Stack
 
 - **Backend**: Python 3.13, FastAPI, Pydantic v2, `uv`, Pyright (strict), Ruff
-- **Frontend**: Vanilla TypeScript 5.7 (no framework), esbuild, `openapi-fetch`
+- **Frontend**: SolidJS 1.9 + TypeScript 5.7, Vite, `openapi-fetch`
 - **Database**: SQLite via `aiosqlite` (WAL mode, foreign keys enabled)
 - **Task runner**: `just` (see Justfile for all recipes)
 - **Tests**: pytest-asyncio with `httpx.ASGITransport` (no live server), in-memory SQLite
@@ -19,7 +19,7 @@ VoxPilot is a **self-hosted, web-based AI coding assistant** — an alternative 
 ## Architecture
 
 ```
-Browser (vanilla TS SPA)
+Browser (SolidJS SPA)
   │  openapi-fetch, EventSource, cookies
   │
   ▼  HTTP/JSON + SSE
@@ -68,15 +68,17 @@ sessions                          messages
 - **Agent loop** (`services/agent.py`): Async generator that yields SSE event dicts. Creates an OpenAI client per request, streams the completion, accumulates tool-call deltas, executes tools via the registry, persists all messages (assistant w/ tool_calls, tool results), and loops until the LLM responds with text or hits the iteration cap. Errors from tool execution are fed back to the LLM as tool-result content so it can self-correct.
 - **Tool framework** (`services/tools/`): Abstract `Tool` base class with `execute(arguments, work_dir) → str`, `to_openai_tool() → ChatCompletionToolParam`, and `_resolve_path()` (validates paths stay inside `work_dir`). `ToolRegistry` maps names to instances. Tools: `read_file`, `list_directory`, `grep_search`, `glob_search`. All are read-only; `requires_confirmation` hook exists for future write tools.
 - **Row mapping**: `aiosqlite.Row` (dict-like access) → Pydantic models via explicit constructors in `services/sessions.py`. ~15 lines total, fully typed.
-- **Frontend**: `main.ts` manages session sidebar + chat area. No in-memory message array; state lives in the DB. History replayed via the session stream on connect; `sse.ts` wraps `EventSource` and exposes typed callbacks (`onMessage`, `onTextDelta`, `onDone`, `onError`, `onToolCall`, `onToolResult`). Tool calls rendered as collapsible `<details>` blocks; tool results appended inside matched blocks via `data-tool-call-id`.
-- **Production**: `just build` bundles frontend; `create_app()` auto-mounts `frontend/dist/` if it exists. Single uvicorn process serves everything.
+- **Frontend**: SolidJS components with fine-grained signal-based reactivity. Vite build (`vite.config.ts`). Entry at `frontend/index.html` → `src/index.tsx` → `App.tsx`. State is SolidJS signals in `store.ts` (sessions list, active index, messages, streaming text, tool calls, UI state). SSE streaming uses rAF batching in `streaming.ts`: `text-delta` tokens accumulate in a plain string buffer; a `requestAnimationFrame` loop writes to the `streamingText` signal once per frame, ensuring ≤1 DOM update per frame regardless of token arrival rate. Session orchestration (switch, create, delete, prev/next) in `sessions.ts`. Touch swipe detection for mobile session navigation in `gestures.ts` (axis locking, edge exclusion for Safari). Components in `src/components/`: `ChatView` (layout), `ChatMain` (messages + input + swipe), `Sidebar` (desktop), `BottomNav` + `SessionPicker` (mobile), `MessageBubble`, `StreamingBubble`, `ToolCallBlock`. `sse.ts` is framework-agnostic (callback-based `EventSource` wrapper, unchanged from v1). Responsive layout: sidebar visible ≥768px, bottom nav + swipe on mobile <768px.
+- **Production**: `just build` runs `vite build`; `create_app()` auto-mounts `frontend/dist/` if it exists. Single uvicorn process serves everything.
 - **Tests**: `conftest.py` has `autouse` fixture calling `init_db(":memory:")` — every test gets a fresh in-memory DB.
 
 ## Design Decisions
 
 | Decision | Rationale |
 |---|---|
-| **No frontend framework** | Minimal scope; vanilla TS keeps bundle tiny and avoids churn |
+| **SolidJS** | Fine-grained signals compile to direct DOM operations — same perf as hand-written code. No VDOM diffing. Scales to roadmap features (diffs, terminal, git panels) without building a bespoke framework. |
+| **rAF-batched streaming** | SSE `text-delta` tokens arrive faster than 60fps. Buffering into a string and flushing via `requestAnimationFrame` collapses N tokens/frame into 1 signal write → 1 text node update. Eliminates layout thrashing. |
+| **Swipe navigation (mobile)** | Left/right swipe on the chat area navigates sessions. Touches within 25px of screen edges are ignored to avoid Safari's native back/forward gesture. Axis locking after 10px prevents unintentional swipes during vertical scroll. |
 | **openapi-fetch + codegen** | Type-safe API calls; contract enforced at compile time |
 | **GitHub token as Models API key** | GitHub Models accepts OAuth tokens directly; no separate key management |
 | **Cookie auth (no JWT)** | Simpler; `HttpOnly` mitigates XSS; no refresh logic needed |
