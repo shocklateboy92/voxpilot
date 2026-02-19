@@ -2,6 +2,7 @@
 
 GET  /api/sessions/{session_id}/stream   — persistent EventSource stream
 POST /api/sessions/{session_id}/messages — fire-and-forget message submission
+POST /api/sessions/{session_id}/confirm  — approve or deny a tool call
 """
 
 import asyncio
@@ -17,6 +18,7 @@ from voxpilot.dependencies import DbDep, GitHubToken, SettingsDep
 from voxpilot.models.schemas import (
     MessageEvent,
     SendMessageRequest,
+    ToolConfirmRequest,
 )
 from voxpilot.services.agent import run_agent_loop
 from voxpilot.services.sessions import (
@@ -29,6 +31,8 @@ from voxpilot.services.sessions import (
 from voxpilot.services.streams import registry
 
 logger = logging.getLogger(__name__)
+
+CONFIRM_TIMEOUT_SECONDS = 300  # 5 minutes
 
 router = APIRouter(prefix="/api/sessions", tags=["chat"])
 
@@ -47,13 +51,14 @@ async def stream_session(
     ``done``, or ``error``.
 
     SSE event types:
-        message     — ``{"role": "...", "content": "...", "created_at": "...", ...}``
-        ready       — ``{}``
-        text-delta  — ``{"content": "..."}``
-        tool-call   — ``{"id": "...", "name": "...", "arguments": "..."}``
-        tool-result — ``{"id": "...", "name": "...", "content": "...", "is_error": ...}``
-        done        — ``{"model": "..."}``
-        error       — ``{"message": "..."}``
+        message      — ``{"role": "...", "content": "...", "created_at": "...", ...}``
+        ready        — ``{}``
+        text-delta   — ``{"content": "..."}``
+        tool-call    — ``{"id": "...", "name": "...", "arguments": "..."}``
+        tool-confirm — ``{"id": "...", "name": "...", "arguments": "..."}``
+        tool-result  — ``{"id": "...", "name": "...", "content": "...", "is_error": ...}``
+        done         — ``{"model": "..."}``
+        error        — ``{"message": "..."}``
     """
     if not await session_exists(db, session_id):
         raise HTTPException(
@@ -62,6 +67,24 @@ async def stream_session(
         )
 
     queue = registry.register(session_id)
+    confirm_queue = registry.register_confirm(session_id)
+
+    async def _request_confirmation(
+        call_id: str, name: str, arguments: str
+    ) -> bool:
+        """Wait for user to approve or deny a tool call."""
+        registry.set_pending_confirm(session_id, call_id)
+        try:
+            return await asyncio.wait_for(
+                confirm_queue.get(), timeout=CONFIRM_TIMEOUT_SECONDS
+            )
+        except TimeoutError:
+            logger.warning(
+                "Confirmation timeout for tool call %s in session %s",
+                call_id,
+                session_id,
+            )
+            return False
 
     async def _generate() -> AsyncIterator[ServerSentEvent]:
         try:
@@ -118,6 +141,7 @@ async def stream_session(
                     session_id=session_id,
                     max_iterations=settings.max_agent_iterations,
                     is_disconnected=request.is_disconnected,
+                    request_confirmation=_request_confirmation,
                 ):
                     yield ServerSentEvent(
                         data=event["data"],
@@ -125,6 +149,7 @@ async def stream_session(
                     )
         finally:
             registry.unregister(session_id)
+            registry.unregister_confirm(session_id)
 
     return EventSourceResponse(_generate())
 
@@ -159,6 +184,38 @@ async def send_message(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="No active stream for this session",
+        )
+
+    return Response(status_code=status.HTTP_202_ACCEPTED)
+
+
+@router.post(
+    "/{session_id}/confirm",
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def confirm_tool(
+    session_id: str,
+    body: ToolConfirmRequest,
+    token: GitHubToken,
+    db: DbDep,
+) -> Response:
+    """Approve or deny a pending tool call that requires confirmation.
+
+    Returns **202 Accepted** on success.  Returns **409 Conflict** if
+    no confirmation is pending, the ``tool_call_id`` doesn't match, or
+    no stream is connected.
+    """
+    if not await session_exists(db, session_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        )
+
+    ok = registry.put_confirm(session_id, body.tool_call_id, body.approved)
+    if not ok:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No pending confirmation for this tool call",
         )
 
     return Response(status_code=status.HTTP_202_ACCEPTED)

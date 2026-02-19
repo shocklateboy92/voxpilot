@@ -5,12 +5,14 @@ from voxpilot.services.tools.glob_search import GlobSearchTool
 from voxpilot.services.tools.grep_search import GrepSearchTool
 from voxpilot.services.tools.list_directory import ListDirectoryTool
 from voxpilot.services.tools.read_file import ReadFileTool
+from voxpilot.services.tools.read_file_external import ReadFileExternalTool
 from voxpilot.services.tools.registry import ToolRegistry
 
 __all__ = [
     "GlobSearchTool",
     "GrepSearchTool",
     "ListDirectoryTool",
+    "ReadFileExternalTool",
     "ReadFileTool",
     "Tool",
     "ToolRegistry",
@@ -25,6 +27,7 @@ def _build_default_registry() -> ToolRegistry:
     reg.register(ListDirectoryTool())
     reg.register(GrepSearchTool())
     reg.register(GlobSearchTool())
+    reg.register(ReadFileExternalTool())
     return reg
 
 

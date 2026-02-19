@@ -8,6 +8,7 @@ from voxpilot.services.tools.glob_search import GlobSearchTool
 from voxpilot.services.tools.grep_search import GrepSearchTool
 from voxpilot.services.tools.list_directory import ListDirectoryTool
 from voxpilot.services.tools.read_file import ReadFileTool
+from voxpilot.services.tools.read_file_external import ReadFileExternalTool
 
 
 @pytest.fixture
@@ -300,16 +301,19 @@ def test_tool_registry() -> None:
     from voxpilot.services.tools import default_registry
 
     tools = default_registry.all()
-    assert len(tools) == 4
+    assert len(tools) == 5
     names = {t.name for t in tools}
-    assert names == {"read_file", "list_directory", "grep_search", "glob_search"}
+    assert names == {
+        "read_file", "list_directory", "grep_search",
+        "glob_search", "read_file_external",
+    }
 
 
 def test_tool_openai_format() -> None:
     from voxpilot.services.tools import default_registry
 
     specs = default_registry.to_openai_tools()
-    assert len(specs) == 4
+    assert len(specs) == 5
     for spec in specs:
         assert spec["type"] == "function"
         assert "name" in spec["function"]
@@ -437,4 +441,55 @@ async def test_glob_search_not_a_dir(work_dir: Path) -> None:
     result = await tool.execute(
         {"pattern": "*.py", "path": "README.md"}, work_dir
     )
+    assert result.startswith("Error:")
+
+
+# ── ReadFileExternalTool ──────────────────────────────────────────────────────
+
+
+def test_read_file_external_requires_confirmation() -> None:
+    tool = ReadFileExternalTool()
+    assert tool.requires_confirmation is True
+
+
+@pytest.mark.asyncio
+async def test_read_file_external_reads_absolute_path(tmp_path: Path) -> None:
+    """Should read a file by absolute path."""
+    test_file = tmp_path / "external.txt"
+    test_file.write_text("line one\nline two\n")
+
+    tool = ReadFileExternalTool()
+    result = await tool.execute({"path": str(test_file)}, tmp_path)
+    assert "line one" in result
+    assert "line two" in result
+    assert "lines 1-2 of 2" in result
+
+
+@pytest.mark.asyncio
+async def test_read_file_external_file_not_found(tmp_path: Path) -> None:
+    tool = ReadFileExternalTool()
+    result = await tool.execute({"path": "/nonexistent/file.txt"}, tmp_path)
+    assert result.startswith("Error:")
+    assert "does not exist" in result
+
+
+@pytest.mark.asyncio
+async def test_read_file_external_line_range(tmp_path: Path) -> None:
+    test_file = tmp_path / "multi.txt"
+    test_file.write_text("a\nb\nc\nd\ne\n")
+
+    tool = ReadFileExternalTool()
+    result = await tool.execute(
+        {"path": str(test_file), "start_line": 2, "end_line": 4}, tmp_path
+    )
+    assert "b" in result
+    assert "c" in result
+    assert "d" in result
+    assert "lines 2-4 of 5" in result
+
+
+@pytest.mark.asyncio
+async def test_read_file_external_empty_path(tmp_path: Path) -> None:
+    tool = ReadFileExternalTool()
+    result = await tool.execute({"path": ""}, tmp_path)
     assert result.startswith("Error:")

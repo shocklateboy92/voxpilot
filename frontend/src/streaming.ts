@@ -7,8 +7,8 @@
  * of how fast tokens arrive.
  */
 
-import { connectSession, sendMessage as ssePostMessage } from "./sse";
-import type { ToolCallPayload, ToolResultPayload } from "./sse";
+import { connectSession, sendMessage as ssePostMessage, confirmTool } from "./sse";
+import type { ToolCallPayload, ToolResultPayload, ToolConfirmPayload } from "./sse";
 import {
   setMessages,
   setStreamingText,
@@ -17,6 +17,7 @@ import {
   setErrorMessage,
   activeSessionId,
   setSessions,
+  setPendingConfirm,
   type MessageRead,
   type StreamingToolCall,
 } from "./store";
@@ -69,6 +70,7 @@ export function openStream(sessionId: string): void {
   setStreamingText(null);
   setStreamingToolCalls([]);
   setErrorMessage(null);
+  setPendingConfirm(null);
   pendingText = "";
 
   activeStream = connectSession(sessionId, {
@@ -120,6 +122,7 @@ export function openStream(sessionId: string): void {
     },
 
     onToolResult(payload: ToolResultPayload) {
+      setPendingConfirm(null);
       setStreamingToolCalls((prev) =>
         prev.map((tc) =>
           tc.id === payload.id
@@ -129,8 +132,17 @@ export function openStream(sessionId: string): void {
       );
     },
 
+    onToolConfirm(payload: ToolConfirmPayload) {
+      setPendingConfirm({
+        id: payload.id,
+        name: payload.name,
+        arguments: payload.arguments,
+      });
+    },
+
     onDone(_model) {
       stopRafLoop();
+      setPendingConfirm(null);
 
       // Finalize any remaining streamed text
       if (pendingText) {
@@ -188,6 +200,7 @@ export function openStream(sessionId: string): void {
 
     onError(message) {
       stopRafLoop();
+      setPendingConfirm(null);
 
       if (pendingText) {
         // Flush what we have and show error after
@@ -245,6 +258,26 @@ export async function sendUserMessage(content: string): Promise<boolean> {
     setErrorMessage(`Network error: ${msg}`);
     setIsStreaming(false);
     return false;
+  }
+}
+
+/**
+ * Approve or deny a pending tool confirmation.
+ */
+export async function respondToConfirm(
+  toolCallId: string,
+  approved: boolean,
+): Promise<void> {
+  const sessionId = activeSessionId();
+  if (!sessionId) return;
+
+  setPendingConfirm(null);
+
+  try {
+    await confirmTool(sessionId, toolCallId, approved);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    setErrorMessage(`Confirm error: ${msg}`);
   }
 }
 

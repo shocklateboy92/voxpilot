@@ -55,12 +55,19 @@ export interface ErrorPayload {
   message: string;
 }
 
+export interface ToolConfirmPayload {
+  id: string;
+  name: string;
+  arguments: string;
+}
+
 export interface SessionStreamCallbacks {
   onMessage: (payload: MessagePayload) => void;
   onReady: () => void;
   onTextDelta: (content: string) => void;
   onToolCall: (payload: ToolCallPayload) => void;
   onToolResult: (payload: ToolResultPayload) => void;
+  onToolConfirm: (payload: ToolConfirmPayload) => void;
   onDone: (model: string) => void;
   onError: (message: string) => void;
 }
@@ -120,6 +127,15 @@ export function connectSession(
     }
   });
 
+  es.addEventListener("tool-confirm", (e: MessageEvent) => {
+    try {
+      const payload = JSON.parse(e.data) as ToolConfirmPayload;
+      callbacks.onToolConfirm(payload);
+    } catch {
+      callbacks.onError(`Failed to parse tool-confirm event: ${e.data}`);
+    }
+  });
+
   es.addEventListener("done", (e: MessageEvent) => {
     try {
       const payload = JSON.parse(e.data) as DonePayload;
@@ -161,6 +177,30 @@ export async function sendMessage(
     headers: { "Content-Type": "application/json" },
     credentials: "include",
     body: JSON.stringify({ content, model }),
+  });
+
+  if (response.status === 401) {
+    window.location.reload();
+  }
+
+  return response;
+}
+
+/**
+ * Approve or deny a tool call that requires confirmation.
+ *
+ * Returns the fetch Response (202 on success, 409 if no pending confirm).
+ */
+export async function confirmTool(
+  sessionId: string,
+  toolCallId: string,
+  approved: boolean,
+): Promise<Response> {
+  const response = await fetch(`/api/sessions/${sessionId}/confirm`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ tool_call_id: toolCallId, approved }),
   });
 
   if (response.status === 401) {

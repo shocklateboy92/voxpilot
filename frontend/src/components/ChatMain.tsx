@@ -16,6 +16,7 @@ import {
   setSwipeOffset,
   sessions,
   activeIndex,
+  pendingConfirm,
 } from "../store";
 import { sendUserMessage } from "../streaming";
 import { navigateNext, navigatePrev } from "../sessions";
@@ -23,6 +24,7 @@ import { attachSwipeHandler } from "../gestures";
 import { MessageBubble } from "./MessageBubble";
 import { StreamingBubble } from "./StreamingBubble";
 import { ToolCallBlock } from "./ToolCallBlock";
+import { ToolConfirmBlock } from "./ToolConfirmBlock";
 
 export function ChatMain() {
   let messagesRef: HTMLDivElement | undefined;
@@ -36,6 +38,7 @@ export function ChatMain() {
     streamingText();
     streamingToolCalls();
     errorMessage();
+    pendingConfirm();
 
     // Scroll to bottom
     scrollSentinel?.scrollIntoView({ block: "end", behavior: "instant" });
@@ -134,6 +137,11 @@ export function ChatMain() {
         <For each={streamingToolCalls()}>
           {(tc) => <ToolCallBlock call={tc} />}
         </For>
+
+        {/* Tool confirmation prompt */}
+        <Show when={pendingConfirm()}>
+          {(confirm) => <ToolConfirmBlock confirm={confirm()} />}
+        </Show>
 
         {/* Live streaming text */}
         <Show when={streamingText()}>

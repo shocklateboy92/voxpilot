@@ -442,6 +442,70 @@ h1 {
   font-size: 0.75rem;
 }
 
+/* ── Tool confirmation prompt ─────────────────────────────────────────────── */
+
+.tool-confirm {
+  background: #2a2d37;
+  border: 1px solid #ffa04c;
+  border-radius: 6px;
+  padding: 0.75rem;
+  margin: 0.25rem 0;
+  align-self: flex-start;
+  max-width: 90%;
+}
+
+.tool-confirm-header {
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+  color: #ffa04c;
+}
+
+.tool-confirm-args {
+  font-size: 0.75rem;
+  background: #1a1c23;
+  padding: 0.5rem;
+  border-radius: 4px;
+  margin: 0.5rem 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.tool-confirm-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.btn-approve {
+  background: #2ea043;
+  color: #fff;
+  border: none;
+  padding: 0.35rem 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.btn-approve:hover {
+  background: #3fb950;
+}
+
+.btn-reject {
+  background: #555;
+  color: #fff;
+  border: none;
+  padding: 0.35rem 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.btn-reject:hover {
+  background: #777;
+}
+
 /* ── Bottom nav (mobile) ──────────────────────────────────────────────────── */
 
 #bottom-nav {

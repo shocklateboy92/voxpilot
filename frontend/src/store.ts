@@ -59,8 +59,13 @@ export const [pickerOpen, setPickerOpen] = createSignal(false);
 /** Horizontal swipe offset in px (dampened rubber-band hint). */
 export const [swipeOffset, setSwipeOffset] = createSignal(0);
 
-
-
+/** Pending tool confirmation request (null = none pending). */
+export interface PendingConfirm {
+  id: string;
+  name: string;
+  arguments: string;
+}
+export const [pendingConfirm, setPendingConfirm] = createSignal<PendingConfirm | null>(null);
 // ── Derived ──────────────────────────────────────────────────────────────────
 
 /** The currently active session summary, or undefined. */

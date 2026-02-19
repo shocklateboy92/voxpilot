@@ -33,6 +33,7 @@ from voxpilot.models.schemas import (
     TextDeltaEvent,
     ToolCallEvent,
     ToolCallInfo,
+    ToolConfirmEvent,
     ToolResultEvent,
 )
 from voxpilot.services.sessions import add_message
@@ -98,6 +99,7 @@ async def run_agent_loop(
     session_id: str,
     max_iterations: int = 25,
     is_disconnected: Callable[[], Coroutine[Any, Any, bool]] | None = None,
+    request_confirmation: Callable[[str, str, str], Coroutine[Any, Any, bool]] | None = None,
 ) -> AsyncGenerator[dict[str, str]]:
     """Run the agentic loop, yielding ``(event_type, data_json)`` dicts.
 
@@ -242,6 +244,50 @@ async def run_agent_loop(
                     result_text = f"Error: unknown tool '{tc.name}'."
                     is_error = True
                 else:
+                    # Check if tool requires user confirmation
+                    if tool.requires_confirmation:
+                        yield {
+                            "event": "tool-confirm",
+                            "data": ToolConfirmEvent(
+                                id=tc.id, name=tc.name, arguments=tc.arguments
+                            ).model_dump_json(),
+                        }
+                        if request_confirmation is None:
+                            logger.warning(
+                                "Tool '%s' requires confirmation but no handler — auto-declining",
+                                tc.name,
+                            )
+                            approved = False
+                        else:
+                            approved = await request_confirmation(
+                                tc.id, tc.name, tc.arguments
+                            )
+
+                        if not approved:
+                            result_text = (
+                                "Error: user declined to run this tool."
+                            )
+                            is_error = True
+
+                            yield {
+                                "event": "tool-result",
+                                "data": ToolResultEvent(
+                                    id=tc.id,
+                                    name=tc.name,
+                                    content=result_text,
+                                    is_error=is_error,
+                                ).model_dump_json(),
+                            }
+                            await add_message(
+                                db, session_id, "tool", result_text, tool_call_id=tc.id,
+                            )
+                            openai_messages.append(
+                                ChatCompletionToolMessageParam(
+                                    role="tool", content=result_text, tool_call_id=tc.id,
+                                )
+                            )
+                            continue
+
                     try:
                         args: dict[str, Any] = (
                             json.loads(tc.arguments) if tc.arguments else {}

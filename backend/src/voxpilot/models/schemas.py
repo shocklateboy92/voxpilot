@@ -106,6 +106,24 @@ class ErrorEvent(BaseModel):
     message: str
 
 
+class ToolConfirmEvent(BaseModel):
+    """Asks the user to approve a tool call (event: tool-confirm)."""
+
+    id: str
+    name: str
+    arguments: str  # JSON-encoded arguments string
+
+
+# ── Tool confirmation request ─────────────────────────────────────────────────
+
+
+class ToolConfirmRequest(BaseModel):
+    """Request body for approving or denying a tool call."""
+
+    tool_call_id: str
+    approved: bool
+
+
 # ── Session schemas ───────────────────────────────────────────────────────────
 
 
