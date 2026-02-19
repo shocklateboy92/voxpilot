@@ -31,6 +31,7 @@ import type {
 } from "../schemas/events";
 import { renderMarkdown } from "./markdown";
 import { addMessage } from "./sessions";
+import type { Tool, ToolResult } from "../tools";
 import { defaultRegistry } from "../tools";
 
 type Db = ReturnType<typeof getDb>;
@@ -282,33 +283,34 @@ export async function* runAgentLoop(
           }
         }
 
-        let resultText: string;
+        let result: ToolResult;
         let isError: boolean;
         try {
           const args: Record<string, unknown> = tc.arguments
             ? (JSON.parse(tc.arguments) as Record<string, unknown>)
             : {};
-          resultText = await tool.execute(args, workDir);
-          isError = resultText.startsWith("Error:");
+          result = await tool.execute(args, workDir);
+          isError = result.llmResult.startsWith("Error:");
         } catch {
-          resultText = `Error: failed to parse arguments for tool '${tc.name}': ${tc.arguments}`;
+          const errText = `Error: failed to parse arguments for tool '${tc.name}': ${tc.arguments}`;
+          result = { llmResult: errText, displayResult: errText };
           isError = true;
         }
 
         const resultPayload: ToolResultEvent = {
           id: tc.id,
           name: tc.name,
-          content: resultText,
+          content: result.displayResult,
           is_error: isError,
         };
         yield { event: "tool-result", data: JSON.stringify(resultPayload) };
 
-        await addMessage(db, sessionId, "tool", resultText, {
+        await addMessage(db, sessionId, "tool", result.llmResult, {
           toolCallId: tc.id,
         });
         openaiMessages.push({
           role: "tool",
-          content: resultText,
+          content: result.llmResult,
           tool_call_id: tc.id,
         } satisfies ChatCompletionToolMessageParam);
       }

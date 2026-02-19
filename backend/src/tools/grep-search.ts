@@ -2,8 +2,7 @@ import type { ChatCompletionTool, FunctionDefinition } from "openai/resources";
 import { readdir, readFile, stat } from "node:fs/promises";
 import type { Dirent } from "node:fs";
 import { join, relative, resolve, extname } from "node:path";
-import type { Tool } from "./base";
-import { resolvePath } from "./base";
+import { type Tool, type ToolResult, resolvePath, simpleResult } from "./base";
 
 const SKIP_DIRS = new Set([
   ".git",
@@ -103,17 +102,17 @@ export class GrepSearchTool implements Tool {
   async execute(
     args: Record<string, unknown>,
     workDir: string,
-  ): Promise<string> {
+  ): Promise<ToolResult> {
     const patternStr = (args.pattern as string | undefined) ?? "";
     if (!patternStr) {
-      return "Error: 'pattern' argument is required.";
+      return simpleResult("Error: 'pattern' argument is required.");
     }
 
     let regex: RegExp;
     try {
       regex = new RegExp(patternStr, "i");
     } catch (exc) {
-      return `Error: invalid regex pattern '${patternStr}': ${exc}`;
+      return simpleResult(`Error: invalid regex pattern '${patternStr}': ${exc}`);
     }
 
     const rawPath =
@@ -121,13 +120,13 @@ export class GrepSearchTool implements Tool {
 
     const resolved = await resolvePath(rawPath, workDir);
     if (resolved === null) {
-      return `Error: path '${rawPath}' is outside the working directory.`;
+      return simpleResult(`Error: path '${rawPath}' is outside the working directory.`);
     }
 
     try {
       await stat(resolved);
     } catch {
-      return `Error: path '${rawPath}' does not exist.`;
+      return simpleResult(`Error: path '${rawPath}' does not exist.`);
     }
 
     const include = typeof args.include === "string" ? args.include : undefined;
@@ -157,13 +156,13 @@ export class GrepSearchTool implements Tool {
           matches.push(`${rel}:${lineNo + 1}: ${display}`);
           if (matches.length >= MAX_MATCHES) {
             matches.push(`... (truncated at ${MAX_MATCHES} matches)`);
-            return this.formatResult(patternStr, matches, filesSearched);
+            return simpleResult(this.formatResult(patternStr, matches, filesSearched));
           }
         }
       }
     }
 
-    return this.formatResult(patternStr, matches, filesSearched);
+    return simpleResult(this.formatResult(patternStr, matches, filesSearched));
   }
 
   private async walkFiles(

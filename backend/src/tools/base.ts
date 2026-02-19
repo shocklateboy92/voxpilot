@@ -2,10 +2,28 @@ import type { ChatCompletionTool, FunctionDefinition } from "openai/resources";
 import { realpath } from "node:fs/promises";
 import { resolve, relative } from "node:path";
 
+/**
+ * Result returned by a tool's `execute()` method.
+ *
+ * - `llmResult` — compact summary fed back to the LLM context (and persisted in DB).
+ * - `displayResult` — full output streamed to the user via SSE (can be much larger).
+ *
+ * For tools where both are identical, use the `simpleResult()` helper.
+ */
+export interface ToolResult {
+  llmResult: string;
+  displayResult: string;
+}
+
+/** Create a `ToolResult` where both fields are the same string. */
+export function simpleResult(text: string): ToolResult {
+  return { llmResult: text, displayResult: text };
+}
+
 export interface Tool {
   definition: FunctionDefinition;
   requiresConfirmation: boolean;
-  execute(args: Record<string, unknown>, workDir: string): Promise<string>;
+  execute(args: Record<string, unknown>, workDir: string): Promise<ToolResult>;
   toOpenAiTool(): ChatCompletionTool;
 }
 

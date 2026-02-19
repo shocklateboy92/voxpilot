@@ -2,8 +2,7 @@ import type { ChatCompletionTool, FunctionDefinition } from "openai/resources";
 import { readdir, stat } from "node:fs/promises";
 import type { Dirent } from "node:fs";
 import { resolve, relative } from "node:path";
-import type { Tool } from "./base";
-import { resolvePath } from "./base";
+import { type Tool, type ToolResult, resolvePath, simpleResult } from "./base";
 
 const SKIP_DIRS = new Set([
   ".git",
@@ -48,31 +47,31 @@ export class ListDirectoryTool implements Tool {
   async execute(
     args: Record<string, unknown>,
     workDir: string,
-  ): Promise<string> {
+  ): Promise<ToolResult> {
     const rawPath =
       typeof args.path === "string" && args.path !== "" ? args.path : ".";
 
     const resolved = await resolvePath(rawPath, workDir);
     if (resolved === null) {
-      return `Error: path '${rawPath}' is outside the working directory.`;
+      return simpleResult(`Error: path '${rawPath}' is outside the working directory.`);
     }
 
     let st: Awaited<ReturnType<typeof stat>>;
     try {
       st = await stat(resolved);
     } catch {
-      return `Error: directory '${rawPath}' does not exist.`;
+      return simpleResult(`Error: directory '${rawPath}' does not exist.`);
     }
 
     if (!st.isDirectory()) {
-      return `Error: '${rawPath}' is not a directory.`;
+      return simpleResult(`Error: '${rawPath}' is not a directory.`);
     }
 
     let entries: Dirent[];
     try {
       entries = await readdir(resolved, { withFileTypes: true, encoding: "utf-8" }) as Dirent[];
     } catch (exc) {
-      return `Error listing '${rawPath}': ${exc}`;
+      return simpleResult(`Error listing '${rawPath}': ${exc}`);
     }
 
     // Sort: dirs first, then files, case-insensitive name
@@ -100,12 +99,12 @@ export class ListDirectoryTool implements Tool {
     }
 
     if (lines.length === 0) {
-      return `Directory '${rawPath}' is empty.`;
+      return simpleResult(`Directory '${rawPath}' is empty.`);
     }
 
     const absWorkDir = resolve(workDir);
     const rel = relative(absWorkDir, resolved);
     const header = `Directory: ${rel || "."}/\n`;
-    return header + lines.join("\n");
+    return simpleResult(header + lines.join("\n"));
   }
 }

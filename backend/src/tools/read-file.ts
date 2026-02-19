@@ -1,7 +1,6 @@
 import type { ChatCompletionTool, FunctionDefinition } from "openai/resources";
 import { stat, readFile } from "node:fs/promises";
-import type { Tool } from "./base";
-import { resolvePath } from "./base";
+import { type Tool, type ToolResult, resolvePath, simpleResult } from "./base";
 
 const MAX_FILE_SIZE = 100_000;
 
@@ -44,15 +43,15 @@ export class ReadFileTool implements Tool {
   async execute(
     args: Record<string, unknown>,
     workDir: string,
-  ): Promise<string> {
+  ): Promise<ToolResult> {
     const rawPath = (args.path as string | undefined) ?? "";
     if (!rawPath) {
-      return "Error: 'path' argument is required.";
+      return simpleResult("Error: 'path' argument is required.");
     }
 
     const resolved = await resolvePath(rawPath, workDir);
     if (resolved === null) {
-      return (
+      return simpleResult(
         `Error: path '${rawPath}' is outside the working directory. ` +
         "Use the read_file_external tool to read files outside the project."
       );
@@ -62,15 +61,15 @@ export class ReadFileTool implements Tool {
     try {
       st = await stat(resolved);
     } catch {
-      return `Error: file '${rawPath}' does not exist.`;
+      return simpleResult(`Error: file '${rawPath}' does not exist.`);
     }
 
     if (!st.isFile()) {
-      return `Error: '${rawPath}' is not a file.`;
+      return simpleResult(`Error: '${rawPath}' is not a file.`);
     }
 
     if (st.size > MAX_FILE_SIZE) {
-      return (
+      return simpleResult(
         `Error: file '${rawPath}' is ${st.size.toLocaleString()} bytes ` +
         `(limit is ${MAX_FILE_SIZE.toLocaleString()} bytes). ` +
         "Use start_line/end_line to read a portion."
@@ -81,7 +80,7 @@ export class ReadFileTool implements Tool {
     try {
       text = await readFile(resolved, "utf-8");
     } catch (exc) {
-      return `Error reading '${rawPath}': ${exc}`;
+      return simpleResult(`Error reading '${rawPath}': ${exc}`);
     }
 
     const lines = text.split("\n");
@@ -98,7 +97,7 @@ export class ReadFileTool implements Tool {
     end = Math.min(total, end);
 
     if (start > end) {
-      return `Error: start_line (${start}) > end_line (${end}). File has ${total} lines.`;
+      return simpleResult(`Error: start_line (${start}) > end_line (${end}). File has ${total} lines.`);
     }
 
     const selected = lines.slice(start - 1, end);
@@ -107,6 +106,6 @@ export class ReadFileTool implements Tool {
       (line, i) => `${String(start + i).padStart(width)} | ${line}`,
     );
     const header = `File: ${rawPath} (lines ${start}-${end} of ${total})\n`;
-    return header + numbered.join("\n");
+    return simpleResult(header + numbered.join("\n"));
   }
 }

@@ -2,8 +2,7 @@ import type { ChatCompletionTool, FunctionDefinition } from "openai/resources";
 import { readdir, stat } from "node:fs/promises";
 import type { Dirent } from "node:fs";
 import { join, relative, resolve } from "node:path";
-import type { Tool } from "./base";
-import { resolvePath } from "./base";
+import { type Tool, type ToolResult, resolvePath, simpleResult } from "./base";
 
 const SKIP_DIRS = new Set([
   ".git",
@@ -54,10 +53,10 @@ export class GlobSearchTool implements Tool {
   async execute(
     args: Record<string, unknown>,
     workDir: string,
-  ): Promise<string> {
+  ): Promise<ToolResult> {
     const pattern = (args.pattern as string | undefined) ?? "";
     if (!pattern) {
-      return "Error: 'pattern' argument is required.";
+      return simpleResult("Error: 'pattern' argument is required.");
     }
 
     const rawPath =
@@ -65,18 +64,18 @@ export class GlobSearchTool implements Tool {
 
     const resolved = await resolvePath(rawPath, workDir);
     if (resolved === null) {
-      return `Error: path '${rawPath}' is outside the working directory.`;
+      return simpleResult(`Error: path '${rawPath}' is outside the working directory.`);
     }
 
     let st: Awaited<ReturnType<typeof stat>>;
     try {
       st = await stat(resolved);
     } catch {
-      return `Error: path '${rawPath}' does not exist.`;
+      return simpleResult(`Error: path '${rawPath}' does not exist.`);
     }
 
     if (!st.isDirectory()) {
-      return `Error: '${rawPath}' is not a directory.`;
+      return simpleResult(`Error: '${rawPath}' is not a directory.`);
     }
 
     const absWorkDir = resolve(workDir);
@@ -97,11 +96,11 @@ export class GlobSearchTool implements Tool {
     }
 
     if (results.length === 0) {
-      return `No files found matching pattern '${pattern}'.`;
+      return simpleResult(`No files found matching pattern '${pattern}'.`);
     }
 
     const header = `Found ${results.length} file(s) matching '${pattern}':\n`;
-    return header + results.join("\n");
+    return simpleResult(header + results.join("\n"));
   }
 
   private async collectFiles(root: string): Promise<string[]> {
