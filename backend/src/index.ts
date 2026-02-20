@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { config } from "./config";
-import { closeDb, initDb } from "./db";
+import { closeDb } from "./db";
 import { authMiddleware, type AuthEnv } from "./middleware/auth";
 import { healthRouter } from "./routes/health";
 import { authRouter } from "./routes/auth";
@@ -32,7 +32,6 @@ protectedRouter.route("/", chatRouter);
 protectedRouter.route("/", artifactRouter);
 app.route("/", protectedRouter);
 
-initDb(config.dbPath);
 console.log(
   `${config.appName} listening on http://localhost:8000 (debug=${String(config.debug)})`,
 );
