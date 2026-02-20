@@ -16,7 +16,8 @@ matching the VS Code subagent pattern.
 |---|---|
 | Tool input | Free-form prompt string — the main AI composes the prompt |
 | Copilot permissions | Auto-approve all (`outcome: "allowed"`) |
-| Process lifecycle | Long-lived per session — one `copilot --acp --stdio` process per voxpilot session, reusing the ACP session for follow-up prompts |
+| Process lifecycle | Long-lived per session — one `copilot --acp --stdio` process per voxpilot session, with **multiple ACP sessions** on that connection for independent tasks |
+| Session model | Each tool invocation can reuse the current ACP session (follow-ups) or create a fresh one (new independent task) via the `new_session` parameter |
 | Streaming UX | Expanded while streaming, auto-collapse on done |
 
 ## Backend
@@ -31,7 +32,8 @@ communicating with the Copilot CLI over stdin/stdout NDJSON.
 **File**: `backend/src/services/copilot-acp.ts`
 
 Manages a per-voxpilot-session ACP connection lifecycle (lazy-initialized on
-first tool call).
+first tool call). A single child process hosts multiple ACP sessions, allowing
+the main AI to start independent coding tasks without spawning new processes.
 
 - `getOrCreate(sessionId, workDir)` — spawns `copilot --acp --stdio` via
   `Bun.spawn`, wraps stdin/stdout with `acp.ndJsonStream()`, creates a
@@ -43,14 +45,35 @@ first tool call).
     can yield SSE events.
 - `initialize()` → calls `connection.initialize(...)`.
 - `newSession()` → calls `connection.newSession({ cwd: workDir, mcpServers: [] })`,
-  stores the ACP `sessionId`.
-- `prompt(text, onDelta)` → calls `connection.prompt(...)`, streams
+stores the ACP `sessionId`. Can be called multiple times on the same
+  connection to create independent task contexts.
+- `prompt(text, onDelta, opts?)` → calls `connection.prompt(...)`, streams
   `agent_message_chunk` updates via the `onDelta` callback, returns
-  `PromptResponse` with `stopReason`.
-- `destroy()` → kills the child process, cleans up.
+  `PromptResponse` with `stopReason`. If `opts.newSession` is true, calls
+  `newSession()` first to get a fresh ACP session before prompting.
+- `currentSessionId` — tracks the active ACP session ID. Callers can inspect
+  this to know whether a session already exists.
+- `destroy()` → kills the child process, cleans up all sessions.
 
 Store connections in a `Map<string, CopilotConnection>` singleton, keyed by
 voxpilot session ID. Clean up on session broadcaster shutdown.
+
+#### Multi-session flow
+
+```
+voxpilot session
+  └── CopilotConnection (one child process)
+        ├── ACP Session A  ← first copilot_agent call (implicit newSession)
+        │     ├── prompt 1  "fix the auth bug"
+        │     └── prompt 2  "also add a test for it"  (follow-up, same session)
+        └── ACP Session B  ← copilot_agent call with new_session: true
+              └── prompt 3  "refactor the logger"     (independent task)
+```
+
+The first `copilot_agent` invocation always creates an ACP session. Subsequent
+calls reuse it by default (for follow-up instructions). When the main AI
+determines the task is unrelated, it sets `new_session: true` to start a fresh
+ACP session on the same underlying connection/process.
 
 ### 3. Add new SSE event schemas
 
@@ -70,8 +93,15 @@ voxpilot session ID. Clean up on session broadcaster shutdown.
 - `definition`:
   - name: `copilot_agent`
   - description: "Delegate a coding task to GitHub Copilot. Copilot will
-    autonomously modify files in the workspace."
-  - parameters: `{ prompt: string }` — the instruction to send to Copilot.
+    autonomously modify files in the workspace. Set `new_session` to true when
+    starting an unrelated task (creates a fresh context); omit or set false for
+    follow-up instructions to the current task."
+  - parameters:
+    - `prompt: string` (required) — the instruction to send to Copilot.
+    - `new_session: boolean` (optional, default `false`) — when true, creates a
+      new ACP session for this task instead of continuing the current one. The
+      main AI should set this when the user asks for an independent/unrelated
+      coding task.
 - `execute()` returns a `ToolResult` after Copilot finishes:
   - `llmResult`: compact summary of what Copilot did.
   - `displayResult`: more detailed log.
@@ -105,7 +135,7 @@ Add `CopilotAgentTool` to `buildDefaultRegistry()`.
 
 **File**: `backend/src/config.ts`
 
-Add `VOXPILOT_COPILOT_CLI_PATH` (default: `"copilot"`) so users can override
+Add `VOXPILOT_COPILOT_CLI_PATH` (default: "copilot") so users can override
 the CLI binary path.
 
 ## Frontend
@@ -149,7 +179,7 @@ export interface StreamingToolCall {
 - `<summary>`: shows "🤖 Copilot" + spinner while running, or
   "🤖 Copilot — done" when finished.
 - Body: renders the streaming `copilotStream` text in a `<pre>` with
-  auto-scroll.
+auto-scroll.
 - When `copilotDone` becomes true, removes the `open` attribute (auto-collapses).
   The user can re-expand to see the full output.
 
@@ -192,4 +222,8 @@ collapsed `<details>` with the summary and the full output inside — matching t
 - [ ] Verify the block auto-collapses when Copilot finishes.
 - [ ] Verify the summary is returned to the main AI for further conversation.
 - [ ] Verify history replay shows collapsed Copilot blocks correctly.
+- [ ] Verify multiple ACP sessions work: a follow-up prompt reuses the session,
+      and `new_session: true` creates a fresh one.
+- [ ] Verify the process is reused across sessions (only one `copilot` child
+      process per voxpilot session).
 - [ ] Run existing tests (`bun test`) to ensure no regressions.
