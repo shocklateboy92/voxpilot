@@ -1,12 +1,14 @@
 # V2 Inline Review — Implementation Plan
 
-> **Status: V1 implemented.** All 11 steps are complete. Parser, renderer,
-> persistence, agent integration, SSE events, REST endpoints, changeset card,
-> review overlay, and submit flow are all wired end-to-end. Tests cover
-> diff-parser, diff-render, and artifact CRUD (49 new tests, 189 total).
-> See "What's deferred" at the bottom for remaining work.
+> **Status: V1 implemented + post-V1 enhancements.** All 11 steps are
+> complete. Post-V1 adds: full-file view toggle with server-rendered HTML
+> (diff highlights + deletion interleaving), `git_diff` redesign with
+> explicit `from`/`to` refs (including synthetic `WORKTREE`/`INDEX`),
+> `fullTextHtml` column on `artifact_files`, and repo-root path fix.
+> Tests cover diff-parser, diff-render, artifact CRUD, and tools
+> (68 new tests, 208 total). See "What's deferred" at the bottom.
 
-Server parses unified diffs once into a canonical `DiffDocument`, resolves post-change full file text from git, persists the structured model and per-file pre-rendered HTML, and streams lightweight metadata to the client. The frontend never parses diffs — it renders per-file server HTML directly into carousel pages, fetches full text lazily, and posts interactions (viewed, comments, submit) back to REST endpoints that persist immediately.
+Server parses unified diffs once into a canonical `DiffDocument`, resolves post-change full file text from git, persists the structured model and per-file pre-rendered HTML (both chunk-view and full-file view), and streams lightweight metadata to the client. The frontend never parses diffs — it renders per-file server HTML directly into carousel pages, toggles between chunk and full-file views, and posts interactions (viewed, comments, submit) back to REST endpoints that persist immediately.
 
 ---
 
@@ -50,6 +52,7 @@ One per changed file in the artifact.
 | `fullTextAvailable` | `boolean` | False for binary/too-large |
 | `fullTextLineCount` | `number \| null` | |
 | `fullTextContent` | `string \| null` | Post-change full text, fetched from git blob |
+| `fullTextHtml` | `string \| null` | Server-rendered full-file HTML with diff highlights + interleaved deletions |
 
 ### DiffHunk
 
@@ -145,13 +148,19 @@ File event payloads include `viewed` status so history replay restores card stat
 
 ### 2. Full-text resolver ✅
 
-- `backend/src/services/diff-fulltext.ts`: `resolveFullText()` — resolve post-change file content from git blobs (staged → index, unstaged → worktree, commit → tree blob) using `runGit`.
+- `backend/src/services/diff-fulltext.ts`: `resolveFullText(filePath, toRef, workDir)` — resolve post-change file content using the `toRef` parameter:
+  - `WORKTREE` → read from filesystem via `Bun.file()`
+  - `INDEX` → read from staging area via `git show :path`
+  - Any other ref → read from git tree via `git show ref:path`
 - Caps at 500 KB, marks binary as unavailable.
+- **Important**: `workDir` must be the git repo root (not cwd), since diff paths are repo-root-relative. The pipeline resolves this via `ensureGitRepo()`.
 
 ### 3. HTML renderer ✅
 
-- `backend/src/services/diff-render.ts`: `renderDiffFileHtml()` — walks parsed hunks, emits one escaped HTML table fragment per `DiffFile` with stable `data-line-id`/`data-file-id`/`data-hunk-id` attributes, CSS classes per line kind (`diff-line-add`/`diff-line-del`/`diff-line-context`).
-- Each file gets its own `html` string — carousel maps 1:1 (page N = `files[N].html`).
+- `backend/src/services/diff-render.ts`:
+  - `renderDiffFileHtml()` — walks parsed hunks, emits one escaped HTML table fragment per `DiffFile` with stable `data-line-id`/`data-file-id`/`data-hunk-id` attributes, CSS classes per line kind (`diff-line-add`/`diff-line-del`/`diff-line-context`).
+  - `renderFullFileHtml()` — renders the complete post-change file with diff highlights: added lines get `fulltext-line-add` class, deleted lines are interleaved at their original positions with `fulltext-line-del` class (strikethrough, hidden line number). Uses `fullTextLine` mapping from hunks to correlate diff lines to full-file positions.
+- Each file gets both `html` (chunk view) and `fullTextHtml` (full-file view) — the frontend toggles between them.
 
 ### 4. Persistence ✅
 
@@ -162,7 +171,10 @@ File event payloads include `viewed` status so history replay restores card stat
 ### 5. Agent integration ✅
 
 - `backend/src/services/agent.ts`: after `git_diff`/`git_show` execution, invokes `createReviewArtifact()` pipeline → yields `review-artifact` SSE event alongside existing `tool-result`.
+  - Extracts `toRef` from tool args: `git_show` → `commit` arg (default `"HEAD"`), `git_diff` → `to` arg (default `"WORKTREE"`).
 - `backend/src/services/artifact-pipeline.ts`: orchestrates parse → fulltext → render → persist in one function.
+  - Resolves git repo root via `ensureGitRepo()` for correct path resolution (diff paths are repo-root-relative, not cwd-relative).
+  - Generates both `html` (chunk view) and `fullTextHtml` (full-file view) per file.
 - `artifact_id` is set on the tool message at insert time via `addMessage()` (not via a post-hoc UPDATE).
 - Errors are non-fatal (caught, logged to console).
 
@@ -193,6 +205,7 @@ File event payloads include `viewed` status so history replay restores card stat
 
 - `frontend/src/components/ReviewOverlay.tsx`: full-screen carousel reusing `attachSwipeHandler`.
 - Per-file page renders `file.html` via `innerHTML` — one carousel page per file.
+- **Full-file view toggle**: 📄/± button in the header switches between chunk view (`html`) and full-file view (`fullTextHtml`). Only shown when `fullTextHtml` is available. Resets to chunk view on file navigation.
 - Bottom bar with viewed checkbox + comment count + comment input.
 - Auto-mark viewed on swipe-past.
 - Final page is review summary with submit gating (disabled until all viewed).
@@ -206,11 +219,12 @@ File event payloads include `viewed` status so history replay restores card stat
 
 ## Verification
 
-- **Parser + renderer**: ✅ unit tests in `backend/tests/diff-parser.test.ts` (16 tests) and `backend/tests/diff-render.test.ts` (13 tests).
+- **Parser + renderer**: ✅ unit tests in `backend/tests/diff-parser.test.ts` (16 tests) and `backend/tests/diff-render.test.ts` (24 tests — 14 renderDiffFileHtml + 10 renderFullFileHtml including 6 deletion interleaving tests).
 - **Artifact service**: ✅ CRUD + status + comment tests in `backend/tests/artifacts.test.ts` (20 tests).
+- **Tools**: ✅ `backend/tests/tools.test.ts` includes `git_diff` from/to tests (same-ref rejection, invalid-ref validation).
 - **Agent integration**: not yet extended — `backend/tests/agent.test.ts` does not assert artifact creation.
 - **SSE contract**: not yet extended — `backend/tests/chat.test.ts` does not assert `review-artifact` event emission.
-- **End-to-end**: manually verified — stream a `git_diff`, artifact SSE fires, reload session and card persists with viewed state, open overlay, toggle viewed, add comment, submit review.
+- **End-to-end**: manually verified — stream a `git_diff`, artifact SSE fires, reload session and card persists with viewed state, open overlay, toggle viewed, toggle full-file view, add comment, submit review.
 
 ---
 
@@ -234,5 +248,8 @@ File event payloads include `viewed` status so history replay restores card stat
 | Artifact linkage | Nullable `artifactId` on `messages` table |
 | HTML storage | Persist rendered HTML per file on `DiffFile` rows |
 | Full text | Post-change only, from git blobs, stored per file, fetched lazily |
+| Full-file HTML | Server-rendered with diff highlights + interleaved deletions, persisted per file |
+| Diff tool | `git_diff` uses explicit `from`/`to` with synthetic refs `WORKTREE` and `INDEX` |
+| Full-text path resolution | Uses git repo root (via `rev-parse --show-toplevel`), not cwd |
 | Interactions | Viewed + comments persisted immediately via REST |
 | Scope | `git_diff` and `git_show` only |
