@@ -6,6 +6,7 @@ import { healthRouter } from "./routes/health";
 import { authRouter } from "./routes/auth";
 import { sessionsRouter } from "./routes/sessions";
 import { chatRouter } from "./routes/chat";
+import { artifactRouter } from "./routes/artifacts";
 
 export const app = new Hono();
 
@@ -21,6 +22,7 @@ app.route("/", healthRouter);
 app.route("/", authRouter);
 app.route("/", sessionsRouter);
 app.route("/", chatRouter);
+app.route("/", artifactRouter);
 
 initDb(config.dbPath);
 console.log(

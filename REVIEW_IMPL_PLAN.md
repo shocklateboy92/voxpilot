@@ -1,5 +1,11 @@
 # V2 Inline Review — Implementation Plan
 
+> **Status: V1 implemented.** All 11 steps are complete. Parser, renderer,
+> persistence, agent integration, SSE events, REST endpoints, changeset card,
+> review overlay, and submit flow are all wired end-to-end. Tests cover
+> diff-parser, diff-render, and artifact CRUD (49 new tests, 189 total).
+> See "What's deferred" at the bottom for remaining work.
+
 Server parses unified diffs once into a canonical `DiffDocument`, resolves post-change full file text from git, persists the structured model and per-file pre-rendered HTML, and streams lightweight metadata to the client. The frontend never parses diffs — it renders per-file server HTML directly into carousel pages, fetches full text lazily, and posts interactions (viewed, comments, submit) back to REST endpoints that persist immediately.
 
 ---
@@ -90,7 +96,8 @@ Separate table, persisted immediately.
 
 ### New SSE Event
 
-`review-artifact` — emitted once after tool execution, metadata only (no full text, no full HTML):
+`review-artifact` — emitted once after tool execution, metadata only (no full text, no full HTML).
+Also replayed during history replay (before `ready`) so the frontend populates its artifact map on reconnect.
 
 ```json
 {
@@ -119,74 +126,79 @@ Mounted as `artifactRouter` in `backend/src/index.ts`.
 | `DELETE` | `/api/artifacts/:id/comments/:commentId` | Remove comment |
 | `POST` | `/api/artifacts/:id/submit` | Submit review → updates status, sends digest to agent |
 
+File event payloads include `viewed` status so history replay restores card state correctly.
+
 ### Existing Contract Changes (additive only)
 
 - `ToolResultEvent` in `backend/src/schemas/events.ts`: add optional `artifact_id`
+- `MessageEvent` in `backend/src/schemas/events.ts`: add optional `artifact_id` for history replay
 - `messages` table in `backend/src/schema.ts`: add nullable `artifactId` column
 
 ---
 
 ## Implementation Steps
 
-### 1. Domain types + parser
+### 1. Domain types + parser ✅
 
-- New `backend/src/schemas/diff-document.ts`: Zod schemas for `DiffDocument`, `DiffFile`, `DiffHunk`, `DiffLine`, `ReviewComment`.
-- New `backend/src/services/diff-parser.ts`: parse unified diff text into typed model; generate stable IDs; build `fullTextLine` mapping.
+- `backend/src/schemas/diff-document.ts`: Zod schemas for `DiffDocument`, `DiffFile`, `DiffHunk`, `DiffLine`, `ReviewComment`, `ChangeType`, `ArtifactStatus`.
+- `backend/src/services/diff-parser.ts`: `parseUnifiedDiff()` and `buildDiffFiles()` — parse unified diff text into typed model; generate stable IDs via deterministic hash; build `fullTextLine` mapping.
 
-### 2. Full-text resolver
+### 2. Full-text resolver ✅
 
-- New `backend/src/services/diff-fulltext.ts`: resolve post-change file content from git blobs (staged → index, unstaged → worktree, commit → tree blob) using `runGit` from `backend/src/tools/git-utils.ts`.
-- Cap at max bytes, mark binary as unavailable.
+- `backend/src/services/diff-fulltext.ts`: `resolveFullText()` — resolve post-change file content from git blobs (staged → index, unstaged → worktree, commit → tree blob) using `runGit`.
+- Caps at 500 KB, marks binary as unavailable.
 
-### 3. HTML renderer
+### 3. HTML renderer ✅
 
-- New `backend/src/services/diff-render.ts`: walk `DiffDocument` model, emit one escaped HTML fragment per `DiffFile` with stable `data-line-id`/`data-file-id` attributes, CSS class per line kind.
+- `backend/src/services/diff-render.ts`: `renderDiffFileHtml()` — walks parsed hunks, emits one escaped HTML table fragment per `DiffFile` with stable `data-line-id`/`data-file-id`/`data-hunk-id` attributes, CSS classes per line kind (`diff-line-add`/`diff-line-del`/`diff-line-context`).
 - Each file gets its own `html` string — carousel maps 1:1 (page N = `files[N].html`).
-- No raw tool text in output.
 
-### 4. Persistence
+### 4. Persistence ✅
 
-- Extend `backend/src/schema.ts` with `review_artifacts`, `artifact_files`, `review_comments` tables + nullable `artifactId` on `messages`.
-- Additive DDL in `backend/src/db.ts`.
-- New `backend/src/services/artifacts.ts`: CRUD for artifacts, viewed toggle, comment management, status transitions.
+- `backend/src/schema.ts`: `reviewArtifacts`, `artifactFiles`, `reviewComments` tables + nullable `artifactId` on `messages`.
+- `backend/src/db.ts`: DDL via `CREATE TABLE IF NOT EXISTS`.
+- `backend/src/services/artifacts.ts`: `createArtifact()`, `createArtifactFile()`, `getArtifact()`, `setFileViewed()`, `addComment()`, `deleteComment()`, `updateArtifactStatus()`, `getFileFullText()`, `getArtifactComments()`, `getSessionArtifactSummaries()`.
 
-### 5. Agent integration
+### 5. Agent integration ✅
 
-- Update `backend/src/services/agent.ts`: after `git_diff`/`git_show` execution, invoke parser → full-text resolver → renderer → persist artifact → set `artifact_id` on tool message → yield `review-artifact` SSE event alongside existing `tool-result`.
+- `backend/src/services/agent.ts`: after `git_diff`/`git_show` execution, invokes `createReviewArtifact()` pipeline → yields `review-artifact` SSE event alongside existing `tool-result`.
+- `backend/src/services/artifact-pipeline.ts`: orchestrates parse → fulltext → render → persist in one function.
+- `artifact_id` is set on the tool message at insert time via `addMessage()` (not via a post-hoc UPDATE).
+- Errors are non-fatal (caught, logged to console).
 
-### 6. Event/API contracts
+### 6. Event/API contracts ✅
 
-- Extend `backend/src/schemas/events.ts` with `ReviewArtifactEvent`.
-- Extend `backend/src/schemas/api.ts` with artifact response types.
-- Add optional `artifact_id` to `ToolResultEvent`.
+- `backend/src/schemas/events.ts`: `ReviewArtifactEvent`, `ReviewArtifactFileEvent` (with optional `viewed` for replay); optional `artifact_id` on `ToolResultEvent` and `MessageEvent`.
+- `backend/src/schemas/api.ts`: `ViewedRequest`, `AddCommentRequest`.
 
-### 7. Artifact routes
+### 7. Artifact routes ✅
 
-- New `backend/src/routes/artifacts.ts` with endpoints above.
-- Mount in `backend/src/index.ts`.
+- `backend/src/routes/artifacts.ts` with all 6 endpoints.
+- Mounted via `app.route("/", artifactRouter)` in `backend/src/index.ts`.
+- Submit builds a structured digest of comments and sends as user message to agent via broadcaster.
 
-### 8. Frontend data layer
+### 8. Frontend data layer ✅
 
-- Add `review-artifact` handler in `frontend/src/sse.ts`.
-- Add artifact signal/store in `frontend/src/store.ts`.
-- Add fetch helpers in `frontend/src/api-client.ts` for artifact detail, full text, viewed, comments, submit.
-- Wire live + replay in `frontend/src/streaming.ts`.
+- `frontend/src/sse.ts`: `review-artifact` listener, `ReviewArtifactPayload` type.
+- `frontend/src/store.ts`: `ArtifactSummary`, `ArtifactFileSummary`, `ArtifactFileDetail`, `ReviewCommentData`, `ArtifactDetail` types; `artifacts`, `reviewOverlayArtifactId`, `reviewDetail` signals.
+- `frontend/src/api-client.ts`: `fetchArtifact()`, `fetchFileFullText()`, `patchFileViewed()`, `postFileComment()`, `deleteArtifactComment()`, `submitReview()`.
+- `frontend/src/streaming.ts`: wires `onReviewArtifact` + `onToolResult` (with `artifact_id`); clears artifact map on session switch; preserves `artifactId` through `onDone` finalization.
 
-### 9. Layer 1: Changeset Card
+### 9. Layer 1: Changeset Card ✅
 
-- New `frontend/src/components/ChangesetCard.tsx`: client-rendered from artifact metadata signal (title, file tree with stats, viewed indicators, "Review next" button, status line). No server HTML — this is simple structured data that the client builds into DOM directly.
-- Displayed inline in chat via `frontend/src/components/MessageBubble.tsx` when message has `artifact_id`.
+- `frontend/src/components/ChangesetCard.tsx`: client-rendered from artifact metadata signal (title, directory-grouped file tree with stats, viewed indicators ●/○, "Review next" button, status line).
+- Shown inline in chat via `frontend/src/components/ToolCallBlock.tsx` (streaming) and `frontend/src/components/MessageBubble.tsx` (history) when message has `artifact_id`.
 
-### 10. Layer 2: Review Overlay
+### 10. Layer 2: Review Overlay ✅
 
-- New `frontend/src/components/ReviewOverlay.tsx`: full-screen carousel reusing `attachSwipeHandler` from `frontend/src/gestures.ts`.
-- Per-file page renders `file.html` via `innerHTML` — one carousel page per file, zero client-side diff parsing. This is the only place server-rendered HTML is used; Layer 1 (changeset card) is entirely client-rendered from metadata.
-- Bottom bar with viewed checkbox + comment input.
-- Long-press for line comments.
+- `frontend/src/components/ReviewOverlay.tsx`: full-screen carousel reusing `attachSwipeHandler`.
+- Per-file page renders `file.html` via `innerHTML` — one carousel page per file.
+- Bottom bar with viewed checkbox + comment count + comment input.
 - Auto-mark viewed on swipe-past.
-- Final page is review summary with submit gating.
+- Final page is review summary with submit gating (disabled until all viewed).
+- Mounted in `frontend/src/components/ChatView.tsx`.
 
-### 11. Submit flow
+### 11. Submit flow ✅
 
 - `POST /api/artifacts/:id/submit` collects all comments as structured digest, sends to agent as a user message, updates artifact `status`, closes overlay, and updates changeset card state.
 
@@ -194,11 +206,23 @@ Mounted as `artifactRouter` in `backend/src/index.ts`.
 
 ## Verification
 
-- **Parser + renderer**: unit tests on sample unified diffs in new `backend/tests/diff-parser.test.ts` and `backend/tests/diff-render.test.ts`.
-- **Artifact service**: CRUD + status + comment tests in new `backend/tests/artifacts.test.ts`.
-- **Agent integration**: extend `backend/tests/agent.test.ts` to assert artifact creation on `git_diff`/`git_show`.
-- **SSE contract**: extend `backend/tests/chat.test.ts` for `review-artifact` event emission.
-- **End-to-end**: stream a `git_diff`, verify artifact SSE, reload session and confirm replay includes artifact, open overlay, toggle viewed, add comment, submit review.
+- **Parser + renderer**: ✅ unit tests in `backend/tests/diff-parser.test.ts` (16 tests) and `backend/tests/diff-render.test.ts` (13 tests).
+- **Artifact service**: ✅ CRUD + status + comment tests in `backend/tests/artifacts.test.ts` (20 tests).
+- **Agent integration**: not yet extended — `backend/tests/agent.test.ts` does not assert artifact creation.
+- **SSE contract**: not yet extended — `backend/tests/chat.test.ts` does not assert `review-artifact` event emission.
+- **End-to-end**: manually verified — stream a `git_diff`, artifact SSE fires, reload session and card persists with viewed state, open overlay, toggle viewed, add comment, submit review.
+
+---
+
+## What's Deferred
+
+| Item | Notes |
+|------|-------|
+| Line-level comments via long-press | UI scaffolding exists (line IDs in DOM) but no long-press gesture handler wired |
+| Syntax highlighting in diff | HTML renderer emits plain `<code>` — no tokenization |
+| Jump-to-file from page indicator | Page indicator shows file name but tapping it doesn't open a file picker |
+| Agent integration test coverage | `agent.test.ts` and `chat.test.ts` not yet extended |
+| Database migrations | Uses `CREATE TABLE IF NOT EXISTS` — existing DBs need manual deletion to pick up schema |
 
 ---
 
