@@ -37,7 +37,7 @@ export function ReviewOverlay() {
   const [currentFileIndex, setCurrentFileIndex] = createSignal(0);
   const [commentText, setCommentText] = createSignal("");
   const [submitting, setSubmitting] = createSignal(false);
-  const [viewMode, setViewMode] = createSignal<ViewMode>("diff");
+  const [viewMode, setViewMode] = createSignal<ViewMode>("full");
 
   // Total pages = files + 1 (summary page)
   const totalPages = () => {
@@ -79,7 +79,7 @@ export function ReviewOverlay() {
   createEffect(() => {
     // Access the signal so we react to changes
     currentFileIndex();
-    setViewMode("diff");
+    setViewMode("full");
   });
 
   function toggleViewMode() {
