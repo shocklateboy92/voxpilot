@@ -73,9 +73,9 @@ describe("renderDiffFileHtml", () => {
     expect(html).toContain('data-file-id="f-xyz"');
   });
 
-  it("includes file header with escaped path", () => {
+  it("does not include a file header (rendered by frontend)", () => {
     const html = renderDiffFileHtml("f-1", "src/<special>.ts", [makeHunk()]);
-    expect(html).toContain("src/&lt;special&gt;.ts");
+    expect(html).not.toContain('class="diff-file-header"');
   });
 
   it("renders hunk header", () => {
@@ -185,9 +185,9 @@ describe("renderFullFileHtml", () => {
     expect(html).toContain('data-file-id="f-xyz"');
   });
 
-  it("includes file header with escaped path", () => {
+  it("does not include a file header (rendered by frontend)", () => {
     const html = renderFullFileHtml("f-1", "src/<special>.ts", fullText, [makeHunk()]);
-    expect(html).toContain("src/&lt;special&gt;.ts");
+    expect(html).not.toContain('class="diff-file-header"');
   });
 
   it("renders a fulltext-table", () => {
