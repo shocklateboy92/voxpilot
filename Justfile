@@ -22,6 +22,10 @@ generate:
     cd backend && bun run src/export-openapi.ts
     cd frontend && npm run generate
 
+# Generate a new Drizzle migration after schema changes
+db-generate:
+    cd backend && bunx drizzle-kit generate
+
 # Run backend tests
 test:
     cd backend && bun test
