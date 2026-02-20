@@ -165,7 +165,7 @@ File event payloads include `viewed` status so history replay restores card stat
 ### 4. Persistence ✅
 
 - `backend/src/schema.ts`: `reviewArtifacts`, `artifactFiles`, `reviewComments` tables + nullable `artifactId` on `messages`.
-- `backend/src/db.ts`: DDL via `CREATE TABLE IF NOT EXISTS`.
+- `backend/src/db.ts`: DDL via Drizzle `migrate()` from `drizzle-orm/bun-sqlite/migrator`, applying migrations from `backend/drizzle/`.
 - `backend/src/services/artifacts.ts`: `createArtifact()`, `createArtifactFile()`, `getArtifact()`, `setFileViewed()`, `addComment()`, `deleteComment()`, `updateArtifactStatus()`, `getFileFullText()`, `getArtifactComments()`, `getSessionArtifactSummaries()`.
 
 ### 5. Agent integration ✅
@@ -236,7 +236,7 @@ File event payloads include `viewed` status so history replay restores card stat
 | Syntax highlighting in diff | HTML renderer emits plain `<code>` — no tokenization |
 | Jump-to-file from page indicator | Page indicator shows file name but tapping it doesn't open a file picker |
 | Agent integration test coverage | `agent.test.ts` and `chat.test.ts` not yet extended |
-| Database migrations | Uses `CREATE TABLE IF NOT EXISTS` — existing DBs need manual deletion to pick up schema |
+| Database migrations | Handled via Drizzle `migrate()` — migrations in `backend/drizzle/` applied on startup |
 
 ---
 
