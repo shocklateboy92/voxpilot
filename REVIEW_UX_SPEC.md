@@ -1,8 +1,9 @@
 # Inline Code Review — UX Spec
 
-> **Status: V1 implemented.** Changeset card, review overlay carousel,
-> file-level comments, viewed tracking, and submit flow are all functional.
-> See "What's deferred" at the bottom for remaining UX work.
+> **Status: V1 implemented + post-V1 enhancements.** Changeset card, review
+> overlay carousel, file-level comments, viewed tracking, submit flow, and
+> full-file view toggle (with diff highlights and deletion interleaving) are
+> all functional. See "What's deferred" at the bottom for remaining UX work.
 
 Mobile-first code review experience embedded in the chat flow.
 
@@ -59,7 +60,8 @@ Opened by tapping a file or "Review next" in the changeset card. Takes over the 
 - **Page indicator** at the top: file name + position (e.g. `auth.ts  1/3`)
   - Tapping the indicator reveals a jump-to-file list
 - Final page (after the last file) is the **Review Summary** page
-- Diff style: **always unified** (single column)
+- Diff style: **always unified** (single column), with toggle to full-file view
+- **View toggle**: 📄/± button in the header switches between chunk view (hunks only) and full-file view (complete file with diff highlights and interleaved deletions). Only shown when full-file HTML is available.
 
 ### Bottom Bar (persistent, per file)
 
@@ -157,7 +159,7 @@ Comment {
 
 | Decision | Choice |
 |----------|--------|
-| Diff style | Always unified (single column) |
+| Diff style | Unified (single column) with full-file toggle |
 | Viewed marking | Auto-mark on swipe-past; explicit toggle to un-mark |
 | Submit action | Send all comments to agent as structured message for revision |
 | Navigation | Horizontal swipe carousel (reuse `attachSwipeHandler`) |
