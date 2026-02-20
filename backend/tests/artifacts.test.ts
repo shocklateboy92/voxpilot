@@ -80,6 +80,7 @@ async function seedArtifactAndFile(
     fullTextAvailable: true,
     fullTextLineCount: 10,
     fullTextContent: "line1\nline2\nline3",
+    fullTextHtml: "<div>full text html</div>",
   });
 }
 
@@ -287,6 +288,7 @@ describe("artifacts CRUD", () => {
         fullTextAvailable: false,
         fullTextLineCount: null,
         fullTextContent: null,
+        fullTextHtml: null,
       });
 
       const result = await getFileFullText(db(), "f-noft");

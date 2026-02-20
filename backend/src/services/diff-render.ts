@@ -75,3 +75,58 @@ function renderDiffLine(line: DiffLine): string {
     `</tr>`
   );
 }
+
+/**
+ * Render a full file with diff lines highlighted.
+ *
+ * Takes the full post-change file content and the parsed hunks,
+ * uses the `fullTextLine` mapping to identify which lines in the
+ * full text are additions, and applies the appropriate CSS class.
+ *
+ * @param fileId - Stable file ID for data attributes.
+ * @param path - File path for display.
+ * @param fullTextContent - Full post-change file content.
+ * @param hunks - Parsed diff hunks (used to identify added lines).
+ * @returns HTML string for the full-file view with diff highlighting.
+ */
+export function renderFullFileHtml(
+  fileId: string,
+  path: string,
+  fullTextContent: string,
+  hunks: DiffHunk[],
+): string {
+  // Build set of 1-based line numbers that are additions
+  const addedLines = new Set<number>();
+  for (const hunk of hunks) {
+    for (const line of hunk.lines) {
+      if (line.kind === "add" && line.fullTextLine != null) {
+        addedLines.add(line.fullTextLine);
+      }
+    }
+  }
+
+  const lines = fullTextContent.split("\n");
+  const parts: string[] = [];
+
+  parts.push(`<div class="fulltext-file" data-file-id="${escapeHtml(fileId)}">`);
+  parts.push(`<div class="diff-file-header">${escapeHtml(path)}</div>`);
+  parts.push('<table class="fulltext-table">');
+
+  for (let i = 0; i < lines.length; i++) {
+    const lineNum = i + 1;
+    const isAdded = addedLines.has(lineNum);
+    const rowClass = isAdded ? "fulltext-line fulltext-line-add" : "fulltext-line";
+
+    parts.push(
+      `<tr class="${rowClass}">` +
+      `<td class="fulltext-line-num">${lineNum}</td>` +
+      `<td class="fulltext-line-content"><code>${escapeHtml(lines[i] ?? "")}</code></td>` +
+      `</tr>`,
+    );
+  }
+
+  parts.push("</table>");
+  parts.push("</div>");
+
+  return parts.join("\n");
+}

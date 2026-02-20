@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { renderDiffFileHtml } from "../src/services/diff-render";
+import { renderDiffFileHtml, renderFullFileHtml } from "../src/services/diff-render";
 import type { DiffHunk } from "../src/schemas/diff-document";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -167,5 +167,71 @@ describe("renderDiffFileHtml", () => {
     const html = renderDiffFileHtml("f-1", "a.ts", [hunk1, hunk2]);
     expect(html).toContain('data-hunk-id="h-0"');
     expect(html).toContain('data-hunk-id="h-1"');
+  });
+});
+
+describe("renderFullFileHtml", () => {
+  const fullText = "first\nnew line\nextra line\nlast";
+
+  it("returns an HTML string", () => {
+    const html = renderFullFileHtml("f-1", "a.ts", fullText, [makeHunk()]);
+    expect(typeof html).toBe("string");
+    expect(html.length).toBeGreaterThan(0);
+  });
+
+  it("wraps output in fulltext-file div with data-file-id", () => {
+    const html = renderFullFileHtml("f-xyz", "path.ts", fullText, [makeHunk()]);
+    expect(html).toContain('class="fulltext-file"');
+    expect(html).toContain('data-file-id="f-xyz"');
+  });
+
+  it("includes file header with escaped path", () => {
+    const html = renderFullFileHtml("f-1", "src/<special>.ts", fullText, [makeHunk()]);
+    expect(html).toContain("src/&lt;special&gt;.ts");
+  });
+
+  it("renders a fulltext-table", () => {
+    const html = renderFullFileHtml("f-1", "a.ts", fullText, [makeHunk()]);
+    expect(html).toContain('class="fulltext-table"');
+    expect(html).toContain("</table>");
+  });
+
+  it("renders line numbers for every line", () => {
+    const html = renderFullFileHtml("f-1", "a.ts", fullText, [makeHunk()]);
+    expect(html).toContain('<td class="fulltext-line-num">1</td>');
+    expect(html).toContain('<td class="fulltext-line-num">2</td>');
+    expect(html).toContain('<td class="fulltext-line-num">3</td>');
+    expect(html).toContain('<td class="fulltext-line-num">4</td>');
+  });
+
+  it("applies fulltext-line-add class to added lines", () => {
+    const html = renderFullFileHtml("f-1", "a.ts", fullText, [makeHunk()]);
+    // Lines 2 and 3 are additions (fullTextLine 2 and 3 in the hunk)
+    expect(html).toContain('class="fulltext-line fulltext-line-add"');
+  });
+
+  it("does not apply fulltext-line-add to non-added lines", () => {
+    const html = renderFullFileHtml("f-1", "a.ts", fullText, [makeHunk()]);
+    // Lines matching "first" (line 1) and "last" (line 4) are context — no add class
+    // Count occurrences of fulltext-line-add: should be exactly 2 (lines 2 and 3)
+    const addMatches = html.match(/fulltext-line-add/g);
+    expect(addMatches?.length).toBe(2);
+  });
+
+  it("renders with no hunks (no highlighting)", () => {
+    const html = renderFullFileHtml("f-1", "a.ts", fullText, []);
+    expect(html).not.toContain("fulltext-line-add");
+    expect(html).toContain('<td class="fulltext-line-num">1</td>');
+  });
+
+  it("escapes HTML in content", () => {
+    const html = renderFullFileHtml("f-1", "a.ts", "const x = a < b;", []);
+    expect(html).toContain("a &lt; b;");
+  });
+
+  it("wraps content in <code>", () => {
+    const html = renderFullFileHtml("f-1", "a.ts", fullText, []);
+    expect(html).toContain("<code>first</code>");
+    expect(html).toContain("<code>last</code>");
   });
 });

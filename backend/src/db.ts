@@ -56,7 +56,8 @@ export function initDb(path = "voxpilot.db") {
     hunks_json TEXT,
     full_text_available INTEGER NOT NULL DEFAULT 0,
     full_text_line_count INTEGER,
-    full_text_content TEXT
+    full_text_content TEXT,
+    full_text_html TEXT
   )`);
   sqlite.run(
     `CREATE INDEX IF NOT EXISTS ix_artifact_files_artifact ON artifact_files(artifact_id)`,
