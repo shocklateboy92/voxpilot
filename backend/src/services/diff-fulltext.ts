@@ -1,9 +1,10 @@
 /**
  * Resolve post-change full file text from git blobs.
  *
- * For unstaged diffs: reads from worktree.
- * For staged diffs: reads from the index via `git show :path`.
- * For commits: reads from the tree blob via `git show commit:path`.
+ * Uses the `toRef` to determine where to read from:
+ *   - `WORKTREE` — read from the filesystem
+ *   - `INDEX` — read from the git index via `git show :path`
+ *   - Any other ref — read from the git tree via `git show ref:path`
  */
 
 import { runGit } from "../tools/git-utils";
@@ -21,43 +22,33 @@ export interface FullTextResult {
  * Resolve post-change file content for a diff file.
  *
  * @param filePath - Repo-relative path.
- * @param commitRef - Commit ref for `git_show` (null for `git_diff`).
- * @param staged - Whether the diff is staged changes only.
+ * @param toRef - The "to" side of the diff: WORKTREE, INDEX, or a commit ref.
  * @param workDir - Repository working directory.
  */
 export async function resolveFullText(
   filePath: string,
-  commitRef: string | null,
-  staged: boolean,
+  toRef: string,
   workDir: string,
 ): Promise<FullTextResult> {
   try {
-    let result;
-
-    if (commitRef) {
-      // For commits: git show <ref>:<path>
-      result = await runGit(["show", `${commitRef}:${filePath}`], workDir);
-    } else if (staged) {
-      // For staged changes: git show :<path> (index)
-      result = await runGit(["show", `:${filePath}`], workDir);
-    } else {
-      // For unstaged changes: read from worktree
-      result = await runGit(["show", `HEAD:${filePath}`], workDir);
-      if (result.exitCode !== 0) {
-        // File might be new and untracked — try reading it directly
-        try {
-          const file = Bun.file(`${workDir}/${filePath}`);
-          const content = await file.text();
-          if (content.length > MAX_FULL_TEXT_BYTES) {
-            return { available: false, content: null, lineCount: null };
-          }
-          const lineCount = content.split("\n").length;
-          return { available: true, content, lineCount };
-        } catch {
+    if (toRef === "WORKTREE") {
+      // Read from the filesystem
+      try {
+        const file = Bun.file(`${workDir}/${filePath}`);
+        const content = await file.text();
+        if (content.length > MAX_FULL_TEXT_BYTES) {
           return { available: false, content: null, lineCount: null };
         }
+        const lineCount = content.split("\n").length;
+        return { available: true, content, lineCount };
+      } catch {
+        return { available: false, content: null, lineCount: null };
       }
     }
+
+    // INDEX or a commit ref — use git show
+    const gitRef = toRef === "INDEX" ? `:${filePath}` : `${toRef}:${filePath}`;
+    const result = await runGit(["show", gitRef], workDir);
 
     if (result.exitCode !== 0) {
       return { available: false, content: null, lineCount: null };

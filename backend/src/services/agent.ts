@@ -306,19 +306,21 @@ export async function* runAgentLoop(
             const args: Record<string, unknown> = tc.arguments
               ? (JSON.parse(tc.arguments) as Record<string, unknown>)
               : {};
-            const commitRef =
-              tc.name === "git_show"
-                ? (typeof args.commit === "string" ? args.commit : "HEAD")
-                : null;
-            const staged = tc.name === "git_diff" && args.staged === true;
+
+            // Determine the "to" ref for full-text resolution
+            let toRef: string;
+            if (tc.name === "git_show") {
+              toRef = typeof args.commit === "string" ? args.commit : "HEAD";
+            } else {
+              toRef = typeof args.to === "string" && args.to !== "" ? args.to : "WORKTREE";
+            }
 
             const artifact = await createReviewArtifact({
               db,
               sessionId,
               toolName: tc.name,
               toolCallId: tc.id,
-              commitRef,
-              staged,
+              toRef,
               diffText: result.displayResult,
               workDir,
             });
