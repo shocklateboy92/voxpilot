@@ -7,7 +7,7 @@
 
 import createClient from "openapi-fetch";
 import type { paths } from "./api";
-import type { SessionSummary, GitHubUser } from "./store";
+import type { SessionSummary, GitHubUser, ArtifactDetail, ReviewCommentData } from "./store";
 
 // ── Typed client ─────────────────────────────────────────────────────────────
 
@@ -78,4 +78,81 @@ export async function postMessage(
   }
 
   return response;
+}
+
+// ── Artifacts ────────────────────────────────────────────────────────────────
+
+export async function fetchArtifact(artifactId: string): Promise<ArtifactDetail | null> {
+  const response = await fetch(`/api/artifacts/${artifactId}`, {
+    credentials: "include",
+  });
+  if (!response.ok) return null;
+  return (await response.json()) as ArtifactDetail;
+}
+
+export async function fetchFileFullText(
+  artifactId: string,
+  fileId: string,
+): Promise<{ content: string; lineCount: number } | null> {
+  const response = await fetch(
+    `/api/artifacts/${artifactId}/files/${fileId}/full-text`,
+    { credentials: "include" },
+  );
+  if (!response.ok) return null;
+  return (await response.json()) as { content: string; lineCount: number };
+}
+
+export async function patchFileViewed(
+  artifactId: string,
+  fileId: string,
+  viewed: boolean,
+): Promise<void> {
+  await fetch(`/api/artifacts/${artifactId}/files/${fileId}/viewed`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ viewed }),
+  });
+}
+
+export async function postFileComment(
+  artifactId: string,
+  fileId: string,
+  content: string,
+  lineId?: string | null,
+  lineNumber?: number | null,
+): Promise<ReviewCommentData | null> {
+  const response = await fetch(
+    `/api/artifacts/${artifactId}/files/${fileId}/comments`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ content, line_id: lineId, line_number: lineNumber }),
+    },
+  );
+  if (!response.ok) return null;
+  return (await response.json()) as ReviewCommentData;
+}
+
+export async function deleteArtifactComment(
+  artifactId: string,
+  commentId: string,
+): Promise<void> {
+  await fetch(`/api/artifacts/${artifactId}/comments/${commentId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+}
+
+export async function submitReview(
+  artifactId: string,
+): Promise<{ status: string } | null> {
+  const response = await fetch(`/api/artifacts/${artifactId}/submit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  if (!response.ok) return null;
+  return (await response.json()) as { status: string };
 }

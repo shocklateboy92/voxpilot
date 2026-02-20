@@ -77,3 +77,17 @@ export const ToolConfirmRequest = z.object({
   approved: z.boolean(),
 });
 export type ToolConfirmRequest = z.infer<typeof ToolConfirmRequest>;
+
+// ── Artifact API types ───────────────────────────────────────────────────────
+
+export const ViewedRequest = z.object({
+  viewed: z.boolean(),
+});
+export type ViewedRequest = z.infer<typeof ViewedRequest>;
+
+export const AddCommentRequest = z.object({
+  content: z.string(),
+  line_id: z.string().nullable().optional(),
+  line_number: z.number().nullable().optional(),
+});
+export type AddCommentRequest = z.infer<typeof AddCommentRequest>;

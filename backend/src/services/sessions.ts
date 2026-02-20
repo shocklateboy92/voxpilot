@@ -124,7 +124,7 @@ export async function addMessage(
   sessionId: string,
   role: string,
   content: string,
-  opts?: { toolCalls?: string | null; toolCallId?: string | null },
+  opts?: { toolCalls?: string | null; toolCallId?: string | null; artifactId?: string | null },
 ): Promise<void> {
   const now = nowIso();
   const toolCalls = opts?.toolCalls
@@ -136,6 +136,7 @@ export async function addMessage(
     content,
     toolCalls,
     toolCallId: opts?.toolCallId ?? null,
+    artifactId: opts?.artifactId ?? null,
     createdAt: now,
   });
   await db
@@ -180,6 +181,7 @@ export async function getMessagesWithTimestamps(
       created_at: r.createdAt,
       tool_calls: parseToolCalls(r.toolCalls) ?? undefined,
       tool_call_id: r.toolCallId ?? undefined,
+      artifact_id: r.artifactId ?? undefined,
       html,
     };
   });

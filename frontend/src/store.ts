@@ -12,7 +12,7 @@ import type { components } from "./api";
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export type SessionSummary = components["schemas"]["SessionSummary"];
-export type MessageRead = components["schemas"]["MessageRead"] & { html?: string | null };
+export type MessageRead = components["schemas"]["MessageRead"] & { html?: string | null; artifactId?: string };
 export type ToolCallInfo = components["schemas"]["ToolCallInfo"];
 export type GitHubUser = components["schemas"]["GitHubUser"];
 
@@ -22,6 +22,65 @@ export interface StreamingToolCall {
   arguments: string;
   result?: string;
   isError?: boolean;
+  artifactId?: string;
+}
+
+// ── Review artifact types ────────────────────────────────────────────────────
+
+export interface ArtifactFileSummary {
+  id: string;
+  path: string;
+  changeType: string;
+  additions: number;
+  deletions: number;
+  viewed: boolean;
+}
+
+export interface ArtifactSummary {
+  artifactId: string;
+  title: string;
+  status: string;
+  totalFiles: number;
+  totalAdditions: number;
+  totalDeletions: number;
+  files: ArtifactFileSummary[];
+}
+
+export interface ArtifactFileDetail {
+  id: string;
+  artifactId: string;
+  path: string;
+  changeType: string;
+  oldPath: string | null;
+  additions: number;
+  deletions: number;
+  viewed: boolean;
+  html: string;
+  fullTextAvailable: boolean;
+}
+
+export interface ReviewCommentData {
+  id: string;
+  artifactId: string;
+  fileId: string;
+  lineId: string | null;
+  lineNumber: number | null;
+  content: string;
+  createdAt: string;
+}
+
+export interface ArtifactDetail {
+  artifact: {
+    id: string;
+    title: string;
+    status: string;
+    totalFiles: number;
+    totalAdditions: number;
+    totalDeletions: number;
+    sessionId: string;
+  };
+  files: ArtifactFileDetail[];
+  comments: ReviewCommentData[];
 }
 
 // ── Signals ──────────────────────────────────────────────────────────────────
@@ -66,6 +125,16 @@ export interface PendingConfirm {
   arguments: string;
 }
 export const [pendingConfirm, setPendingConfirm] = createSignal<PendingConfirm | null>(null);
+
+/** Map of artifactId → ArtifactSummary for inline changeset cards. */
+export const [artifacts, setArtifacts] = createSignal<Map<string, ArtifactSummary>>(new Map());
+
+/** Currently open review overlay artifact ID (null = closed). */
+export const [reviewOverlayArtifactId, setReviewOverlayArtifactId] = createSignal<string | null>(null);
+
+/** Full artifact detail for the currently open overlay. */
+export const [reviewDetail, setReviewDetail] = createSignal<ArtifactDetail | null>(null);
+
 // ── Derived ──────────────────────────────────────────────────────────────────
 
 /** The currently active session summary, or undefined. */

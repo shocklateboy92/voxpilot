@@ -9,6 +9,7 @@ export const MessageEvent = z.object({
   created_at: z.string(),
   tool_calls: z.array(ToolCallInfo).nullable().optional(),
   tool_call_id: z.string().nullable().optional(),
+  artifact_id: z.string().nullable().optional(),
   html: z.string().nullable().optional(),
 });
 export type MessageEvent = z.infer<typeof MessageEvent>;
@@ -25,6 +26,7 @@ export const ToolResultEvent = z.object({
   name: z.string(),
   content: z.string(),
   is_error: z.boolean().default(false),
+  artifact_id: z.string().nullable().optional(),
 });
 export type ToolResultEvent = z.infer<typeof ToolResultEvent>;
 
@@ -50,3 +52,26 @@ export const ToolConfirmEvent = z.object({
   arguments: z.string(),
 });
 export type ToolConfirmEvent = z.infer<typeof ToolConfirmEvent>;
+
+// ── Review artifact SSE event ────────────────────────────────────────────────
+
+export const ReviewArtifactFileEvent = z.object({
+  id: z.string(),
+  path: z.string(),
+  changeType: z.string(),
+  additions: z.number(),
+  deletions: z.number(),
+  viewed: z.boolean().optional(),
+});
+export type ReviewArtifactFileEvent = z.infer<typeof ReviewArtifactFileEvent>;
+
+export const ReviewArtifactEvent = z.object({
+  artifactId: z.string(),
+  title: z.string(),
+  status: z.string(),
+  totalFiles: z.number(),
+  totalAdditions: z.number(),
+  totalDeletions: z.number(),
+  files: z.array(ReviewArtifactFileEvent),
+});
+export type ReviewArtifactEvent = z.infer<typeof ReviewArtifactEvent>;
