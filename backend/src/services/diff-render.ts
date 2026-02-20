@@ -36,9 +36,6 @@ export function renderDiffFileHtml(
   const parts: string[] = [];
 
   parts.push(`<div class="diff-file" data-file-id="${escapeHtml(fileId)}">`);
-  parts.push(
-    `<div class="diff-file-header">${escapeHtml(path)}</div>`,
-  );
 
   for (const hunk of hunks) {
     parts.push(`<div class="diff-hunk" data-hunk-id="${escapeHtml(hunk.id)}">`);
@@ -142,7 +139,6 @@ export function renderFullFileHtml(
   const parts: string[] = [];
 
   parts.push(`<div class="fulltext-file" data-file-id="${escapeHtml(fileId)}">`);
-  parts.push(`<div class="diff-file-header">${escapeHtml(path)}</div>`);
   parts.push('<table class="fulltext-table">');
 
   for (let i = 0; i < lines.length; i++) {
