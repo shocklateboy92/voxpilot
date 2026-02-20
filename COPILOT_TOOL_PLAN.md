@@ -1,0 +1,195 @@
+# Copilot CLI ACP Tool — Implementation Plan
+
+## Overview
+
+Add a `copilot_agent` tool that the main AI can invoke to delegate coding tasks
+to GitHub Copilot CLI via the Agent Client Protocol (ACP). The backend spawns a
+long-lived `copilot --acp --stdio` child process per voxpilot session, manages
+initialization/session setup, and streams Copilot's output back via new SSE
+event types. The frontend renders these as expandable `<details>` blocks that
+stream in real-time (expanded while running, auto-collapsed on completion) —
+matching the VS Code subagent pattern.
+
+## Key Decisions
+
+| Decision | Choice |
+|---|---|
+| Tool input | Free-form prompt string — the main AI composes the prompt |
+| Copilot permissions | Auto-approve all (`outcome: "allowed"`) |
+| Process lifecycle | Long-lived per session — one `copilot --acp --stdio` process per voxpilot session, reusing the ACP session for follow-up prompts |
+| Streaming UX | Expanded while streaming, auto-collapse on done |
+
+## Backend
+
+### 1. Add `@agentclientprotocol/sdk` dependency
+
+Add to `backend/package.json`. This is the official ACP TypeScript SDK for
+communicating with the Copilot CLI over stdin/stdout NDJSON.
+
+### 2. Create `CopilotConnection` service
+
+**File**: `backend/src/services/copilot-acp.ts`
+
+Manages a per-voxpilot-session ACP connection lifecycle (lazy-initialized on
+first tool call).
+
+- `getOrCreate(sessionId, workDir)` — spawns `copilot --acp --stdio` via
+  `Bun.spawn`, wraps stdin/stdout with `acp.ndJsonStream()`, creates a
+  `ClientSideConnection`.
+- The `Client` implementation:
+  - `requestPermission()` → always returns `{ outcome: { outcome: "allowed" } }`
+    (auto-approve).
+  - `sessionUpdate()` → emits streaming chunks via a callback so the agent loop
+    can yield SSE events.
+- `initialize()` → calls `connection.initialize(...)`.
+- `newSession()` → calls `connection.newSession({ cwd: workDir, mcpServers: [] })`,
+  stores the ACP `sessionId`.
+- `prompt(text, onDelta)` → calls `connection.prompt(...)`, streams
+  `agent_message_chunk` updates via the `onDelta` callback, returns
+  `PromptResponse` with `stopReason`.
+- `destroy()` → kills the child process, cleans up.
+
+Store connections in a `Map<string, CopilotConnection>` singleton, keyed by
+voxpilot session ID. Clean up on session broadcaster shutdown.
+
+### 3. Add new SSE event schemas
+
+**File**: `backend/src/schemas/events.ts`
+
+| Event | Schema | Purpose |
+|---|---|---|
+| `copilot-delta` | `{ tool_call_id: string, content: string }` | Streaming text chunks from Copilot |
+| `copilot-done` | `{ tool_call_id: string, summary: string, stop_reason: string }` | Signals completion with summary |
+
+### 4. Create `CopilotAgentTool`
+
+**File**: `backend/src/tools/copilot-agent.ts`
+
+- Implements `Tool` interface.
+- `requiresConfirmation = false` — the main AI decides when to invoke it.
+- `definition`:
+  - name: `copilot_agent`
+  - description: "Delegate a coding task to GitHub Copilot. Copilot will
+    autonomously modify files in the workspace."
+  - parameters: `{ prompt: string }` — the instruction to send to Copilot.
+- `execute()` returns a `ToolResult` after Copilot finishes:
+  - `llmResult`: compact summary of what Copilot did.
+  - `displayResult`: more detailed log.
+  - The real UX comes from streaming SSE events emitted during execution (not
+    from the result text).
+
+### 5. Modify `runAgentLoop`
+
+**File**: `backend/src/services/agent.ts`
+
+Special-case `copilot_agent` in the tool execution block (similar to how diff
+tools are special-cased for artifact creation):
+
+1. Before calling `tool.execute()`, set up the ACP connection's `sessionUpdate`
+   callback to yield `copilot-delta` events with the `tool_call_id`.
+2. Capture `agent_message_chunk` updates where `content.type === "text"` and
+   yield them as `copilot-delta` SSE events.
+3. When `.prompt()` resolves, yield a `copilot-done` event with the stop reason.
+4. The standard `tool-result` event still fires afterward with the summary.
+
+Pass `sessionId` and `workDir` to the copilot tool via an extended context
+parameter or by directly calling the copilot service from the agent loop.
+
+### 6. Register the tool
+
+**File**: `backend/src/tools/index.ts`
+
+Add `CopilotAgentTool` to `buildDefaultRegistry()`.
+
+### 7. Update config
+
+**File**: `backend/src/config.ts`
+
+Add `VOXPILOT_COPILOT_CLI_PATH` (default: `"copilot"`) so users can override
+the CLI binary path.
+
+## Frontend
+
+### 8. Extend store types
+
+**File**: `frontend/src/store.ts`
+
+Extend `StreamingToolCall`:
+
+```typescript
+export interface StreamingToolCall {
+  id: string;
+  name: string;
+  arguments: string;
+  result?: string;
+  isError?: boolean;
+  artifactId?: string;
+  copilotStream?: string;   // accumulated Copilot output text
+  copilotDone?: boolean;     // true when Copilot finishes
+}
+```
+
+### 9. Add SSE handlers
+
+**Files**: `frontend/src/streaming.ts`, `frontend/src/sse.ts`
+
+- `onCopilotDelta(data)`: find matching tool call in `streamingToolCalls` by
+  `tool_call_id`, append `data.content` to its `copilotStream` field.
+- `onCopilotDone(data)`: update matching tool call's `copilotDone = true`, set
+  summary.
+- Register these new event listeners via `addJsonEventListener`.
+
+### 10. Create `CopilotStreamBlock` component
+
+**File**: `frontend/src/components/CopilotStreamBlock.tsx`
+
+- Renders inside `ToolCallBlock` when the tool is `copilot_agent`.
+- Uses `<details class="copilot-block">` with `open` attribute bound to
+  `!copilotDone`.
+- `<summary>`: shows "🤖 Copilot" + spinner while running, or
+  "🤖 Copilot — done" when finished.
+- Body: renders the streaming `copilotStream` text in a `<pre>` with
+  auto-scroll.
+- When `copilotDone` becomes true, removes the `open` attribute (auto-collapses).
+  The user can re-expand to see the full output.
+
+### 11. Update `ToolCallBlock`
+
+**File**: `frontend/src/components/ToolCallBlock.tsx`
+
+When `props.call.name === "copilot_agent"`, render `<CopilotStreamBlock>`
+instead of the standard arguments/result display. The outer `<details>` still
+shows "⚙ copilot_agent" in the summary, but the inner content is the streaming
+Copilot output instead of JSON args + result pre.
+
+### 12. Add CSS styles
+
+**File**: `frontend/src/style.css`
+
+- `.copilot-block` — similar to `.tool-block` but with a distinct accent color
+  (Copilot blue/purple).
+- `.copilot-stream` — monospace pre output area with max-height, overflow-y
+  auto, auto-scroll-to-bottom behavior.
+- Transition/animation for collapse on completion.
+
+### 13. Handle history replay
+
+**File**: `frontend/src/components/MessageBubble.tsx`
+
+When rendering a historical tool result for `copilot_agent`, show it as a
+collapsed `<details>` with the summary and the full output inside — matching the
+`CopilotStreamBlock` appearance but without streaming.
+
+## Verification
+
+- [ ] Start the backend with `copilot` CLI installed and authenticated.
+- [ ] Send a chat message asking the AI to make a code change based on a review
+      comment.
+- [ ] Verify the main AI invokes `copilot_agent` with an appropriate prompt.
+- [ ] Verify streaming events appear in the SSE stream (`copilot-delta`,
+      `copilot-done`).
+- [ ] Verify the frontend shows the expanding/collapsing Copilot output block.
+- [ ] Verify the block auto-collapses when Copilot finishes.
+- [ ] Verify the summary is returned to the main AI for further conversation.
+- [ ] Verify history replay shows collapsed Copilot blocks correctly.
+- [ ] Run existing tests (`bun test`) to ensure no regressions.
