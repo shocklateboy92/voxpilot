@@ -234,4 +234,70 @@ describe("renderFullFileHtml", () => {
     expect(html).toContain("<code>first</code>");
     expect(html).toContain("<code>last</code>");
   });
+
+  it("interleaves deleted lines with fulltext-line-del class", () => {
+    const html = renderFullFileHtml("f-1", "a.ts", fullText, [makeHunk()]);
+    // The del line "old line" should appear with the del class
+    expect(html).toContain('class="fulltext-line fulltext-line-del"');
+    expect(html).toContain("<code>old line</code>");
+  });
+
+  it("places deleted lines before the next non-del line", () => {
+    const html = renderFullFileHtml("f-1", "a.ts", fullText, [makeHunk()]);
+    // "old line" (del) should appear before "new line" (add, fullTextLine=2)
+    const delIdx = html.indexOf("old line");
+    const addIdx = html.indexOf("new line");
+    expect(delIdx).toBeLessThan(addIdx);
+    // And after "first" (context, fullTextLine=1)
+    const firstIdx = html.indexOf("first");
+    expect(delIdx).toBeGreaterThan(firstIdx);
+  });
+
+  it("renders deleted lines with empty line number", () => {
+    const html = renderFullFileHtml("f-1", "a.ts", fullText, [makeHunk()]);
+    // Del rows have an empty line-num cell
+    expect(html).toContain(
+      '<tr class="fulltext-line fulltext-line-del">' +
+      '<td class="fulltext-line-num"></td>',
+    );
+  });
+
+  it("interleaves trailing deletions after last context line", () => {
+    const hunk = makeHunk({
+      lines: [
+        { id: "L0", kind: "context", oldLine: 1, newLine: 1, content: "first", fullTextLine: 1 },
+        { id: "L1", kind: "del", oldLine: 2, newLine: null, content: "removed at end", fullTextLine: null },
+      ],
+    });
+    const html = renderFullFileHtml("f-1", "a.ts", "first\nsecond", [hunk]);
+    // Deletion should appear before line 2 (lastFullTextLine + 1 = 2)
+    const delIdx = html.indexOf("removed at end");
+    const secondIdx = html.indexOf("second");
+    expect(delIdx).toBeLessThan(secondIdx);
+    expect(delIdx).toBeGreaterThan(0);
+  });
+
+  it("handles multiple deletions in sequence", () => {
+    const hunk = makeHunk({
+      lines: [
+        { id: "L0", kind: "context", oldLine: 1, newLine: 1, content: "keep", fullTextLine: 1 },
+        { id: "L1", kind: "del", oldLine: 2, newLine: null, content: "del-A", fullTextLine: null },
+        { id: "L2", kind: "del", oldLine: 3, newLine: null, content: "del-B", fullTextLine: null },
+        { id: "L3", kind: "add", oldLine: null, newLine: 2, content: "added", fullTextLine: 2 },
+      ],
+    });
+    const html = renderFullFileHtml("f-1", "a.ts", "keep\nadded", [hunk]);
+    const delAIdx = html.indexOf("del-A");
+    const delBIdx = html.indexOf("del-B");
+    const addIdx = html.indexOf("added");
+    // Both deletions should appear and be ordered before the add
+    expect(delAIdx).toBeGreaterThan(0);
+    expect(delBIdx).toBeGreaterThan(delAIdx);
+    expect(addIdx).toBeGreaterThan(delBIdx);
+  });
+
+  it("does not interleave deletions when no hunks", () => {
+    const html = renderFullFileHtml("f-1", "a.ts", fullText, []);
+    expect(html).not.toContain("fulltext-line-del");
+  });
 });

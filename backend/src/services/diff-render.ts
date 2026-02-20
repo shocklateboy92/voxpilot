@@ -80,13 +80,14 @@ function renderDiffLine(line: DiffLine): string {
  * Render a full file with diff lines highlighted.
  *
  * Takes the full post-change file content and the parsed hunks,
- * uses the `fullTextLine` mapping to identify which lines in the
- * full text are additions, and applies the appropriate CSS class.
+ * uses the `fullTextLine` mapping to highlight additions, and
+ * interleaves deleted lines at the correct positions so the user
+ * can see what was removed without leaving the full-file view.
  *
  * @param fileId - Stable file ID for data attributes.
  * @param path - File path for display.
  * @param fullTextContent - Full post-change file content.
- * @param hunks - Parsed diff hunks (used to identify added lines).
+ * @param hunks - Parsed diff hunks (used to identify changes).
  * @returns HTML string for the full-file view with diff highlighting.
  */
 export function renderFullFileHtml(
@@ -97,11 +98,43 @@ export function renderFullFileHtml(
 ): string {
   // Build set of 1-based line numbers that are additions
   const addedLines = new Set<number>();
+
+  // Build map: "insert these deleted lines BEFORE fullTextLine N"
+  const deletionsBefore = new Map<number, DiffLine[]>();
+
   for (const hunk of hunks) {
+    const pendingDels: DiffLine[] = [];
+
     for (const line of hunk.lines) {
-      if (line.kind === "add" && line.fullTextLine != null) {
-        addedLines.add(line.fullTextLine);
+      if (line.kind === "del") {
+        pendingDels.push(line);
+      } else {
+        // context or add — flush any pending deletions before this line
+        if (pendingDels.length > 0 && line.fullTextLine != null) {
+          const existing = deletionsBefore.get(line.fullTextLine) ?? [];
+          deletionsBefore.set(line.fullTextLine, [...existing, ...pendingDels]);
+          pendingDels.length = 0;
+        }
+        if (line.kind === "add" && line.fullTextLine != null) {
+          addedLines.add(line.fullTextLine);
+        }
       }
+    }
+
+    // Trailing deletions at end of hunk (no subsequent context/add)
+    if (pendingDels.length > 0) {
+      let lastFullTextLine = 0;
+      for (const line of hunk.lines) {
+        if (line.kind !== "del" && line.fullTextLine != null) {
+          lastFullTextLine = line.fullTextLine;
+        }
+      }
+      // If no non-del line in the hunk, use the hunk's newStart position
+      const key = lastFullTextLine > 0
+        ? lastFullTextLine + 1
+        : Math.max(1, hunk.newStart + 1);
+      const existing = deletionsBefore.get(key) ?? [];
+      deletionsBefore.set(key, [...existing, ...pendingDels]);
     }
   }
 
@@ -114,6 +147,20 @@ export function renderFullFileHtml(
 
   for (let i = 0; i < lines.length; i++) {
     const lineNum = i + 1;
+
+    // Insert deleted lines that belong before this line
+    const dels = deletionsBefore.get(lineNum);
+    if (dels) {
+      for (const del of dels) {
+        parts.push(
+          `<tr class="fulltext-line fulltext-line-del">` +
+          `<td class="fulltext-line-num"></td>` +
+          `<td class="fulltext-line-content"><code>${escapeHtml(del.content)}</code></td>` +
+          `</tr>`,
+        );
+      }
+    }
+
     const isAdded = addedLines.has(lineNum);
     const rowClass = isAdded ? "fulltext-line fulltext-line-add" : "fulltext-line";
 
@@ -123,6 +170,20 @@ export function renderFullFileHtml(
       `<td class="fulltext-line-content"><code>${escapeHtml(lines[i] ?? "")}</code></td>` +
       `</tr>`,
     );
+  }
+
+  // Trailing deletions after the last line
+  const trailingKey = lines.length + 1;
+  const trailingDels = deletionsBefore.get(trailingKey);
+  if (trailingDels) {
+    for (const del of trailingDels) {
+      parts.push(
+        `<tr class="fulltext-line fulltext-line-del">` +
+        `<td class="fulltext-line-num"></td>` +
+        `<td class="fulltext-line-content"><code>${escapeHtml(del.content)}</code></td>` +
+        `</tr>`,
+      );
+    }
   }
 
   parts.push("</table>");
