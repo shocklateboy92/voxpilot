@@ -1,9 +1,9 @@
 import { beforeEach, afterEach } from "bun:test";
-import { initDb, closeDb } from "../src/db";
+import { closeDb } from "../src/db";
 
 export function setupTestDb() {
   beforeEach(() => {
-    initDb(":memory:");
+    process.env["VOXPILOT_DB_PATH"] = ":memory:";
   });
   afterEach(() => {
     closeDb();
