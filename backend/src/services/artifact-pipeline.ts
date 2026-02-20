@@ -13,6 +13,7 @@ import {
   createArtifact,
   createArtifactFile,
 } from "./artifacts";
+import { ensureGitRepo } from "../tools/git-utils";
 
 type Db = ReturnType<typeof getDb>;
 
@@ -21,8 +22,8 @@ export interface ArtifactPipelineInput {
   sessionId: string;
   toolName: string;
   toolCallId: string;
-  commitRef: string | null;
-  staged: boolean;
+  /** The ref/state the diff's "to" side points to (WORKTREE, INDEX, or a commit ref). */
+  toRef: string;
   diffText: string;
   workDir: string;
 }
@@ -44,13 +45,16 @@ export async function createReviewArtifact(
     sessionId,
     toolName,
     toolCallId,
-    commitRef,
-    staged,
+    toRef,
     diffText,
     workDir,
   } = input;
 
   const artifactId = crypto.randomUUID();
+
+  // Resolve git repo root — diff paths are relative to it, not workDir
+  const repoCheck = await ensureGitRepo(workDir);
+  const repoRoot = "root" in repoCheck ? repoCheck.root : workDir;
 
   // 1. Parse the unified diff
   const parsed = parseUnifiedDiff(diffText, artifactId);
@@ -68,7 +72,7 @@ export async function createReviewArtifact(
     sessionId,
     toolName,
     toolCallId,
-    commitRef,
+    commitRef: toRef === "WORKTREE" || toRef === "INDEX" ? null : toRef,
     title,
     totalFiles: parsed.files.length,
     totalAdditions: parsed.totalAdditions,
@@ -80,11 +84,11 @@ export async function createReviewArtifact(
 
   for (const skeleton of fileSkeletons) {
     // Resolve full text (non-blocking failure)
+    // Use repoRoot because git diff paths are relative to the repo root
     const fullText = await resolveFullText(
       skeleton.path,
-      commitRef,
-      staged,
-      workDir,
+      toRef,
+      repoRoot,
     );
 
     // Render HTML

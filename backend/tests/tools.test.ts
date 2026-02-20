@@ -485,7 +485,7 @@ describe("GitDiffTool", () => {
     await rm(gitDir, { recursive: true, force: true });
   });
 
-  it("shows unstaged changes", async () => {
+  it("shows unstaged changes (default from=INDEX to=WORKTREE)", async () => {
     await writeFile(join(gitDir, "file.txt"), "line one\nline two\n");
     const result = await tool.execute({}, gitDir);
     expect(result.displayResult).toContain("line two");
@@ -495,13 +495,20 @@ describe("GitDiffTool", () => {
     expect(result.llmResult).not.toContain("diff --git");
   });
 
-  it("shows staged changes", async () => {
+  it("shows staged changes (from=HEAD to=INDEX)", async () => {
     await writeFile(join(gitDir, "file.txt"), "modified\n");
     await Bun.spawn(["git", "add", "file.txt"], { cwd: gitDir, stdout: "pipe", stderr: "pipe" }).exited;
-    const result = await tool.execute({ staged: true }, gitDir);
+    const result = await tool.execute({ from: "HEAD", to: "INDEX" }, gitDir);
     expect(result.displayResult).toContain("modified");
     expect(result.displayResult).toContain("diff --git");
     expect(result.llmResult).toContain("file.txt");
+  });
+
+  it("shows all uncommitted changes (from=HEAD to=WORKTREE)", async () => {
+    await writeFile(join(gitDir, "file.txt"), "line one\nline two\n");
+    const result = await tool.execute({ from: "HEAD", to: "WORKTREE" }, gitDir);
+    expect(result.displayResult).toContain("line two");
+    expect(result.displayResult).toContain("diff --git");
   });
 
   it("scopes to a path", async () => {
@@ -509,15 +516,27 @@ describe("GitDiffTool", () => {
     await writeFile(join(gitDir, "sub", "a.txt"), "new file\n");
     await writeFile(join(gitDir, "other.txt"), "other\n");
     await Bun.spawn(["git", "add", "-A"], { cwd: gitDir, stdout: "pipe", stderr: "pipe" }).exited;
-    const result = await tool.execute({ staged: true, path: "sub" }, gitDir);
+    const result = await tool.execute({ from: "HEAD", to: "INDEX", path: "sub" }, gitDir);
     expect(result.displayResult).toContain("a.txt");
     expect(result.displayResult).not.toContain("other.txt");
   });
 
   it("reports no changes", async () => {
     const result = await tool.execute({}, gitDir);
-    expect(result.displayResult).toContain("No uncommitted changes");
-    expect(result.llmResult).toContain("No uncommitted changes");
+    expect(result.displayResult).toContain("No changes found");
+    expect(result.llmResult).toContain("No changes found");
+  });
+
+  it("rejects same from and to", async () => {
+    const result = await tool.execute({ from: "HEAD", to: "HEAD" }, gitDir);
+    expect(result.displayResult).toContain("Error");
+    expect(result.displayResult).toContain("must be different");
+  });
+
+  it("rejects invalid refs", async () => {
+    const result = await tool.execute({ from: "--flag" }, gitDir);
+    expect(result.displayResult).toContain("Error");
+    expect(result.displayResult).toContain("invalid ref");
   });
 
   it("errors on non-git directory", async () => {
