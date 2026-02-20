@@ -32,6 +32,8 @@ protectedRouter.route("/", chatRouter);
 protectedRouter.route("/", artifactRouter);
 app.route("/", protectedRouter);
 
+// Initialize the db so any errors happen
+// before we start accepting requests.
 getDb();
 console.log(
   `${config.appName} listening on http://localhost:8000 (debug=${String(config.debug)})`,
