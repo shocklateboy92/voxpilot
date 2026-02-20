@@ -8,7 +8,7 @@ import type { getDb } from "../db";
 import type { ReviewArtifactEvent } from "../schemas/events";
 import { parseUnifiedDiff, buildDiffFiles } from "./diff-parser";
 import { resolveFullText } from "./diff-fulltext";
-import { renderDiffFileHtml } from "./diff-render";
+import { renderDiffFileHtml, renderFullFileHtml } from "./diff-render";
 import {
   createArtifact,
   createArtifactFile,
@@ -94,6 +94,11 @@ export async function createReviewArtifact(
       skeleton.hunksJson,
     );
 
+    // Render full-file HTML with diff highlights
+    const fullTextHtml = fullText.available && fullText.content !== null
+      ? renderFullFileHtml(skeleton.id, skeleton.path, fullText.content, skeleton.hunksJson)
+      : null;
+
     // Persist file
     await createArtifactFile(db, {
       id: skeleton.id,
@@ -108,6 +113,7 @@ export async function createReviewArtifact(
       fullTextAvailable: fullText.available,
       fullTextLineCount: fullText.lineCount,
       fullTextContent: fullText.content,
+      fullTextHtml,
     });
 
     eventFiles.push({

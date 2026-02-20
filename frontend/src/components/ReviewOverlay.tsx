@@ -31,10 +31,13 @@ import {
 } from "../api-client";
 import { attachSwipeHandler } from "../gestures";
 
+type ViewMode = "diff" | "full";
+
 export function ReviewOverlay() {
   const [currentFileIndex, setCurrentFileIndex] = createSignal(0);
   const [commentText, setCommentText] = createSignal("");
   const [submitting, setSubmitting] = createSignal(false);
+  const [viewMode, setViewMode] = createSignal<ViewMode>("diff");
 
   // Total pages = files + 1 (summary page)
   const totalPages = () => {
@@ -70,6 +73,17 @@ export function ReviewOverlay() {
 
   function close() {
     setReviewOverlayArtifactId(null);
+  }
+
+  // Reset view mode when navigating between files
+  createEffect(() => {
+    // Access the signal so we react to changes
+    currentFileIndex();
+    setViewMode("diff");
+  });
+
+  function toggleViewMode() {
+    setViewMode((prev) => prev === "diff" ? "full" : "diff");
   }
 
   function navigateToFile(index: number) {
@@ -185,12 +199,14 @@ export function ReviewOverlay() {
               submitting={submitting()}
               allViewed={allViewed()}
               fileComments={fileCommentsForCurrent()}
+              viewMode={viewMode()}
               onNavigate={navigateToFile}
               onClose={close}
               onMarkViewed={markViewed}
               onSetCommentText={setCommentText}
               onAddComment={() => void addFileComment()}
               onSubmit={() => void handleSubmit()}
+              onToggleViewMode={toggleViewMode}
             />
           )}
         </Show>
@@ -209,12 +225,14 @@ interface ReviewContentProps {
   submitting: boolean;
   allViewed: boolean;
   fileComments: ReviewCommentData[];
+  viewMode: ViewMode;
   onNavigate: (index: number) => void;
   onClose: () => void;
   onMarkViewed: (fileIndex: number, viewed: boolean) => void;
   onSetCommentText: (text: string) => void;
   onAddComment: () => void;
   onSubmit: () => void;
+  onToggleViewMode: () => void;
 }
 
 function ReviewContent(props: ReviewContentProps) {
@@ -254,6 +272,15 @@ function ReviewContent(props: ReviewContentProps) {
             {props.currentFileIndex + 1}/{props.totalPages}
           </span>
         </div>
+        <Show when={!props.isOnSummaryPage && props.currentFile?.fullTextHtml}>
+          <button
+            class={`review-view-toggle ${props.viewMode === "full" ? "active" : ""}`}
+            onClick={props.onToggleViewMode}
+            title={props.viewMode === "diff" ? "Show full file" : "Show diff only"}
+          >
+            {props.viewMode === "diff" ? "📄" : "±"}
+          </button>
+        </Show>
       </div>
 
       {/* File diff page or summary */}
@@ -273,7 +300,12 @@ function ReviewContent(props: ReviewContentProps) {
         <div class="review-diff-container">
           <Show when={props.currentFile}>
             {(file) => (
-              <div class="review-diff-scroll" innerHTML={file().html} />
+              <Show
+                when={props.viewMode === "full" && file().fullTextHtml}
+                fallback={<div class="review-diff-scroll" innerHTML={file().html} />}
+              >
+                <div class="review-fulltext-scroll" innerHTML={file().fullTextHtml ?? ""} />
+              </Show>
             )}
           </Show>
         </div>

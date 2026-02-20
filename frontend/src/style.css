@@ -962,6 +962,75 @@ h1 {
   background: transparent;
 }
 
+/* View mode toggle button */
+.review-view-toggle {
+  background: none;
+  border: 1px solid #2a2d37;
+  color: var(--color-muted);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0.15rem 0.4rem;
+  border-radius: 0.25rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.review-view-toggle:hover {
+  color: var(--color-text);
+  border-color: var(--color-text);
+}
+
+.review-view-toggle.active {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+/* Full-text view */
+.review-fulltext-scroll {
+  padding: 0.5rem;
+}
+
+.fulltext-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.fulltext-line-num {
+  width: 2.5rem;
+  min-width: 2.5rem;
+  text-align: right;
+  padding: 0 0.4rem;
+  color: var(--color-muted);
+  user-select: none;
+  vertical-align: top;
+  opacity: 0.6;
+}
+
+.fulltext-line-content {
+  padding: 0 0.4rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.fulltext-line-content code {
+  font-family: inherit;
+  font-size: inherit;
+  background: none;
+  padding: 0;
+}
+
+.fulltext-line-add {
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.fulltext-line-add .fulltext-line-num {
+  opacity: 1;
+  color: var(--color-ok);
+}
+
 /* Bottom bar */
 .review-bottom-bar {
   flex-shrink: 0;

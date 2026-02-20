@@ -70,6 +70,7 @@ export const artifactFiles = sqliteTable(
       .default(false),
     fullTextLineCount: integer("full_text_line_count"),
     fullTextContent: text("full_text_content"),
+    fullTextHtml: text("full_text_html"),
   },
   (table) => [index("ix_artifact_files_artifact").on(table.artifactId)],
 );

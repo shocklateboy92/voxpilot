@@ -200,7 +200,7 @@ export function connectSession(
 export async function sendMessage(
   sessionId: string,
   content: string,
-  model: string = "gpt-5-mini",
+  model: string = "gpt-4.1-mini",
 ): Promise<Response> {
   const response = await fetch(`/api/sessions/${sessionId}/messages`, {
     method: "POST",

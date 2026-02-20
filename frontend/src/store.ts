@@ -57,6 +57,7 @@ export interface ArtifactFileDetail {
   viewed: boolean;
   html: string;
   fullTextAvailable: boolean;
+  fullTextHtml: string | null;
 }
 
 export interface ReviewCommentData {
