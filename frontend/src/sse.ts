@@ -93,6 +93,30 @@ export interface SessionStreamCallbacks {
   onError: (message: string) => void;
 }
 
+// ── Helper ────────────────────────────────────────────────────────────────────
+
+/**
+ * Register an SSE event listener that JSON-parses the payload
+ * and dispatches to `handler`, routing parse failures to `onError`.
+ */
+function addJsonEventListener<T>(
+  es: EventSource,
+  eventName: string,
+  onError: (message: string) => void,
+  handler: (payload: T) => void,
+): void {
+  es.addEventListener(eventName, (e: MessageEvent) => {
+    try {
+      const payload = JSON.parse(e.data) as T;
+      handler(payload);
+    } catch {
+      onError(`Failed to parse ${eventName} event: ${e.data}`);
+    }
+  });
+}
+
+// ── Stream connection ────────────────────────────────────────────────────────
+
 /**
  * Connect to a session's SSE stream.
  *
@@ -107,73 +131,26 @@ export function connectSession(
 ): EventSource {
   const url = `/api/sessions/${sessionId}/stream`;
   const es = new EventSource(url, { withCredentials: true });
+  const { onError } = callbacks;
 
-  es.addEventListener("message", (e: MessageEvent) => {
-    try {
-      const payload = JSON.parse(e.data) as MessagePayload;
-      callbacks.onMessage(payload);
-    } catch {
-      callbacks.onError(`Failed to parse message event: ${e.data}`);
-    }
-  });
+  addJsonEventListener<MessagePayload>(es, "message", onError, callbacks.onMessage);
 
   es.addEventListener("ready", () => {
     callbacks.onReady();
   });
 
-  es.addEventListener("text-delta", (e: MessageEvent) => {
-    try {
-      const payload = JSON.parse(e.data) as TextDeltaPayload;
-      callbacks.onTextDelta(payload.content);
-    } catch {
-      callbacks.onError(`Failed to parse text-delta event: ${e.data}`);
-    }
-  });
+  addJsonEventListener<TextDeltaPayload>(es, "text-delta", onError, (p) =>
+    callbacks.onTextDelta(p.content),
+  );
 
-  es.addEventListener("tool-call", (e: MessageEvent) => {
-    try {
-      const payload = JSON.parse(e.data) as ToolCallPayload;
-      callbacks.onToolCall(payload);
-    } catch {
-      callbacks.onError(`Failed to parse tool-call event: ${e.data}`);
-    }
-  });
+  addJsonEventListener<ToolCallPayload>(es, "tool-call", onError, callbacks.onToolCall);
+  addJsonEventListener<ToolResultPayload>(es, "tool-result", onError, callbacks.onToolResult);
+  addJsonEventListener<ToolConfirmPayload>(es, "tool-confirm", onError, callbacks.onToolConfirm);
+  addJsonEventListener<ReviewArtifactPayload>(es, "review-artifact", onError, callbacks.onReviewArtifact);
 
-  es.addEventListener("tool-result", (e: MessageEvent) => {
-    try {
-      const payload = JSON.parse(e.data) as ToolResultPayload;
-      callbacks.onToolResult(payload);
-    } catch {
-      callbacks.onError(`Failed to parse tool-result event: ${e.data}`);
-    }
-  });
-
-  es.addEventListener("tool-confirm", (e: MessageEvent) => {
-    try {
-      const payload = JSON.parse(e.data) as ToolConfirmPayload;
-      callbacks.onToolConfirm(payload);
-    } catch {
-      callbacks.onError(`Failed to parse tool-confirm event: ${e.data}`);
-    }
-  });
-
-  es.addEventListener("review-artifact", (e: MessageEvent) => {
-    try {
-      const payload = JSON.parse(e.data) as ReviewArtifactPayload;
-      callbacks.onReviewArtifact(payload);
-    } catch {
-      callbacks.onError(`Failed to parse review-artifact event: ${e.data}`);
-    }
-  });
-
-  es.addEventListener("done", (e: MessageEvent) => {
-    try {
-      const payload = JSON.parse(e.data) as DonePayload;
-      callbacks.onDone(payload.model, payload.html ?? null);
-    } catch {
-      callbacks.onError(`Failed to parse done event: ${e.data}`);
-    }
-  });
+  addJsonEventListener<DonePayload>(es, "done", onError, (p) =>
+    callbacks.onDone(p.model, p.html ?? null),
+  );
 
   es.addEventListener("error", (e: MessageEvent) => {
     // EventSource fires a generic error event on connection loss
@@ -182,9 +159,9 @@ export function connectSession(
     if (e.data) {
       try {
         const payload = JSON.parse(e.data) as ErrorPayload;
-        callbacks.onError(payload.message);
+        onError(payload.message);
       } catch {
-        callbacks.onError(`Failed to parse error event: ${e.data}`);
+        onError(`Failed to parse error event: ${e.data}`);
       }
     }
   });
