@@ -54,6 +54,7 @@ export const DiffFile = z.object({
   fullTextAvailable: z.boolean(),
   fullTextLineCount: z.number().nullable(),
   fullTextContent: z.string().nullable(),
+  fullTextHtml: z.string().nullable(),
 });
 export type DiffFile = z.infer<typeof DiffFile>;
 

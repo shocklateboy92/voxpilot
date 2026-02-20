@@ -50,6 +50,7 @@ export interface CreateFileInput {
   fullTextAvailable: boolean;
   fullTextLineCount: number | null;
   fullTextContent: string | null;
+  fullTextHtml: string | null;
 }
 
 export async function createArtifact(
@@ -90,6 +91,7 @@ export async function createArtifactFile(
     fullTextAvailable: input.fullTextAvailable,
     fullTextLineCount: input.fullTextLineCount,
     fullTextContent: input.fullTextContent,
+    fullTextHtml: input.fullTextHtml,
   });
 }
 
@@ -152,6 +154,7 @@ export async function getArtifact(
     fullTextAvailable: f.fullTextAvailable,
     fullTextLineCount: f.fullTextLineCount,
     fullTextContent: f.fullTextContent,
+    fullTextHtml: f.fullTextHtml ?? null,
   }));
 
   const comments: ReviewComment[] = commentRows.map((c) => ({
