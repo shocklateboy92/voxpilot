@@ -7,7 +7,7 @@ import { describe, expect, it, beforeEach, afterEach, mock } from "bun:test";
 import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { initDb, getDb, closeDb } from "../src/db";
+import { getDb, closeDb } from "../src/db";
 import { createSession, getMessages } from "../src/services/sessions";
 import type { ChatMessage } from "../schemas/api";
 
@@ -107,7 +107,7 @@ const { runAgentLoop } = await import("../src/services/agent");
 let workDir: string;
 
 beforeEach(async () => {
-  initDb(":memory:");
+  process.env["VOXPILOT_DB_PATH"] = ":memory:";
   workDir = await mkdtemp(join(tmpdir(), "voxpilot-agent-test-"));
   await mkdir(join(workDir, "src"));
   await writeFile(join(workDir, "src", "main.py"), "# main\nprint('hello')\n");
