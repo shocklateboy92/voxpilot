@@ -9,6 +9,7 @@ import { initSessions } from "../sessions";
 import { ChatMain } from "./ChatMain";
 import { BottomNav } from "./BottomNav";
 import { SessionPicker } from "./SessionPicker";
+import { ReviewOverlay } from "./ReviewOverlay";
 
 interface Props {
   user: GitHubUser;
@@ -31,6 +32,7 @@ export function ChatView(props: Props) {
       <ChatMain />
       <BottomNav />
       <SessionPicker />
+      <ReviewOverlay />
     </main>
   );
 }

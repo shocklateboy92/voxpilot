@@ -7,6 +7,7 @@ import { healthRouter } from "./routes/health";
 import { authRouter } from "./routes/auth";
 import { sessionsRouter } from "./routes/sessions";
 import { chatRouter } from "./routes/chat";
+import { artifactRouter } from "./routes/artifacts";
 
 export const app = new Hono();
 
@@ -28,6 +29,7 @@ const protectedRouter = new Hono<AuthEnv>();
 protectedRouter.use("*", authMiddleware);
 protectedRouter.route("/", sessionsRouter);
 protectedRouter.route("/", chatRouter);
+protectedRouter.route("/", artifactRouter);
 app.route("/", protectedRouter);
 
 initDb(config.dbPath);

@@ -8,7 +8,7 @@
  */
 
 import { connectSession, sendMessage as ssePostMessage, confirmTool } from "./sse";
-import type { ToolCallPayload, ToolResultPayload, ToolConfirmPayload } from "./sse";
+import type { ToolCallPayload, ToolResultPayload, ToolConfirmPayload, ReviewArtifactPayload } from "./sse";
 import {
   setMessages,
   setStreamingText,
@@ -18,8 +18,10 @@ import {
   activeSessionId,
   setSessions,
   setPendingConfirm,
+  setArtifacts,
   type MessageRead,
   type StreamingToolCall,
+  type ArtifactSummary,
 } from "./store";
 import { fetchSessions } from "./api-client";
 
@@ -71,6 +73,7 @@ export function openStream(sessionId: string): void {
   setStreamingToolCalls([]);
   setErrorMessage(null);
   setPendingConfirm(null);
+  setArtifacts(new Map());
   pendingText = "";
 
   activeStream = connectSession(sessionId, {
@@ -83,6 +86,9 @@ export function openStream(sessionId: string): void {
         tool_call_id: payload.tool_call_id ?? null,
         html: payload.html ?? null,
       };
+      if (payload.artifact_id) {
+        msg.artifactId = payload.artifact_id;
+      }
       setMessages((prev) => [...prev, msg]);
     },
 
@@ -124,12 +130,20 @@ export function openStream(sessionId: string): void {
 
     onToolResult(payload: ToolResultPayload) {
       setPendingConfirm(null);
+      const rawArtifactId = (payload as ToolResultPayload & { artifact_id?: string }).artifact_id;
       setStreamingToolCalls((prev) =>
-        prev.map((tc) =>
-          tc.id === payload.id
-            ? { ...tc, result: payload.content, isError: payload.is_error }
-            : tc,
-        ),
+        prev.map((tc): StreamingToolCall => {
+          if (tc.id !== payload.id) return tc;
+          const updated: StreamingToolCall = {
+            ...tc,
+            result: payload.content,
+            isError: payload.is_error,
+          };
+          if (rawArtifactId) {
+            updated.artifactId = rawArtifactId;
+          }
+          return updated;
+        }),
       );
     },
 
@@ -138,6 +152,26 @@ export function openStream(sessionId: string): void {
         id: payload.id,
         name: payload.name,
         arguments: payload.arguments,
+      });
+    },
+
+    onReviewArtifact(payload: ReviewArtifactPayload) {
+      const summary: ArtifactSummary = {
+        artifactId: payload.artifactId,
+        title: payload.title,
+        status: payload.status,
+        totalFiles: payload.totalFiles,
+        totalAdditions: payload.totalAdditions,
+        totalDeletions: payload.totalDeletions,
+        files: payload.files.map((f) => ({
+          ...f,
+          viewed: f.viewed ?? false,
+        })),
+      };
+      setArtifacts((prev) => {
+        const next = new Map(prev);
+        next.set(payload.artifactId, summary);
+        return next;
       });
     },
 
@@ -179,15 +213,16 @@ export function openStream(sessionId: string): void {
         // Add tool result messages
         for (const tc of toolCalls) {
           if (tc.result !== undefined) {
-            setMessages((prev) => [
-              ...prev,
-              {
-                role: "tool" as const,
-                content: tc.result!,
-                created_at: new Date().toISOString(),
-                tool_call_id: tc.id,
-              },
-            ]);
+            const toolMsg: MessageRead = {
+              role: "tool" as const,
+              content: tc.result ?? "",
+              created_at: new Date().toISOString(),
+              tool_call_id: tc.id,
+            };
+            if (tc.artifactId) {
+              toolMsg.artifactId = tc.artifactId;
+            }
+            setMessages((prev) => [...prev, toolMsg]);
           }
         }
         setStreamingToolCalls([]);

@@ -1,5 +1,9 @@
 # Inline Code Review — UX Spec
 
+> **Status: V1 implemented.** Changeset card, review overlay carousel,
+> file-level comments, viewed tracking, and submit flow are all functional.
+> See "What's deferred" at the bottom for remaining UX work.
+
 Mobile-first code review experience embedded in the chat flow.
 
 ---
@@ -75,11 +79,15 @@ Anchored to the bottom of the viewport on each file page.
 - **Comment count** — tapping expands/scrolls to show existing file-level comments
 - **Text input** — quick-add a file-level comment
 
-### Line-Level Comments
+### Line-Level Comments (deferred)
 
 - **Long-press a line** → line highlights, a comment input appears anchored below that line (slides up as a bottom sheet on narrow screens)
 - Comments stored with file path + line number
 - Existing line comments shown as inline `💬` markers in the gutter — tapping expands them
+
+> **Implementation note**: The DOM has stable `data-line-id` attributes and the
+> backend supports `lineId`/`lineNumber` on comments, but the long-press gesture
+> and inline gutter markers are not yet wired.
 
 ### Review Summary (final carousel page)
 
@@ -153,5 +161,5 @@ Comment {
 | Viewed marking | Auto-mark on swipe-past; explicit toggle to un-mark |
 | Submit action | Send all comments to agent as structured message for revision |
 | Navigation | Horizontal swipe carousel (reuse `attachSwipeHandler`) |
-| Line comments | Long-press to add |
+| Line comments | Long-press to add (deferred — backend supports it, UI not yet wired) |
 | File comments | Text input in bottom bar |

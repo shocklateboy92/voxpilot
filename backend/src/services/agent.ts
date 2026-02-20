@@ -33,6 +33,7 @@ import { renderMarkdown } from "./markdown";
 import { addMessage } from "./sessions";
 import type { Tool, ToolResult } from "../tools";
 import { defaultRegistry } from "../tools";
+import { createReviewArtifact } from "./artifact-pipeline";
 
 type Db = ReturnType<typeof getDb>;
 
@@ -297,16 +298,58 @@ export async function* runAgentLoop(
           isError = true;
         }
 
+        // ── Create review artifact for diff tools ───────────────────
+        let artifactId: string | null = null;
+        const isDiffTool = tc.name === "git_diff" || tc.name === "git_show";
+        if (isDiffTool && !isError && result.displayResult) {
+          try {
+            const args: Record<string, unknown> = tc.arguments
+              ? (JSON.parse(tc.arguments) as Record<string, unknown>)
+              : {};
+            const commitRef =
+              tc.name === "git_show"
+                ? (typeof args.commit === "string" ? args.commit : "HEAD")
+                : null;
+            const staged = tc.name === "git_diff" && args.staged === true;
+
+            const artifact = await createReviewArtifact({
+              db,
+              sessionId,
+              toolName: tc.name,
+              toolCallId: tc.id,
+              commitRef,
+              staged,
+              diffText: result.displayResult,
+              workDir,
+            });
+
+            if (artifact) {
+              artifactId = artifact.artifactId;
+
+              // Yield the review-artifact SSE event
+              yield {
+                event: "review-artifact",
+                data: JSON.stringify(artifact.event),
+              };
+            }
+          } catch (artErr) {
+            // Non-fatal: artifact creation failure shouldn't break the agent loop
+            console.error("Failed to create review artifact:", artErr);
+          }
+        }
+
         const resultPayload: ToolResultEvent = {
           id: tc.id,
           name: tc.name,
           content: result.displayResult,
           is_error: isError,
+          artifact_id: artifactId,
         };
         yield { event: "tool-result", data: JSON.stringify(resultPayload) };
 
         await addMessage(db, sessionId, "tool", result.llmResult, {
           toolCallId: tc.id,
+          artifactId,
         });
         openaiMessages.push({
           role: "tool",

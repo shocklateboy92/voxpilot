@@ -22,6 +22,7 @@ import {
   getMessagesWithTimestamps,
   sessionExists,
 } from "../services/sessions";
+import { getSessionArtifactSummaries } from "../services/artifacts";
 import { registry } from "../services/streams";
 import type { MessagePayload, SessionBroadcaster } from "../services/streams";
 import { runAgentLoop } from "../services/agent";
@@ -121,6 +122,15 @@ chatRouter.get("/api/sessions/:id/stream", async (c) => {
           await stream.writeSSE({
             event: "message",
             data: JSON.stringify(msg),
+          });
+        }
+
+        // Replay review-artifact events so the frontend populates its artifacts map
+        const artifactSummaries = await getSessionArtifactSummaries(db, sessionId);
+        for (const summary of artifactSummaries) {
+          await stream.writeSSE({
+            event: "review-artifact",
+            data: JSON.stringify(summary),
           });
         }
 

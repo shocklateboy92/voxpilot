@@ -28,6 +28,7 @@ export interface MessagePayload {
   created_at: string;
   tool_calls?: ToolCallInfo[] | null;
   tool_call_id?: string | null;
+  artifact_id?: string | null;
   html?: string | null;
 }
 
@@ -63,6 +64,23 @@ export interface ToolConfirmPayload {
   arguments: string;
 }
 
+export interface ReviewArtifactPayload {
+  artifactId: string;
+  title: string;
+  status: string;
+  totalFiles: number;
+  totalAdditions: number;
+  totalDeletions: number;
+  files: Array<{
+    id: string;
+    path: string;
+    changeType: string;
+    additions: number;
+    deletions: number;
+    viewed?: boolean;
+  }>;
+}
+
 export interface SessionStreamCallbacks {
   onMessage: (payload: MessagePayload) => void;
   onReady: () => void;
@@ -70,6 +88,7 @@ export interface SessionStreamCallbacks {
   onToolCall: (payload: ToolCallPayload) => void;
   onToolResult: (payload: ToolResultPayload) => void;
   onToolConfirm: (payload: ToolConfirmPayload) => void;
+  onReviewArtifact: (payload: ReviewArtifactPayload) => void;
   onDone: (model: string, html: string | null) => void;
   onError: (message: string) => void;
 }
@@ -138,6 +157,15 @@ export function connectSession(
     }
   });
 
+  es.addEventListener("review-artifact", (e: MessageEvent) => {
+    try {
+      const payload = JSON.parse(e.data) as ReviewArtifactPayload;
+      callbacks.onReviewArtifact(payload);
+    } catch {
+      callbacks.onError(`Failed to parse review-artifact event: ${e.data}`);
+    }
+  });
+
   es.addEventListener("done", (e: MessageEvent) => {
     try {
       const payload = JSON.parse(e.data) as DonePayload;
@@ -172,7 +200,7 @@ export function connectSession(
 export async function sendMessage(
   sessionId: string,
   content: string,
-  model: string = "gpt-4o",
+  model: string = "gpt-5-mini",
 ): Promise<Response> {
   const response = await fetch(`/api/sessions/${sessionId}/messages`, {
     method: "POST",

@@ -4,6 +4,8 @@
 
 import { For, Show } from "solid-js";
 import type { MessageRead, ToolCallInfo } from "../store";
+import { artifacts } from "../store";
+import { ChangesetCard } from "./ChangesetCard";
 
 interface Props {
   message: MessageRead;
@@ -68,12 +70,24 @@ function HistoryToolCall(props: { call: ToolCallInfo }) {
 
 function HistoryToolResult(props: { message: MessageRead }) {
   const isError = () => props.message.content.startsWith("Error:");
+  const artifact = () => {
+    const aid = props.message.artifactId;
+    if (!aid) return undefined;
+    return artifacts().get(aid);
+  };
 
   return (
-    <div class="tool-result-standalone">
-      <div class={`tool-result${isError() ? " tool-error" : ""}`}>
-        <pre>{props.message.content}</pre>
-      </div>
-    </div>
+    <>
+      <Show when={!artifact()}>
+        <div class="tool-result-standalone">
+          <div class={`tool-result${isError() ? " tool-error" : ""}`}>
+            <pre>{props.message.content}</pre>
+          </div>
+        </div>
+      </Show>
+      <Show when={artifact()}>
+        {(a) => <ChangesetCard artifact={a()} />}
+      </Show>
+    </>
   );
 }
