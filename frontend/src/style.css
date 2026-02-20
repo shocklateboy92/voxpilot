@@ -1031,6 +1031,19 @@ h1 {
   color: var(--color-ok);
 }
 
+.fulltext-line-del {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.fulltext-line-del .fulltext-line-num {
+  opacity: 0;
+}
+
+.fulltext-line-del .fulltext-line-content {
+  opacity: 0.7;
+  text-decoration: line-through;
+}
+
 /* Bottom bar */
 .review-bottom-bar {
   flex-shrink: 0;
