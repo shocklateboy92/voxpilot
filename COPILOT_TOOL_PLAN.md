@@ -10,6 +10,10 @@ event types. The frontend renders these as expandable `<details>` blocks that
 stream in real-time (expanded while running, auto-collapsed on completion) —
 matching the VS Code subagent pattern.
 
+Copilot's ACP sessions are persisted on disk (`~/.copilot/session-state/`) and
+can be replayed via `session/load`, giving us full reconnection support across
+browser refreshes and backend restarts without custom buffering.
+
 ## Key Decisions
 
 | Decision | Choice |
@@ -19,6 +23,7 @@ matching the VS Code subagent pattern.
 | Process lifecycle | Long-lived per session — one `copilot --acp --stdio` process per voxpilot session, with **multiple ACP sessions** on that connection for independent tasks |
 | Session model | Each tool invocation can reuse the current ACP session (follow-ups) or create a fresh one (new independent task) via the `new_session` parameter |
 | Streaming UX | Expanded while streaming, auto-collapse on done |
+| Reconnection | ACP `session/load` replays full conversation; backend buffers per-tool-call output for mid-stream SSE reconnects |
 
 ## Backend
 
@@ -45,8 +50,11 @@ the main AI to start independent coding tasks without spawning new processes.
     can yield SSE events.
 - `initialize()` → calls `connection.initialize(...)`.
 - `newSession()` → calls `connection.newSession({ cwd: workDir, mcpServers: [] })`,
-stores the ACP `sessionId`. Can be called multiple times on the same
+  stores the ACP `sessionId`. Can be called multiple times on the same
   connection to create independent task contexts.
+- `loadSession(acpSessionId, workDir)` → calls `connection.loadSession({ sessionId, cwd, mcpServers: [] })`.
+  Replays the full conversation history via `session/update` notifications.
+  Returns the accumulated output text so the caller can use it for display.
 - `prompt(text, onDelta, opts?)` → calls `connection.prompt(...)`, streams
   `agent_message_chunk` updates via the `onDelta` callback, returns
   `PromptResponse` with `stopReason`. If `opts.newSession` is true, calls
@@ -54,6 +62,10 @@ stores the ACP `sessionId`. Can be called multiple times on the same
 - `currentSessionId` — tracks the active ACP session ID. Callers can inspect
   this to know whether a session already exists.
 - `destroy()` → kills the child process, cleans up all sessions.
+- `outputBuffer` — a `Map<string, string>` keyed by `tool_call_id`.
+  Accumulates all `copilot-delta` text per tool call. Used to replay output on
+  SSE reconnect (browser refresh while Copilot is mid-stream). Cleared when
+  the tool call completes and the result is persisted to the DB.
 
 Store connections in a `Map<string, CopilotConnection>` singleton, keyed by
 voxpilot session ID. Clean up on session broadcaster shutdown.
@@ -74,6 +86,51 @@ The first `copilot_agent` invocation always creates an ACP session. Subsequent
 calls reuse it by default (for follow-up instructions). When the main AI
 determines the task is unrelated, it sets `new_session: true` to start a fresh
 ACP session on the same underlying connection/process.
+
+#### Reconnection flows
+
+**Browser refresh (backend still running):**
+
+The `CopilotConnection` and child process are still alive. If Copilot is
+mid-prompt, deltas continue flowing. The SSE reconnect handler (step 5b)
+replays `outputBuffer` contents for any in-progress `copilot_agent` tool call,
+then the new SSE listener receives live deltas going forward.
+
+```
+Browser refreshes
+  → new EventSource connects
+  → backend replays DB messages (existing flow)
+  → backend checks CopilotConnection.outputBuffer for in-flight tool calls
+  → emits buffered copilot-delta events to catch up the client
+  → new listener receives live copilot-delta events from the ongoing prompt
+```
+
+**Backend restart (process dies and restarts):**
+
+The child `copilot` process dies with the backend. On restart, when Copilot is
+needed again, `getOrCreate()` spawns a fresh process. If a previous ACP session
+ID is stored in the DB, `loadSession()` replays the full conversation via
+`session/update` notifications, restoring context for follow-up prompts.
+
+Completed `copilot_agent` tool calls already have their output persisted in the
+DB as the tool result message's `displayResult` — the frontend renders these
+from history as collapsed blocks (step 13). No ACP replay is needed for display
+of completed calls.
+
+In-flight `copilot_agent` calls that were interrupted by a backend crash are
+lost — the tool result never completed, so the main AI's agent loop was also
+interrupted. On reconnect, the frontend sees the incomplete assistant message
+(same as any interrupted agent loop today). The user can re-send the request.
+
+```
+Backend restarts
+  → new SSE connection, history replayed from DB
+  → completed copilot_agent calls rendered from tool result messages
+  → interrupted copilot_agent calls shown as incomplete (error state)
+  → next copilot_agent call: getOrCreate() spawns new process
+  → loadSession() restores ACP context from stored sessionId
+  → follow-up prompts work as if nothing happened
+```
 
 ### 3. Add new SSE event schemas
 
@@ -104,7 +161,9 @@ ACP session on the same underlying connection/process.
       coding task.
 - `execute()` returns a `ToolResult` after Copilot finishes:
   - `llmResult`: compact summary of what Copilot did.
-  - `displayResult`: more detailed log.
+  - `displayResult`: full accumulated Copilot output (from `outputBuffer`).
+    This is persisted to the DB as part of the tool result message, making it
+    available for history replay without needing ACP.
   - The real UX comes from streaming SSE events emitted during execution (not
     from the result text).
 
@@ -118,12 +177,33 @@ tools are special-cased for artifact creation):
 1. Before calling `tool.execute()`, set up the ACP connection's `sessionUpdate`
    callback to yield `copilot-delta` events with the `tool_call_id`.
 2. Capture `agent_message_chunk` updates where `content.type === "text"` and
-   yield them as `copilot-delta` SSE events.
+   yield them as `copilot-delta` SSE events. Also append to
+   `CopilotConnection.outputBuffer[tool_call_id]`.
 3. When `.prompt()` resolves, yield a `copilot-done` event with the stop reason.
 4. The standard `tool-result` event still fires afterward with the summary.
+5. Clear `outputBuffer[tool_call_id]` after the tool result is persisted.
 
 Pass `sessionId` and `workDir` to the copilot tool via an extended context
 parameter or by directly calling the copilot service from the agent loop.
+
+### 5b. Replay Copilot state on SSE reconnect
+
+**File**: `backend/src/routes/chat.ts`
+
+In the SSE connection handler (after replaying DB messages and artifacts, before
+emitting `ready`), check if the `CopilotConnection` for this session has any
+active entries in `outputBuffer`. If so, emit the buffered content as
+`copilot-delta` events so the reconnecting client catches up to the live stream.
+
+This slots into the existing reconnection flow:
+
+```
+1. Replay persisted messages from DB       (existing)
+2. Replay artifact summaries               (existing)
+3. Replay in-flight copilot output buffer  (NEW)
+4. Emit "ready" event                      (existing)
+5. Relay live events from broadcaster      (existing)
+```
 
 ### 6. Register the tool
 
@@ -137,6 +217,20 @@ Add `CopilotAgentTool` to `buildDefaultRegistry()`.
 
 Add `VOXPILOT_COPILOT_CLI_PATH` (default: "copilot") so users can override
 the CLI binary path.
+
+### 7b. Persist ACP session IDs
+
+**File**: `backend/src/schema.ts`
+
+Add an `acpSessionId` column to the `sessions` table (nullable text). When
+`CopilotConnection.newSession()` creates an ACP session, persist the returned
+`sessionId` to this column. On backend restart, `getOrCreate()` reads this to
+decide whether to call `loadSession()` vs `newSession()`.
+
+This also enables the `copilot_agent` tool to check whether a previous ACP
+session exists without the `CopilotConnection` being live in memory.
+
+**Migration**: `ALTER TABLE sessions ADD COLUMN acp_session_id TEXT;`
 
 ## Frontend
 
@@ -165,6 +259,8 @@ export interface StreamingToolCall {
 
 - `onCopilotDelta(data)`: find matching tool call in `streamingToolCalls` by
   `tool_call_id`, append `data.content` to its `copilotStream` field.
+  Works identically for live deltas and replayed buffer content — the frontend
+  doesn't need to distinguish them.
 - `onCopilotDone(data)`: update matching tool call's `copilotDone = true`, set
   summary.
 - Register these new event listeners via `addJsonEventListener`.
@@ -179,7 +275,7 @@ export interface StreamingToolCall {
 - `<summary>`: shows "🤖 Copilot" + spinner while running, or
   "🤖 Copilot — done" when finished.
 - Body: renders the streaming `copilotStream` text in a `<pre>` with
-auto-scroll.
+  auto-scroll.
 - When `copilotDone` becomes true, removes the `open` attribute (auto-collapses).
   The user can re-expand to see the full output.
 
@@ -208,7 +304,9 @@ Copilot output instead of JSON args + result pre.
 
 When rendering a historical tool result for `copilot_agent`, show it as a
 collapsed `<details>` with the summary and the full output inside — matching the
-`CopilotStreamBlock` appearance but without streaming.
+`CopilotStreamBlock` appearance but without streaming. The full output comes
+from the tool result message's `displayResult` field, which was persisted to the
+DB when the tool completed (no ACP replay needed for this case).
 
 ## Verification
 
@@ -226,4 +324,13 @@ collapsed `<details>` with the summary and the full output inside — matching t
       and `new_session: true` creates a fresh one.
 - [ ] Verify the process is reused across sessions (only one `copilot` child
       process per voxpilot session).
+- [ ] **Browser refresh mid-stream**: refresh while Copilot is running, verify
+      the reconnected client catches up (buffered output replayed, then live
+      deltas resume).
+- [ ] **Browser refresh after completion**: refresh after Copilot finishes,
+      verify the completed block renders correctly from history.
+- [ ] **Backend restart recovery**: kill and restart the backend, verify
+      completed copilot blocks still display from DB history, and a follow-up
+      `copilot_agent` call restores the ACP session via `session/load` before
+      prompting.
 - [ ] Run existing tests (`bun test`) to ensure no regressions.
