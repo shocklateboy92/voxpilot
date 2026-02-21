@@ -1,8 +1,8 @@
-import type { ChatCompletionTool, FunctionDefinition } from "openai/resources";
-import { readdir, stat } from "node:fs/promises";
 import type { Dirent } from "node:fs";
-import { resolve, relative } from "node:path";
-import { type Tool, type ToolResult, resolvePath, simpleResult } from "./base";
+import { readdir, stat } from "node:fs/promises";
+import { relative, resolve } from "node:path";
+import { z } from "zod/v4";
+import { resolvePath, simpleResult, type Tool, type ToolResult } from "./base";
 
 const SKIP_DIRS = new Set([
   ".git",
@@ -17,43 +17,37 @@ const SKIP_DIRS = new Set([
 
 const MAX_ENTRIES = 500;
 
-export class ListDirectoryTool implements Tool {
+const parameters = z
+  .object({
+    path: z
+      .string()
+      .optional()
+      .describe(
+        "Directory path relative to the working directory. " +
+          "Defaults to '.' (the working directory itself).",
+      ),
+  })
+  .strict();
+
+type Params = z.infer<typeof parameters>;
+
+export class ListDirectoryTool implements Tool<typeof parameters> {
+  readonly name = "list_directory";
+  readonly description =
+    "List the contents of a directory relative to the working directory. " +
+    "Returns file and subdirectory names (directories end with '/'). " +
+    "Common noise directories (.git, __pycache__, node_modules, etc.) are skipped.";
+  readonly parameters = parameters;
   readonly requiresConfirmation = false;
 
-  readonly definition: FunctionDefinition = {
-    name: "list_directory",
-    description:
-      "List the contents of a directory relative to the working directory. " +
-      "Returns file and subdirectory names (directories end with '/'). " +
-      "Common noise directories (.git, __pycache__, node_modules, etc.) are skipped.",
-    parameters: {
-      type: "object",
-      properties: {
-        path: {
-          type: "string",
-          description:
-            "Directory path relative to the working directory. " +
-            "Defaults to '.' (the working directory itself).",
-        },
-      },
-      additionalProperties: false,
-    },
-  };
-
-  toOpenAiTool(): ChatCompletionTool {
-    return { type: "function", function: this.definition };
-  }
-
-  async execute(
-    args: Record<string, unknown>,
-    workDir: string,
-  ): Promise<ToolResult> {
-    const rawPath =
-      typeof args.path === "string" && args.path !== "" ? args.path : ".";
+  async execute(args: Params, workDir: string): Promise<ToolResult> {
+    const rawPath = args.path && args.path !== "" ? args.path : ".";
 
     const resolved = await resolvePath(rawPath, workDir);
     if (resolved === null) {
-      return simpleResult(`Error: path '${rawPath}' is outside the working directory.`);
+      return simpleResult(
+        `Error: path '${rawPath}' is outside the working directory.`,
+      );
     }
 
     let st: Awaited<ReturnType<typeof stat>>;
@@ -69,7 +63,10 @@ export class ListDirectoryTool implements Tool {
 
     let entries: Dirent[];
     try {
-      entries = await readdir(resolved, { withFileTypes: true, encoding: "utf-8" }) as Dirent[];
+      entries = (await readdir(resolved, {
+        withFileTypes: true,
+        encoding: "utf-8",
+      })) as Dirent[];
     } catch (exc) {
       return simpleResult(`Error listing '${rawPath}': ${exc}`);
     }

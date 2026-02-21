@@ -1,8 +1,8 @@
-import type { ChatCompletionTool, FunctionDefinition } from "openai/resources";
-import { readdir, readFile, stat } from "node:fs/promises";
 import type { Dirent } from "node:fs";
-import { join, relative, resolve, extname } from "node:path";
-import { type Tool, type ToolResult, resolvePath, simpleResult } from "./base";
+import { readdir, readFile, stat } from "node:fs/promises";
+import { extname, join, relative, resolve } from "node:path";
+import { z } from "zod/v4";
+import { resolvePath, simpleResult, type Tool, type ToolResult } from "./base";
 
 const SKIP_DIRS = new Set([
   ".git",
@@ -61,49 +61,39 @@ const BINARY_EXTENSIONS = new Set([
   ".wav",
 ]);
 
-export class GrepSearchTool implements Tool {
+const parameters = z
+  .object({
+    pattern: z.string().describe("Regular expression pattern to search for."),
+    path: z
+      .string()
+      .optional()
+      .describe(
+        "Subdirectory to search within (relative to working directory). " +
+          "Defaults to '.' (entire working directory).",
+      ),
+    include: z
+      .string()
+      .optional()
+      .describe(
+        "Glob pattern to filter files (e.g., '*.py', '*.ts'). " +
+          "If omitted, searches all text files.",
+      ),
+  })
+  .strict();
+
+type Params = z.infer<typeof parameters>;
+
+export class GrepSearchTool implements Tool<typeof parameters> {
+  readonly name = "grep_search";
+  readonly description =
+    "Search for a regex pattern in file contents within the working directory. " +
+    "Returns matching lines with file paths and line numbers. " +
+    "Optionally restrict to a subdirectory and/or glob file pattern.";
+  readonly parameters = parameters;
   readonly requiresConfirmation = false;
 
-  readonly definition: FunctionDefinition = {
-    name: "grep_search",
-    description:
-      "Search for a regex pattern in file contents within the working directory. " +
-      "Returns matching lines with file paths and line numbers. " +
-      "Optionally restrict to a subdirectory and/or glob file pattern.",
-    parameters: {
-      type: "object",
-      properties: {
-        pattern: {
-          type: "string",
-          description: "Regular expression pattern to search for.",
-        },
-        path: {
-          type: "string",
-          description:
-            "Subdirectory to search within (relative to working directory). " +
-            "Defaults to '.' (entire working directory).",
-        },
-        include: {
-          type: "string",
-          description:
-            "Glob pattern to filter files (e.g., '*.py', '*.ts'). " +
-            "If omitted, searches all text files.",
-        },
-      },
-      required: ["pattern"],
-      additionalProperties: false,
-    },
-  };
-
-  toOpenAiTool(): ChatCompletionTool {
-    return { type: "function", function: this.definition };
-  }
-
-  async execute(
-    args: Record<string, unknown>,
-    workDir: string,
-  ): Promise<ToolResult> {
-    const patternStr = (args.pattern as string | undefined) ?? "";
+  async execute(args: Params, workDir: string): Promise<ToolResult> {
+    const patternStr = args.pattern;
     if (!patternStr) {
       return simpleResult("Error: 'pattern' argument is required.");
     }
@@ -112,15 +102,18 @@ export class GrepSearchTool implements Tool {
     try {
       regex = new RegExp(patternStr, "i");
     } catch (exc) {
-      return simpleResult(`Error: invalid regex pattern '${patternStr}': ${exc}`);
+      return simpleResult(
+        `Error: invalid regex pattern '${patternStr}': ${exc}`,
+      );
     }
 
-    const rawPath =
-      typeof args.path === "string" && args.path !== "" ? args.path : ".";
+    const rawPath = args.path && args.path !== "" ? args.path : ".";
 
     const resolved = await resolvePath(rawPath, workDir);
     if (resolved === null) {
-      return simpleResult(`Error: path '${rawPath}' is outside the working directory.`);
+      return simpleResult(
+        `Error: path '${rawPath}' is outside the working directory.`,
+      );
     }
 
     try {
@@ -129,7 +122,7 @@ export class GrepSearchTool implements Tool {
       return simpleResult(`Error: path '${rawPath}' does not exist.`);
     }
 
-    const include = typeof args.include === "string" ? args.include : undefined;
+    const include = args.include;
     const absWorkDir = resolve(workDir);
     const files = await this.walkFiles(resolved, include);
     const matches: string[] = [];
@@ -156,7 +149,9 @@ export class GrepSearchTool implements Tool {
           matches.push(`${rel}:${lineNo + 1}: ${display}`);
           if (matches.length >= MAX_MATCHES) {
             matches.push(`... (truncated at ${MAX_MATCHES} matches)`);
-            return simpleResult(this.formatResult(patternStr, matches, filesSearched));
+            return simpleResult(
+              this.formatResult(patternStr, matches, filesSearched),
+            );
           }
         }
       }

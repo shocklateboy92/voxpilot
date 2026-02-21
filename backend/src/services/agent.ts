@@ -12,9 +12,9 @@
 
 import OpenAI from "openai";
 import type {
+  ChatCompletionAssistantMessageParam,
   ChatCompletionChunk,
   ChatCompletionMessageParam,
-  ChatCompletionAssistantMessageParam,
   ChatCompletionSystemMessageParam,
   ChatCompletionToolMessageParam,
   ChatCompletionUserMessageParam,
@@ -22,21 +22,26 @@ import type {
 import type { getDb } from "../db";
 import type { ChatMessage, ToolCallInfo } from "../schemas/api";
 import type {
-  TextDeltaEvent,
-  ToolCallEvent,
-  ToolResultEvent,
-  ToolConfirmEvent,
   CopilotDeltaEvent,
   CopilotDoneEvent,
   DoneEvent,
   ErrorEvent,
+  TextDeltaEvent,
+  ToolCallEvent,
+  ToolConfirmEvent,
+  ToolResultEvent,
 } from "../schemas/events";
-import { renderMarkdown } from "./markdown";
-import { addMessage } from "./sessions";
-import type { Tool, ToolResult } from "../tools";
-import { defaultRegistry } from "../tools";
+import type { ToolResult } from "../tools";
+import {
+  copilotAgentParameters,
+  defaultRegistry,
+  gitDiffParameters,
+  gitShowParameters,
+} from "../tools";
 import { createReviewArtifact } from "./artifact-pipeline";
 import { getConnection } from "./copilot-acp";
+import { renderMarkdown } from "./markdown";
+import { addMessage } from "./sessions";
 import { AsyncChannel } from "./streams";
 
 type Db = ReturnType<typeof getDb>;
@@ -54,7 +59,10 @@ export interface SseEvent {
 
 function toMessageParam(m: ChatMessage): ChatCompletionMessageParam {
   if (m.role === "system") {
-    return { role: "system", content: m.content } satisfies ChatCompletionSystemMessageParam;
+    return {
+      role: "system",
+      content: m.content,
+    } satisfies ChatCompletionSystemMessageParam;
   }
 
   if (m.role === "tool") {
@@ -77,10 +85,16 @@ function toMessageParam(m: ChatMessage): ChatCompletionMessageParam {
         })),
       } satisfies ChatCompletionAssistantMessageParam;
     }
-    return { role: "assistant", content: m.content } satisfies ChatCompletionAssistantMessageParam;
+    return {
+      role: "assistant",
+      content: m.content,
+    } satisfies ChatCompletionAssistantMessageParam;
   }
 
-  return { role: "user", content: m.content } satisfies ChatCompletionUserMessageParam;
+  return {
+    role: "user",
+    content: m.content,
+  } satisfies ChatCompletionUserMessageParam;
 }
 
 // ── Accumulated tool call from streaming ────────────────────────────────────
@@ -126,7 +140,8 @@ export async function* runAgentLoop(
     requestConfirmation,
   } = opts;
 
-  const openaiMessages: ChatCompletionMessageParam[] = messages.map(toMessageParam);
+  const openaiMessages: ChatCompletionMessageParam[] =
+    messages.map(toMessageParam);
   const toolsSpec = defaultRegistry.toOpenAiTools();
 
   for (let iteration = 0; iteration < maxIterations; iteration++) {
@@ -292,11 +307,12 @@ export async function* runAgentLoop(
         if (tc.name === "copilot_agent") {
           let copilotResult: ToolResult;
           try {
-            const args: Record<string, unknown> = tc.arguments
-              ? (JSON.parse(tc.arguments) as Record<string, unknown>)
+            const rawArgs: unknown = tc.arguments
+              ? JSON.parse(tc.arguments)
               : {};
-            const promptText = typeof args.prompt === "string" ? args.prompt : "";
-            const sessionName = typeof args.session_name === "string" ? args.session_name : "default";
+            const args = copilotAgentParameters.parse(rawArgs);
+            const promptText = args.prompt;
+            const sessionName = args.session_name;
 
             const copilotConn = await getConnection(sessionId, workDir);
             await copilotConn.getOrCreateSession(sessionName, workDir);
@@ -304,11 +320,15 @@ export async function* runAgentLoop(
             copilotConn.outputSessionNames.set(tc.id, sessionName);
 
             const deltaChannel = new AsyncChannel<string | null>();
-            const promptPromise = copilotConn.prompt(sessionName, promptText, (content) => {
-              const prev = copilotConn.outputBuffer.get(tc.id) ?? "";
-              copilotConn.outputBuffer.set(tc.id, prev + content);
-              deltaChannel.send(content);
-            });
+            const promptPromise = copilotConn.prompt(
+              sessionName,
+              promptText,
+              (content) => {
+                const prev = copilotConn.outputBuffer.get(tc.id) ?? "";
+                copilotConn.outputBuffer.set(tc.id, prev + content);
+                deltaChannel.send(content);
+              },
+            );
 
             // Signal end-of-stream when prompt resolves
             promptPromise.then(
@@ -324,7 +344,10 @@ export async function* runAgentLoop(
                 content: deltaChunk,
                 session_name: sessionName,
               };
-              yield { event: "copilot-delta", data: JSON.stringify(deltaPayload) };
+              yield {
+                event: "copilot-delta",
+                data: JSON.stringify(deltaPayload),
+              };
               deltaChunk = await deltaChannel.receive();
             }
 
@@ -379,13 +402,14 @@ export async function* runAgentLoop(
         let result: ToolResult;
         let isError: boolean;
         try {
-          const args: Record<string, unknown> = tc.arguments
-            ? (JSON.parse(tc.arguments) as Record<string, unknown>)
-            : {};
-          result = await tool.execute(args, workDir);
+          result = await defaultRegistry.execute(
+            tc.name,
+            tc.arguments,
+            workDir,
+          );
           isError = result.llmResult.startsWith("Error:");
-        } catch {
-          const errText = `Error: failed to parse arguments for tool '${tc.name}': ${tc.arguments}`;
+        } catch (err) {
+          const errText = `Error: failed to execute tool '${tc.name}': ${err instanceof Error ? err.message : String(err)}`;
           result = { llmResult: errText, displayResult: errText };
           isError = true;
         }
@@ -395,16 +419,24 @@ export async function* runAgentLoop(
         const isDiffTool = tc.name === "git_diff" || tc.name === "git_show";
         if (isDiffTool && !isError && result.displayResult) {
           try {
-            const args: Record<string, unknown> = tc.arguments
-              ? (JSON.parse(tc.arguments) as Record<string, unknown>)
+            const rawArgs: unknown = tc.arguments
+              ? JSON.parse(tc.arguments)
               : {};
 
             // Determine the "to" ref for full-text resolution
             let toRef: string;
             if (tc.name === "git_show") {
-              toRef = typeof args.commit === "string" ? args.commit : "HEAD";
+              const parsed = gitShowParameters.safeParse(rawArgs);
+              toRef =
+                parsed.success && parsed.data.commit
+                  ? parsed.data.commit
+                  : "HEAD";
             } else {
-              toRef = typeof args.to === "string" && args.to !== "" ? args.to : "WORKTREE";
+              const parsed = gitDiffParameters.safeParse(rawArgs);
+              toRef =
+                parsed.success && parsed.data.to && parsed.data.to !== ""
+                  ? parsed.data.to
+                  : "WORKTREE";
             }
 
             const artifact = await createReviewArtifact({

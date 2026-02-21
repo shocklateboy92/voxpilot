@@ -1,6 +1,5 @@
-import type { ChatCompletionTool, FunctionDefinition } from "openai/resources";
 import { realpath } from "node:fs/promises";
-import { resolve, relative } from "node:path";
+import { relative, resolve } from "node:path";
 
 /**
  * Result returned by a tool's `execute()` method.
@@ -20,11 +19,20 @@ export function simpleResult(text: string): ToolResult {
   return { llmResult: text, displayResult: text };
 }
 
-export interface Tool {
-  definition: FunctionDefinition;
-  requiresConfirmation: boolean;
-  execute(args: Record<string, unknown>, workDir: string): Promise<ToolResult>;
-  toOpenAiTool(): ChatCompletionTool;
+/** Extracts the parsed output type from a schema that has a `parse` method. */
+type SchemaOutput<T> = T extends { parse: (input: unknown) => infer O }
+  ? O
+  : never;
+
+/** Structural constraint: anything with a `parse` method (Zod schemas satisfy this). */
+type Schema = { parse: (input: unknown) => unknown };
+
+export interface Tool<T extends Schema = Schema> {
+  readonly name: string;
+  readonly description: string;
+  readonly parameters: T;
+  readonly requiresConfirmation: boolean;
+  execute(args: SchemaOutput<T>, workDir: string): Promise<ToolResult>;
 }
 
 /**

@@ -1,8 +1,8 @@
-import type { ChatCompletionTool, FunctionDefinition } from "openai/resources";
-import { readdir, stat } from "node:fs/promises";
 import type { Dirent } from "node:fs";
+import { readdir, stat } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
-import { type Tool, type ToolResult, resolvePath, simpleResult } from "./base";
+import { z } from "zod/v4";
+import { resolvePath, simpleResult, type Tool, type ToolResult } from "./base";
 
 const SKIP_DIRS = new Set([
   ".git",
@@ -17,54 +17,47 @@ const SKIP_DIRS = new Set([
 
 const MAX_RESULTS = 500;
 
-export class GlobSearchTool implements Tool {
+const parameters = z
+  .object({
+    pattern: z
+      .string()
+      .describe(
+        "Glob pattern to match files (e.g., '**/*.py', 'src/**/*.ts').",
+      ),
+    path: z
+      .string()
+      .optional()
+      .describe(
+        "Subdirectory to search within (relative to working directory). " +
+          "Defaults to '.' (entire working directory).",
+      ),
+  })
+  .strict();
+
+type Params = z.infer<typeof parameters>;
+
+export class GlobSearchTool implements Tool<typeof parameters> {
+  readonly name = "glob_search";
+  readonly description =
+    "Find files matching a glob pattern within the working directory. " +
+    "Returns matching file paths relative to the working directory. " +
+    "Use '**/' for recursive matching (e.g., '**/*.py' finds all Python files).";
+  readonly parameters = parameters;
   readonly requiresConfirmation = false;
 
-  readonly definition: FunctionDefinition = {
-    name: "glob_search",
-    description:
-      "Find files matching a glob pattern within the working directory. " +
-      "Returns matching file paths relative to the working directory. " +
-      "Use '**/' for recursive matching (e.g., '**/*.py' finds all Python files).",
-    parameters: {
-      type: "object",
-      properties: {
-        pattern: {
-          type: "string",
-          description:
-            "Glob pattern to match files (e.g., '**/*.py', 'src/**/*.ts').",
-        },
-        path: {
-          type: "string",
-          description:
-            "Subdirectory to search within (relative to working directory). " +
-            "Defaults to '.' (entire working directory).",
-        },
-      },
-      required: ["pattern"],
-      additionalProperties: false,
-    },
-  };
-
-  toOpenAiTool(): ChatCompletionTool {
-    return { type: "function", function: this.definition };
-  }
-
-  async execute(
-    args: Record<string, unknown>,
-    workDir: string,
-  ): Promise<ToolResult> {
-    const pattern = (args.pattern as string | undefined) ?? "";
+  async execute(args: Params, workDir: string): Promise<ToolResult> {
+    const pattern = args.pattern;
     if (!pattern) {
       return simpleResult("Error: 'pattern' argument is required.");
     }
 
-    const rawPath =
-      typeof args.path === "string" && args.path !== "" ? args.path : ".";
+    const rawPath = args.path && args.path !== "" ? args.path : ".";
 
     const resolved = await resolvePath(rawPath, workDir);
     if (resolved === null) {
-      return simpleResult(`Error: path '${rawPath}' is outside the working directory.`);
+      return simpleResult(
+        `Error: path '${rawPath}' is outside the working directory.`,
+      );
     }
 
     let st: Awaited<ReturnType<typeof stat>>;
