@@ -133,11 +133,13 @@ export const [pendingConfirm, setPendingConfirm] = createSignal<PendingConfirm |
 /** Map of artifactId → ArtifactSummary for inline changeset cards. */
 export const [artifacts, setArtifacts] = createSignal<Map<string, ArtifactSummary>>(new Map());
 
-/** Currently open review overlay artifact ID (null = closed). */
-export const [reviewOverlayArtifactId, setReviewOverlayArtifactId] = createSignal<string | null>(null);
-
-/** File ID to jump to when the review overlay opens (null = default behavior). */
-export const [reviewOverlayInitialFileId, setReviewOverlayInitialFileId] = createSignal<string | null>(null);
+/** Currently open review overlay target (null = closed). */
+export interface ReviewOverlayTarget {
+  artifactId: string;
+  /** File ID to jump to when opening (undefined = default first-unviewed behaviour). */
+  fileId?: string;
+}
+export const [reviewOverlayArtifactId, setReviewOverlayArtifactId] = createSignal<ReviewOverlayTarget | null>(null);
 
 /** Full artifact detail for the currently open overlay. */
 export const [reviewDetail, setReviewDetail] = createSignal<ArtifactDetail | null>(null);

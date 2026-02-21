@@ -17,8 +17,6 @@ import {
 import {
   reviewOverlayArtifactId,
   setReviewOverlayArtifactId,
-  reviewOverlayInitialFileId,
-  setReviewOverlayInitialFileId,
   reviewDetail,
   setReviewDetail,
   setArtifacts,
@@ -56,21 +54,19 @@ export function ReviewOverlay() {
 
   // Load artifact detail when overlay opens
   createEffect(() => {
-    const artifactId = reviewOverlayArtifactId();
-    if (!artifactId) {
+    const target = reviewOverlayArtifactId();
+    if (!target) {
       setReviewDetail(null);
       setCurrentFileIndex(0);
       return;
     }
 
-    const initialFileId = reviewOverlayInitialFileId();
-    void fetchArtifact(artifactId).then((detail) => {
+    void fetchArtifact(target.artifactId).then((detail) => {
       if (detail) {
         setReviewDetail(detail);
-        if (initialFileId) {
-          const idx = detail.files.findIndex((f) => f.id === initialFileId);
+        if (target.fileId) {
+          const idx = detail.files.findIndex((f) => f.id === target.fileId);
           setCurrentFileIndex(idx >= 0 ? idx : 0);
-          setReviewOverlayInitialFileId(null);
         } else {
           // Start at first unviewed file, or 0
           const idx = detail.files.findIndex((f) => !f.viewed);

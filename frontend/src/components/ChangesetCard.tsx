@@ -8,7 +8,7 @@
 
 import { For, Show, createMemo } from "solid-js";
 import type { ArtifactSummary } from "../store";
-import { setReviewOverlayArtifactId, setReviewOverlayInitialFileId } from "../store";
+import { setReviewOverlayArtifactId } from "../store";
 
 interface Props {
   artifact: ArtifactSummary;
@@ -44,8 +44,7 @@ export function ChangesetCard(props: Props) {
   });
 
   function openReview(fileId?: string) {
-    setReviewOverlayInitialFileId(fileId ?? null);
-    setReviewOverlayArtifactId(props.artifact.artifactId);
+    setReviewOverlayArtifactId({ artifactId: props.artifact.artifactId, fileId });
   }
 
   return (
