@@ -26,6 +26,8 @@ import type {
   ToolCallEvent,
   ToolResultEvent,
   ToolConfirmEvent,
+  CopilotDeltaEvent,
+  CopilotDoneEvent,
   DoneEvent,
   ErrorEvent,
 } from "../schemas/events";
@@ -34,6 +36,8 @@ import { addMessage } from "./sessions";
 import type { Tool, ToolResult } from "../tools";
 import { defaultRegistry } from "../tools";
 import { createReviewArtifact } from "./artifact-pipeline";
+import { getConnection } from "./copilot-acp";
+import { AsyncChannel } from "./streams";
 
 type Db = ReturnType<typeof getDb>;
 
@@ -282,6 +286,92 @@ export async function* runAgentLoop(
             } satisfies ChatCompletionToolMessageParam);
             continue;
           }
+        }
+
+        // ── Special-case: copilot_agent ────────────────────────────────
+        if (tc.name === "copilot_agent") {
+          let copilotResult: ToolResult;
+          try {
+            const args: Record<string, unknown> = tc.arguments
+              ? (JSON.parse(tc.arguments) as Record<string, unknown>)
+              : {};
+            const promptText = typeof args.prompt === "string" ? args.prompt : "";
+            const sessionName = typeof args.session_name === "string" ? args.session_name : "default";
+
+            const copilotConn = await getConnection(sessionId, workDir);
+            await copilotConn.getOrCreateSession(sessionName, workDir);
+            copilotConn.outputBuffer.set(tc.id, "");
+
+            const deltaChannel = new AsyncChannel<string | null>();
+            const promptPromise = copilotConn.prompt(sessionName, promptText, (content) => {
+              const prev = copilotConn.outputBuffer.get(tc.id) ?? "";
+              copilotConn.outputBuffer.set(tc.id, prev + content);
+              deltaChannel.send(content);
+            });
+
+            // Signal end-of-stream when prompt resolves
+            promptPromise.then(
+              () => deltaChannel.send(null),
+              () => deltaChannel.send(null),
+            );
+
+            // Drain deltas and yield SSE events as they stream in
+            let deltaChunk = await deltaChannel.receive();
+            while (deltaChunk !== null) {
+              const deltaPayload: CopilotDeltaEvent = {
+                tool_call_id: tc.id,
+                content: deltaChunk,
+                session_name: sessionName,
+              };
+              yield { event: "copilot-delta", data: JSON.stringify(deltaPayload) };
+              deltaChunk = await deltaChannel.receive();
+            }
+
+            const stopReason = await promptPromise;
+            const fullOutput = copilotConn.outputBuffer.get(tc.id) ?? "";
+            const summaryPreview = fullOutput.slice(0, 200);
+            const summary = `Copilot [${sessionName}] completed (${stopReason}): ${summaryPreview}`;
+
+            const donePayload: CopilotDoneEvent = {
+              tool_call_id: tc.id,
+              summary,
+              stop_reason: stopReason,
+              session_name: sessionName,
+            };
+            yield { event: "copilot-done", data: JSON.stringify(donePayload) };
+
+            copilotResult = {
+              llmResult: summary,
+              displayResult: fullOutput,
+            };
+
+            copilotConn.outputBuffer.delete(tc.id);
+          } catch (err) {
+            const errMsg = err instanceof Error ? err.message : String(err);
+            copilotResult = {
+              llmResult: `Error: copilot_agent failed: ${errMsg}`,
+              displayResult: `Error: copilot_agent failed: ${errMsg}`,
+            };
+          }
+
+          const isError = copilotResult.llmResult.startsWith("Error:");
+          const resultPayload: ToolResultEvent = {
+            id: tc.id,
+            name: tc.name,
+            content: copilotResult.displayResult,
+            is_error: isError,
+          };
+          yield { event: "tool-result", data: JSON.stringify(resultPayload) };
+
+          await addMessage(db, sessionId, "tool", copilotResult.llmResult, {
+            toolCallId: tc.id,
+          });
+          openaiMessages.push({
+            role: "tool",
+            content: copilotResult.llmResult,
+            tool_call_id: tc.id,
+          } satisfies ChatCompletionToolMessageParam);
+          continue;
         }
 
         let result: ToolResult;
