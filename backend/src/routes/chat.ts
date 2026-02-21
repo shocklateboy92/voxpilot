@@ -12,7 +12,7 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { SSEStreamingApi } from "hono/streaming";
-import { authMiddleware, type AuthEnv } from "../middleware/auth";
+import type { AuthEnv } from "../middleware/auth";
 import { getDb } from "../db";
 import { config } from "../config";
 import {
@@ -31,7 +31,6 @@ const CONFIRM_TIMEOUT_MS = 300_000; // 5 minutes
 const KEEPALIVE_TIMEOUT_MS = 30_000; // 30 seconds
 
 export const chatRouter = new Hono<AuthEnv>();
-chatRouter.use("*", authMiddleware);
 
 // ── Message processor (one per session) ─────────────────────────────────────
 

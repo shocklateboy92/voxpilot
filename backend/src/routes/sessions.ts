@@ -3,7 +3,7 @@
  */
 
 import { Hono } from "hono";
-import { authMiddleware, type AuthEnv } from "../middleware/auth";
+import type { AuthEnv } from "../middleware/auth";
 import { getDb } from "../db";
 import {
   listSessions,
@@ -14,7 +14,6 @@ import {
 } from "../services/sessions";
 
 export const sessionsRouter = new Hono<AuthEnv>();
-sessionsRouter.use("*", authMiddleware);
 
 sessionsRouter.get("/api/sessions", async (c) => {
   const db = getDb();
