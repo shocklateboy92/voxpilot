@@ -8,7 +8,7 @@
 
 import { For, Show, createMemo } from "solid-js";
 import type { ArtifactSummary } from "../store";
-import { setReviewOverlayArtifactId } from "../store";
+import { setReviewOverlayArtifactId, setReviewOverlayInitialFileId } from "../store";
 
 interface Props {
   artifact: ArtifactSummary;
@@ -44,8 +44,7 @@ export function ChangesetCard(props: Props) {
   });
 
   function openReview(fileId?: string) {
-    // Store which file to jump to if needed (via a data attribute or similar)
-    void fileId; // reserved for future jump-to-file functionality
+    setReviewOverlayInitialFileId(fileId ?? null);
     setReviewOverlayArtifactId(props.artifact.artifactId);
   }
 

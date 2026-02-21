@@ -136,6 +136,9 @@ export const [artifacts, setArtifacts] = createSignal<Map<string, ArtifactSummar
 /** Currently open review overlay artifact ID (null = closed). */
 export const [reviewOverlayArtifactId, setReviewOverlayArtifactId] = createSignal<string | null>(null);
 
+/** File ID to jump to when the review overlay opens (null = default behavior). */
+export const [reviewOverlayInitialFileId, setReviewOverlayInitialFileId] = createSignal<string | null>(null);
+
 /** Full artifact detail for the currently open overlay. */
 export const [reviewDetail, setReviewDetail] = createSignal<ArtifactDetail | null>(null);
 

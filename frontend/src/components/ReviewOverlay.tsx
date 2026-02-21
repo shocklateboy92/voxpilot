@@ -17,6 +17,8 @@ import {
 import {
   reviewOverlayArtifactId,
   setReviewOverlayArtifactId,
+  reviewOverlayInitialFileId,
+  setReviewOverlayInitialFileId,
   reviewDetail,
   setReviewDetail,
   setArtifacts,
@@ -61,12 +63,19 @@ export function ReviewOverlay() {
       return;
     }
 
+    const initialFileId = reviewOverlayInitialFileId();
     void fetchArtifact(artifactId).then((detail) => {
       if (detail) {
         setReviewDetail(detail);
-        // Start at first unviewed file, or 0
-        const idx = detail.files.findIndex((f) => !f.viewed);
-        setCurrentFileIndex(idx >= 0 ? idx : 0);
+        if (initialFileId) {
+          const idx = detail.files.findIndex((f) => f.id === initialFileId);
+          setCurrentFileIndex(idx >= 0 ? idx : 0);
+          setReviewOverlayInitialFileId(null);
+        } else {
+          // Start at first unviewed file, or 0
+          const idx = detail.files.findIndex((f) => !f.viewed);
+          setCurrentFileIndex(idx >= 0 ? idx : 0);
+        }
       }
     });
   });
@@ -393,7 +402,7 @@ function ReviewSummaryPage(props: ReviewSummaryProps) {
             <div
               class="review-summary-file"
               onClick={() => {
-                if (!file.viewed) props.onNavigate(index());
+                props.onNavigate(index());
               }}
             >
               <span class="review-summary-icon">
