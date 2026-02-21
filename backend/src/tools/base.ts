@@ -1,5 +1,5 @@
 import { realpath } from "node:fs/promises";
-import { resolve, relative } from "node:path";
+import { relative, resolve } from "node:path";
 
 /**
  * Result returned by a tool's `execute()` method.

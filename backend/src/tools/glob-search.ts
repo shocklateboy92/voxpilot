@@ -1,8 +1,8 @@
-import { z } from "zod/v4";
-import { readdir, stat } from "node:fs/promises";
 import type { Dirent } from "node:fs";
+import { readdir, stat } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
-import { type Tool, type ToolResult, resolvePath, simpleResult } from "./base";
+import { z } from "zod/v4";
+import { resolvePath, simpleResult, type Tool, type ToolResult } from "./base";
 
 const SKIP_DIRS = new Set([
   ".git",
@@ -51,8 +51,7 @@ export class GlobSearchTool implements Tool<typeof parameters> {
       return simpleResult("Error: 'pattern' argument is required.");
     }
 
-    const rawPath =
-      args.path && args.path !== "" ? args.path : ".";
+    const rawPath = args.path && args.path !== "" ? args.path : ".";
 
     const resolved = await resolvePath(rawPath, workDir);
     if (resolved === null) {

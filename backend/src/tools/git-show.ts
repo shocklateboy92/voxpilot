@@ -1,7 +1,7 @@
 import { z } from "zod/v4";
 import type { Tool, ToolResult } from "./base";
 import { simpleResult } from "./base";
-import { runGit, ensureGitRepo } from "./git-utils";
+import { ensureGitRepo, runGit } from "./git-utils";
 
 /**
  * Valid characters for a git commit ref: alphanumeric, `/`, `.`, `_`, `-`, `~`, `^`, `{`, `}`.
@@ -44,8 +44,7 @@ export class GitShowTool implements Tool<typeof gitShowParameters> {
       return simpleResult(`Error: ${repoCheck.error}`);
     }
 
-    const commit =
-      args.commit && args.commit !== "" ? args.commit : "HEAD";
+    const commit = args.commit && args.commit !== "" ? args.commit : "HEAD";
 
     // Validate the ref to prevent flag injection or shell metacharacters
     if (commit.startsWith("-") || !SAFE_REF_PATTERN.test(commit)) {

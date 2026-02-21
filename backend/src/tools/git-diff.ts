@@ -1,7 +1,7 @@
 import { z } from "zod/v4";
 import type { Tool, ToolResult } from "./base";
 import { simpleResult } from "./base";
-import { runGit, ensureGitRepo } from "./git-utils";
+import { ensureGitRepo, runGit } from "./git-utils";
 
 /**
  * Valid characters for a git ref: alphanumeric, `/`, `.`, `_`, `-`, `~`, `^`, `{`, `}`, `@`.
@@ -75,12 +75,9 @@ export class GitDiffTool implements Tool<typeof gitDiffParameters> {
       return simpleResult(`Error: ${repoCheck.error}`);
     }
 
-    const from =
-      args.from && args.from !== "" ? args.from : "INDEX";
-    const to =
-      args.to && args.to !== "" ? args.to : "WORKTREE";
-    const path =
-      args.path && args.path !== "" ? args.path : undefined;
+    const from = args.from && args.from !== "" ? args.from : "INDEX";
+    const to = args.to && args.to !== "" ? args.to : "WORKTREE";
+    const path = args.path && args.path !== "" ? args.path : undefined;
 
     // Validate refs
     for (const ref of [from, to]) {
@@ -110,18 +107,10 @@ export class GitDiffTool implements Tool<typeof gitDiffParameters> {
     } else if (from === "INDEX" && to !== "WORKTREE") {
       // git diff --staged <to> — index vs a commit
       baseArgs.push("--staged", to);
-    } else if (
-      from !== "INDEX" &&
-      from !== "WORKTREE" &&
-      to === "WORKTREE"
-    ) {
+    } else if (from !== "INDEX" && from !== "WORKTREE" && to === "WORKTREE") {
       // git diff <from> (commit vs worktree)
       baseArgs.push(from);
-    } else if (
-      from !== "INDEX" &&
-      from !== "WORKTREE" &&
-      to === "INDEX"
-    ) {
+    } else if (from !== "INDEX" && from !== "WORKTREE" && to === "INDEX") {
       // git diff --staged <from> (from vs index, reversed direction)
       baseArgs.push("--staged", from);
     } else if (!SYNTHETIC_REFS.has(from) && !SYNTHETIC_REFS.has(to)) {

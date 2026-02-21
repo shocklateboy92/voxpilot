@@ -1,7 +1,7 @@
-import { z } from "zod/v4";
-import { stat, readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
-import { type Tool, type ToolResult, simpleResult } from "./base";
+import { z } from "zod/v4";
+import { simpleResult, type Tool, type ToolResult } from "./base";
 
 const MAX_FILE_SIZE = 100_000;
 

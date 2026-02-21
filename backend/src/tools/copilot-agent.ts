@@ -3,9 +3,7 @@ import type { Tool, ToolResult } from "./base";
 
 export const copilotAgentParameters = z
   .object({
-    prompt: z
-      .string()
-      .describe("The instruction to send to Copilot."),
+    prompt: z.string().describe("The instruction to send to Copilot."),
     session_name: z
       .string()
       .describe(
@@ -23,10 +21,7 @@ export class CopilotAgentTool implements Tool<typeof copilotAgentParameters> {
   readonly parameters = copilotAgentParameters;
   readonly requiresConfirmation = false;
 
-  async execute(
-    _args: Params,
-    _workDir: string,
-  ): Promise<ToolResult> {
+  async execute(_args: Params, _workDir: string): Promise<ToolResult> {
     // copilot_agent is special-cased by the agent loop, which calls
     // the CopilotConnection service directly with streaming support.
     // This execute() method should never be invoked at runtime.

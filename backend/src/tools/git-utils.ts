@@ -51,10 +51,7 @@ export async function runGit(
 export async function ensureGitRepo(
   workDir: string,
 ): Promise<{ root: string } | { error: string }> {
-  const result = await runGit(
-    ["rev-parse", "--show-toplevel"],
-    workDir,
-  );
+  const result = await runGit(["rev-parse", "--show-toplevel"], workDir);
 
   if (result.exitCode !== 0) {
     return { error: `'${workDir}' is not inside a git repository.` };
