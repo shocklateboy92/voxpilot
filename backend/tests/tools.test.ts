@@ -87,8 +87,10 @@ describe("ReadFileTool", () => {
   });
 
   it("errors on missing path arg", async () => {
-    const result = (await tool.execute({}, workDir)).displayResult;
-    expect(result.startsWith("Error:")).toBe(true);
+    // With Zod validation, missing required 'path' is caught by registry.execute()
+    await expect(
+      defaultRegistry.execute("read_file", "{}", workDir),
+    ).rejects.toThrow();
   });
 
   it("errors on too large file", async () => {
@@ -280,10 +282,13 @@ describe("GrepSearchTool", () => {
   });
 
   it("errors on missing pattern", async () => {
-    const result = (await tool.execute({}, workDir)).displayResult;
-    expect(result.startsWith("Error:")).toBe(true);
+    // With Zod validation, missing required 'pattern' is caught by registry.execute()
+    await expect(
+      defaultRegistry.execute("grep_search", "{}", workDir),
+    ).rejects.toThrow();
   });
 });
+;
 
 // ── GlobSearchTool ─────────────────────────────────────────────────────────────
 
@@ -333,8 +338,10 @@ describe("GlobSearchTool", () => {
   });
 
   it("errors on missing pattern", async () => {
-    const result = (await tool.execute({}, workDir)).displayResult;
-    expect(result.startsWith("Error:")).toBe(true);
+    // With Zod validation, missing required 'pattern' is caught by registry.execute()
+    await expect(
+      defaultRegistry.execute("glob_search", "{}", workDir),
+    ).rejects.toThrow();
   });
 
   it("errors when path is not a directory", async () => {
@@ -352,7 +359,7 @@ describe("ToolRegistry", () => {
   it("has all 8 tools", () => {
     const tools = defaultRegistry.all();
     expect(tools).toHaveLength(8);
-    const names = new Set(tools.map((t) => t.definition.name));
+    const names = new Set(tools.map((t) => t.name));
     expect(names).toEqual(
       new Set([
         "read_file",
@@ -381,8 +388,27 @@ describe("ToolRegistry", () => {
   it("gets tool by name", () => {
     const tool = defaultRegistry.get("read_file");
     expect(tool).toBeDefined();
-    expect(tool?.definition.name).toBe("read_file");
+    expect(tool?.name).toBe("read_file");
     expect(defaultRegistry.get("nonexistent")).toBeUndefined();
+  });
+
+  it("execute rejects unknown tool", async () => {
+    await expect(
+      defaultRegistry.execute("nonexistent_tool", "{}", workDir),
+    ).rejects.toThrow("Unknown tool");
+  });
+
+  it("execute rejects missing required arg via Zod", async () => {
+    // 'path' is required for read_file — passing {} should throw a Zod validation error
+    await expect(
+      defaultRegistry.execute("read_file", "{}", workDir),
+    ).rejects.toThrow();
+  });
+
+  it("execute rejects missing required arg for grep_search", async () => {
+    await expect(
+      defaultRegistry.execute("grep_search", "{}", workDir),
+    ).rejects.toThrow();
   });
 });
 

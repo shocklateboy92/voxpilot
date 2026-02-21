@@ -1,50 +1,44 @@
-import type { ChatCompletionTool, FunctionDefinition } from "openai/resources";
+import { z } from "zod/v4";
 import { stat, readFile } from "node:fs/promises";
 import { type Tool, type ToolResult, resolvePath, simpleResult } from "./base";
 
 const MAX_FILE_SIZE = 100_000;
 
-export class ReadFileTool implements Tool {
+const parameters = z
+  .object({
+    path: z
+      .string()
+      .describe("File path relative to the working directory."),
+    start_line: z
+      .number()
+      .int()
+      .optional()
+      .describe(
+        "First line to read (1-based, inclusive). Omit to start from the beginning.",
+      ),
+    end_line: z
+      .number()
+      .int()
+      .optional()
+      .describe(
+        "Last line to read (1-based, inclusive). Omit to read to the end.",
+      ),
+  })
+  .strict();
+
+type Params = z.infer<typeof parameters>;
+
+export class ReadFileTool implements Tool<typeof parameters> {
+  readonly name = "read_file";
+  readonly description =
+    "Read the contents of a file relative to the working directory. " +
+    "Returns the file contents with line numbers. " +
+    "Optionally specify start_line and end_line (1-based, inclusive) to read a range.";
+  readonly parameters = parameters;
   readonly requiresConfirmation = false;
 
-  readonly definition: FunctionDefinition = {
-    name: "read_file",
-    description:
-      "Read the contents of a file relative to the working directory. " +
-      "Returns the file contents with line numbers. " +
-      "Optionally specify start_line and end_line (1-based, inclusive) to read a range.",
-    parameters: {
-      type: "object",
-      properties: {
-        path: {
-          type: "string",
-          description: "File path relative to the working directory.",
-        },
-        start_line: {
-          type: "integer",
-          description:
-            "First line to read (1-based, inclusive). Omit to start from the beginning.",
-        },
-        end_line: {
-          type: "integer",
-          description:
-            "Last line to read (1-based, inclusive). Omit to read to the end.",
-        },
-      },
-      required: ["path"],
-      additionalProperties: false,
-    },
-  };
-
-  toOpenAiTool(): ChatCompletionTool {
-    return { type: "function", function: this.definition };
-  }
-
-  async execute(
-    args: Record<string, unknown>,
-    workDir: string,
-  ): Promise<ToolResult> {
-    const rawPath = (args.path as string | undefined) ?? "";
+  async execute(args: Params, workDir: string): Promise<ToolResult> {
+    const rawPath = args.path;
     if (!rawPath) {
       return simpleResult("Error: 'path' argument is required.");
     }
@@ -53,7 +47,7 @@ export class ReadFileTool implements Tool {
     if (resolved === null) {
       return simpleResult(
         `Error: path '${rawPath}' is outside the working directory. ` +
-        "Use the read_file_external tool to read files outside the project."
+          "Use the read_file_external tool to read files outside the project.",
       );
     }
 
@@ -71,8 +65,8 @@ export class ReadFileTool implements Tool {
     if (st.size > MAX_FILE_SIZE) {
       return simpleResult(
         `Error: file '${rawPath}' is ${st.size.toLocaleString()} bytes ` +
-        `(limit is ${MAX_FILE_SIZE.toLocaleString()} bytes). ` +
-        "Use start_line/end_line to read a portion."
+          `(limit is ${MAX_FILE_SIZE.toLocaleString()} bytes). ` +
+          "Use start_line/end_line to read a portion.",
       );
     }
 
@@ -90,14 +84,16 @@ export class ReadFileTool implements Tool {
     }
     const total = lines.length;
 
-    let start = typeof args.start_line === "number" ? args.start_line : 1;
-    let end = typeof args.end_line === "number" ? args.end_line : total;
+    let start = args.start_line ?? 1;
+    let end = args.end_line ?? total;
 
     start = Math.max(1, start);
     end = Math.min(total, end);
 
     if (start > end) {
-      return simpleResult(`Error: start_line (${start}) > end_line (${end}). File has ${total} lines.`);
+      return simpleResult(
+        `Error: start_line (${start}) > end_line (${end}). File has ${total} lines.`,
+      );
     }
 
     const selected = lines.slice(start - 1, end);
