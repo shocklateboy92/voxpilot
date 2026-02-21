@@ -44,9 +44,7 @@ export function ChangesetCard(props: Props) {
   });
 
   function openReview(fileId?: string) {
-    // Store which file to jump to if needed (via a data attribute or similar)
-    void fileId; // reserved for future jump-to-file functionality
-    setReviewOverlayArtifactId(props.artifact.artifactId);
+    setReviewOverlayArtifactId({ artifactId: props.artifact.artifactId, fileId });
   }
 
   return (
