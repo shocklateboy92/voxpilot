@@ -17,7 +17,8 @@ export function CopilotStreamBlock(props: Props) {
 
   // Auto-scroll to bottom as content streams in
   createEffect(() => {
-    const _text = props.call.copilotStream;
+    // Access copilotStream to subscribe to changes
+    void props.call.copilotStream;
     if (preRef) {
       preRef.scrollTop = preRef.scrollHeight;
     }

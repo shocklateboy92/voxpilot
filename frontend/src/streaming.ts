@@ -179,11 +179,13 @@ export function openStream(sessionId: string): void {
       setStreamingToolCalls((prev) =>
         prev.map((tc): StreamingToolCall => {
           if (tc.id !== payload.tool_call_id) return tc;
-          return {
+          const sessionName = payload.session_name || tc.copilotSessionName;
+          const updated: StreamingToolCall = {
             ...tc,
             copilotStream: (tc.copilotStream ?? "") + payload.content,
-            copilotSessionName: payload.session_name || tc.copilotSessionName,
           };
+          if (sessionName) updated.copilotSessionName = sessionName;
+          return updated;
         }),
       );
     },
@@ -192,11 +194,13 @@ export function openStream(sessionId: string): void {
       setStreamingToolCalls((prev) =>
         prev.map((tc): StreamingToolCall => {
           if (tc.id !== payload.tool_call_id) return tc;
-          return {
+          const sessionName = payload.session_name || tc.copilotSessionName;
+          const updated: StreamingToolCall = {
             ...tc,
             copilotDone: true,
-            copilotSessionName: payload.session_name || tc.copilotSessionName,
           };
+          if (sessionName) updated.copilotSessionName = sessionName;
+          return updated;
         }),
       );
     },
