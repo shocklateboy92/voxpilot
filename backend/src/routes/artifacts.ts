@@ -9,7 +9,8 @@
  * POST   /api/artifacts/:id/submit                — Submit review
  */
 
-import { Hono } from "hono";
+import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
+import { z } from "zod/v4";
 import { authMiddleware, type AuthEnv } from "../middleware/auth";
 import { getDb } from "../db";
 import {
@@ -23,9 +24,10 @@ import {
 } from "../services/artifacts";
 import { addMessage } from "../services/sessions";
 import { registry } from "../services/streams";
-import type { ViewedRequest, AddCommentRequest } from "../schemas/api";
+import { ViewedRequest, AddCommentRequest } from "../schemas/api";
+import { ReviewComment } from "../schemas/diff-document";
 
-export const artifactRouter = new Hono<AuthEnv>();
+export const artifactRouter = new OpenAPIHono<AuthEnv>();
 artifactRouter.use("*", authMiddleware);
 
 // ── GET /api/artifacts/:id ──────────────────────────────────────────────────
@@ -57,40 +59,73 @@ artifactRouter.get(
 
 // ── PATCH /api/artifacts/:id/files/:fileId/viewed ───────────────────────────
 
-artifactRouter.patch(
-  "/api/artifacts/:id/files/:fileId/viewed",
-  async (c) => {
-    const db = getDb();
-    const fileId = c.req.param("fileId");
-    const body = (await c.req.json()) as ViewedRequest;
-    const ok = await setFileViewed(db, fileId, body.viewed);
-    if (!ok) {
-      return c.json({ detail: "File not found" }, 404);
-    }
-    return c.json({ viewed: body.viewed }, 200);
+const patchViewedRoute = createRoute({
+  method: "patch",
+  path: "/api/artifacts/{id}/files/{fileId}/viewed",
+  request: {
+    params: z.object({ id: z.string(), fileId: z.string() }),
+    body: {
+      content: { "application/json": { schema: ViewedRequest } },
+      required: true,
+    },
   },
-);
+  responses: {
+    200: {
+      content: { "application/json": { schema: z.object({ viewed: z.boolean() }) } },
+      description: "File viewed status updated",
+    },
+    404: {
+      content: { "application/json": { schema: z.object({ detail: z.string() }) } },
+      description: "File not found",
+    },
+  },
+});
+
+artifactRouter.openapi(patchViewedRoute, async (c) => {
+  const db = getDb();
+  const { fileId } = c.req.valid("param");
+  const body = c.req.valid("json");
+  const ok = await setFileViewed(db, fileId, body.viewed);
+  if (!ok) {
+    return c.json({ detail: "File not found" }, 404);
+  }
+  return c.json({ viewed: body.viewed }, 200);
+});
 
 // ── POST /api/artifacts/:id/files/:fileId/comments ──────────────────────────
 
-artifactRouter.post(
-  "/api/artifacts/:id/files/:fileId/comments",
-  async (c) => {
-    const db = getDb();
-    const artifactId = c.req.param("id");
-    const fileId = c.req.param("fileId");
-    const body = (await c.req.json()) as AddCommentRequest;
-    const comment = await addComment(
-      db,
-      artifactId,
-      fileId,
-      body.content,
-      body.line_id,
-      body.line_number,
-    );
-    return c.json(comment, 201);
+const postCommentRoute = createRoute({
+  method: "post",
+  path: "/api/artifacts/{id}/files/{fileId}/comments",
+  request: {
+    params: z.object({ id: z.string(), fileId: z.string() }),
+    body: {
+      content: { "application/json": { schema: AddCommentRequest } },
+      required: true,
+    },
   },
-);
+  responses: {
+    201: {
+      content: { "application/json": { schema: ReviewComment } },
+      description: "Comment added",
+    },
+  },
+});
+
+artifactRouter.openapi(postCommentRoute, async (c) => {
+  const db = getDb();
+  const { id: artifactId, fileId } = c.req.valid("param");
+  const body = c.req.valid("json");
+  const comment = await addComment(
+    db,
+    artifactId,
+    fileId,
+    body.content,
+    body.line_id,
+    body.line_number,
+  );
+  return c.json(comment, 201);
+});
 
 // ── DELETE /api/artifacts/:id/comments/:commentId ───────────────────────────
 
