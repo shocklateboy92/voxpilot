@@ -20,8 +20,8 @@
     "jsxImportSource": "solid-js",
     "paths": {
       "@backend/*": ["../backend/src/*"],
-      "hono": ["../backend/node_modules/hono/dist/types"],
-      "hono/*": ["../backend/node_modules/hono/dist/types/*"]
+      "hono": ["../backend/node_modules/hono"],
+      "hono/*": ["../backend/node_modules/hono/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],

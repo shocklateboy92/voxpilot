@@ -293,6 +293,7 @@ export function buildDiffFiles(
       fullTextAvailable: false,
       fullTextLineCount: null,
       fullTextContent: null,
+      fullTextHtml: null,
     };
   });
 }
