@@ -13,7 +13,7 @@ import {
   reviewComments,
   messages,
 } from "../schema";
-import type { DiffDocument, DiffFile, ReviewComment } from "../schemas/diff-document";
+import { DiffDocument, DiffFile, ReviewComment } from "../schemas/diff-document";
 import type { DiffHunk } from "../schemas/diff-document";
 import type { ReviewArtifactEvent } from "../schemas/events";
 
@@ -125,47 +125,11 @@ export async function getArtifact(
     .where(eq(reviewComments.artifactId, artifactId))
     .orderBy(asc(reviewComments.createdAt));
 
-  const artifact: DiffDocument = {
-    id: row.id,
-    version: row.version,
-    sessionId: row.sessionId,
-    toolName: row.toolName,
-    toolCallId: row.toolCallId,
-    commitRef: row.commitRef,
-    title: row.title,
-    status: row.status as DiffDocument["status"],
-    totalFiles: row.totalFiles,
-    totalAdditions: row.totalAdditions,
-    totalDeletions: row.totalDeletions,
-    createdAt: row.createdAt,
-  };
-
-  const files: DiffFile[] = fileRows.map((f) => ({
-    id: f.id,
-    artifactId: f.artifactId,
-    path: f.path,
-    changeType: f.changeType as DiffFile["changeType"],
-    oldPath: f.oldPath,
-    additions: f.additions,
-    deletions: f.deletions,
-    viewed: f.viewed,
-    html: f.html,
-    hunksJson: (f.hunksJson ?? []) as DiffHunk[],
-    fullTextAvailable: f.fullTextAvailable,
-    fullTextLineCount: f.fullTextLineCount,
-    fullTextContent: f.fullTextContent,
-    fullTextHtml: f.fullTextHtml ?? null,
-  }));
-
-  const comments: ReviewComment[] = commentRows.map((c) => ({
-    id: c.id,
-    artifactId: c.artifactId,
-    fileId: c.fileId,
-    lineId: c.lineId,
-    lineNumber: c.lineNumber,
-    content: c.content,
-    createdAt: c.createdAt,
-  }));
+  const artifact = DiffDocument.parse(row);
+  const files = fileRows.map((f) =>
+    DiffFile.parse({ ...f, hunksJson: f.hunksJson ?? [] }),
+  );
+  const comments = commentRows.map((c) => ReviewComment.parse(c));
 
   return { artifact, files, comments };
 }
@@ -324,13 +288,5 @@ export async function getArtifactComments(
     .from(reviewComments)
     .where(eq(reviewComments.artifactId, artifactId))
     .orderBy(asc(reviewComments.createdAt));
-  return rows.map((c) => ({
-    id: c.id,
-    artifactId: c.artifactId,
-    fileId: c.fileId,
-    lineId: c.lineId,
-    lineNumber: c.lineNumber,
-    content: c.content,
-    createdAt: c.createdAt,
-  }));
+  return rows.map((c) => ReviewComment.parse(c));
 }
