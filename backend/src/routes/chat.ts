@@ -26,6 +26,7 @@ import { getSessionArtifactSummaries } from "../services/artifacts";
 import { registry } from "../services/streams";
 import type { MessagePayload, SessionBroadcaster } from "../services/streams";
 import { runAgentLoop } from "../services/agent";
+import { getExistingConnection } from "../services/copilot-acp";
 import type { SendMessageRequest, ToolConfirmRequest } from "../schemas/api";
 
 const CONFIRM_TIMEOUT_MS = 300_000; // 5 minutes
@@ -132,6 +133,24 @@ chatRouter.get("/api/sessions/:id/stream", async (c) => {
             event: "review-artifact",
             data: JSON.stringify(summary),
           });
+        }
+
+        // Replay in-flight Copilot output for reconnecting clients
+        const copilotConn = getExistingConnection(sessionId);
+        if (copilotConn) {
+          for (const [toolCallId, buffered] of copilotConn.outputBuffer) {
+            if (buffered) {
+              const sessionName = copilotConn.outputSessionNames.get(toolCallId) ?? "";
+              await stream.writeSSE({
+                event: "copilot-delta",
+                data: JSON.stringify({
+                  tool_call_id: toolCallId,
+                  content: buffered,
+                  session_name: sessionName,
+                }),
+              });
+            }
+          }
         }
 
         await stream.writeSSE({ event: "ready", data: "{}" });

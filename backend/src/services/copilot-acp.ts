@@ -57,6 +57,9 @@ export class CopilotConnection {
   /** Per-tool-call output buffer for SSE reconnect replay */
   readonly outputBuffer = new Map<string, string>();
 
+  /** Maps tool_call_id → ACP session name for SSE reconnect replay */
+  readonly outputSessionNames = new Map<string, string>();
+
   /** Current onDelta callback, set per-prompt */
   private currentOnDelta: OnDelta | undefined;
 
@@ -215,6 +218,7 @@ export class CopilotConnection {
     this.proc.kill();
     this.sessions.clear();
     this.outputBuffer.clear();
+    this.outputSessionNames.clear();
     this.currentOnDelta = undefined;
     this.currentSessionId = undefined;
   }
@@ -239,6 +243,11 @@ export async function getConnection(
 /**
  * Tears down the CopilotConnection for a voxpilot session.
  */
+/** Returns the existing CopilotConnection for a session, or undefined. */
+export function getExistingConnection(sessionId: string): CopilotConnection | undefined {
+  return connections.get(sessionId);
+}
+
 export function destroyConnection(sessionId: string): void {
   const conn = connections.get(sessionId);
   if (conn) {

@@ -301,6 +301,7 @@ export async function* runAgentLoop(
             const copilotConn = await getConnection(sessionId, workDir);
             await copilotConn.getOrCreateSession(sessionName, workDir);
             copilotConn.outputBuffer.set(tc.id, "");
+            copilotConn.outputSessionNames.set(tc.id, sessionName);
 
             const deltaChannel = new AsyncChannel<string | null>();
             const promptPromise = copilotConn.prompt(sessionName, promptText, (content) => {
@@ -346,6 +347,7 @@ export async function* runAgentLoop(
             };
 
             copilotConn.outputBuffer.delete(tc.id);
+            copilotConn.outputSessionNames.delete(tc.id);
           } catch (err) {
             const errMsg = err instanceof Error ? err.message : String(err);
             copilotResult = {
