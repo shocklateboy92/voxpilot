@@ -33,8 +33,8 @@ import type {
 } from "../schemas/events";
 import { renderMarkdown } from "./markdown";
 import { addMessage } from "./sessions";
-import type { Tool, ToolResult } from "../tools";
-import { defaultRegistry } from "../tools";
+import type { ToolResult } from "../tools";
+import { defaultRegistry, copilotAgentParameters, gitDiffParameters, gitShowParameters } from "../tools";
 import { createReviewArtifact } from "./artifact-pipeline";
 import { getConnection } from "./copilot-acp";
 import { AsyncChannel } from "./streams";
@@ -292,11 +292,10 @@ export async function* runAgentLoop(
         if (tc.name === "copilot_agent") {
           let copilotResult: ToolResult;
           try {
-            const args: Record<string, unknown> = tc.arguments
-              ? (JSON.parse(tc.arguments) as Record<string, unknown>)
-              : {};
-            const promptText = typeof args.prompt === "string" ? args.prompt : "";
-            const sessionName = typeof args.session_name === "string" ? args.session_name : "default";
+            const rawArgs: unknown = tc.arguments ? JSON.parse(tc.arguments) : {};
+            const args = copilotAgentParameters.parse(rawArgs);
+            const promptText = args.prompt;
+            const sessionName = args.session_name;
 
             const copilotConn = await getConnection(sessionId, workDir);
             await copilotConn.getOrCreateSession(sessionName, workDir);
@@ -379,13 +378,10 @@ export async function* runAgentLoop(
         let result: ToolResult;
         let isError: boolean;
         try {
-          const args: Record<string, unknown> = tc.arguments
-            ? (JSON.parse(tc.arguments) as Record<string, unknown>)
-            : {};
-          result = await tool.execute(args, workDir);
+          result = await defaultRegistry.execute(tc.name, tc.arguments, workDir);
           isError = result.llmResult.startsWith("Error:");
-        } catch {
-          const errText = `Error: failed to parse arguments for tool '${tc.name}': ${tc.arguments}`;
+        } catch (err) {
+          const errText = `Error: failed to execute tool '${tc.name}': ${err instanceof Error ? err.message : String(err)}`;
           result = { llmResult: errText, displayResult: errText };
           isError = true;
         }
@@ -395,16 +391,19 @@ export async function* runAgentLoop(
         const isDiffTool = tc.name === "git_diff" || tc.name === "git_show";
         if (isDiffTool && !isError && result.displayResult) {
           try {
-            const args: Record<string, unknown> = tc.arguments
-              ? (JSON.parse(tc.arguments) as Record<string, unknown>)
-              : {};
+            const rawArgs: unknown = tc.arguments ? JSON.parse(tc.arguments) : {};
 
             // Determine the "to" ref for full-text resolution
             let toRef: string;
             if (tc.name === "git_show") {
-              toRef = typeof args.commit === "string" ? args.commit : "HEAD";
+              const parsed = gitShowParameters.safeParse(rawArgs);
+              toRef = parsed.success && parsed.data.commit ? parsed.data.commit : "HEAD";
             } else {
-              toRef = typeof args.to === "string" && args.to !== "" ? args.to : "WORKTREE";
+              const parsed = gitDiffParameters.safeParse(rawArgs);
+              toRef =
+                parsed.success && parsed.data.to && parsed.data.to !== ""
+                  ? parsed.data.to
+                  : "WORKTREE";
             }
 
             const artifact = await createReviewArtifact({
