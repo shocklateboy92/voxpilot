@@ -7,6 +7,8 @@
 
 import type { AppType } from "@backend/index";
 import { hc } from "hono/client";
+import type { ClientResponse } from "hono/client";
+import type { SuccessStatusCode } from "hono/utils/http-status";
 import type {
   SessionSummary,
   GitHubUser,
@@ -22,15 +24,27 @@ const rpc = hc<AppType>(window.location.origin, {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Awaits a response, reloads on 401, returns parsed JSON or null on error. */
-async function authedJson<T>(req: Promise<Response>): Promise<T | null> {
+/**
+ * Extracts the JSON body type from the success-status variants of a Hono
+ * ClientResponse union (one variant per status code).
+ */
+type SuccessOf<T extends ClientResponse<unknown>> =
+  T extends ClientResponse<infer D, SuccessStatusCode, "json"> ? D : never;
+
+/**
+ * Awaits a response, reloads on 401, returns parsed JSON or null on error.
+ * T is inferred from the success variant of the Hono ClientResponse union.
+ */
+async function authedJson<T extends ClientResponse<unknown>>(
+  req: Promise<T>,
+): Promise<SuccessOf<T> | null> {
   const res = await req;
   if (res.status === 401) {
     window.location.reload();
     return null;
   }
   if (!res.ok) return null;
-  return (await res.json()) as T;
+  return res.json() as SuccessOf<T>;
 }
 
 /** Awaits a response, reloads on 401. Ignores body. */
@@ -44,7 +58,7 @@ async function authedVoid(req: Promise<Response>): Promise<void> {
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 export async function fetchCurrentUser(): Promise<GitHubUser | null> {
-  return authedJson<GitHubUser>(rpc.api.auth.me.$get());
+  return authedJson(rpc.api.auth.me.$get());
 }
 
 export async function logout(): Promise<void> {
@@ -55,7 +69,7 @@ export async function logout(): Promise<void> {
 // ── Sessions ─────────────────────────────────────────────────────────────────
 
 export async function fetchSessions(): Promise<SessionSummary[]> {
-  const data = await authedJson<SessionSummary[]>(rpc.api.sessions.$get());
+  const data = await authedJson(rpc.api.sessions.$get());
   return data ?? [];
 }
 
@@ -79,7 +93,7 @@ export async function deleteSession(id: string): Promise<void> {
 export async function fetchArtifact(
   artifactId: string,
 ): Promise<ArtifactDetail | null> {
-  return authedJson<ArtifactDetail>(
+  return authedJson(
     rpc.api.artifacts[":id"].$get({ param: { id: artifactId } }),
   );
 }
@@ -88,7 +102,7 @@ export async function fetchFileFullText(
   artifactId: string,
   fileId: string,
 ): Promise<{ content: string; lineCount: number } | null> {
-  return authedJson<{ content: string; lineCount: number }>(
+  return authedJson(
     rpc.api.artifacts[":id"].files[":fileId"]["full-text"].$get({
       param: { id: artifactId, fileId },
     }),
@@ -115,7 +129,7 @@ export async function postFileComment(
   lineId?: string | null,
   lineNumber?: number | null,
 ): Promise<ReviewCommentData | null> {
-  return authedJson<ReviewCommentData>(
+  return authedJson(
     rpc.api.artifacts[":id"].files[":fileId"].comments.$post({
       param: { id: artifactId, fileId },
       json: { content, line_id: lineId, line_number: lineNumber },
@@ -137,7 +151,7 @@ export async function deleteArtifactComment(
 export async function submitReview(
   artifactId: string,
 ): Promise<{ status: string } | null> {
-  return authedJson<{ status: string }>(
+  return authedJson(
     rpc.api.artifacts[":id"].submit.$post({
       param: { id: artifactId },
     }),
