@@ -10,6 +10,7 @@
  */
 
 import { Hono } from "hono";
+import { zValidator } from "@hono/zod-validator";
 import type { AuthEnv } from "../middleware/auth";
 import { getDb } from "../db";
 import {
@@ -23,7 +24,7 @@ import {
 } from "../services/artifacts";
 import { addMessage } from "../services/sessions";
 import { registry } from "../services/streams";
-import type { ViewedRequest, AddCommentRequest } from "../schemas/api";
+import { ViewedRequest, AddCommentRequest } from "../schemas/api";
 
 export const artifactRouter = new Hono<AuthEnv>();
 
@@ -58,10 +59,11 @@ artifactRouter.get(
 
 artifactRouter.patch(
   "/api/artifacts/:id/files/:fileId/viewed",
+  zValidator("json", ViewedRequest),
   async (c) => {
     const db = getDb();
     const fileId = c.req.param("fileId");
-    const body = (await c.req.json()) as ViewedRequest;
+    const body = c.req.valid("json");
     const ok = await setFileViewed(db, fileId, body.viewed);
     if (!ok) {
       return c.json({ detail: "File not found" }, 404);
@@ -74,11 +76,12 @@ artifactRouter.patch(
 
 artifactRouter.post(
   "/api/artifacts/:id/files/:fileId/comments",
+  zValidator("json", AddCommentRequest),
   async (c) => {
     const db = getDb();
     const artifactId = c.req.param("id");
     const fileId = c.req.param("fileId");
-    const body = (await c.req.json()) as AddCommentRequest;
+    const body = c.req.valid("json");
     const comment = await addComment(
       db,
       artifactId,
