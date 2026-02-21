@@ -12,7 +12,7 @@ import { createSignal } from "solid-js";
 
 export interface GitHubUser {
   login: string;
-  name?: string | null;
+  name?: string | null | undefined;
   avatar_url: string;
 }
 
