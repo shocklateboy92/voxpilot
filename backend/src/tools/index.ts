@@ -5,9 +5,9 @@ export { ReadFileExternalTool } from "./read-file-external";
 export { ListDirectoryTool } from "./list-directory";
 export { GrepSearchTool } from "./grep-search";
 export { GlobSearchTool } from "./glob-search";
-export { GitDiffTool } from "./git-diff";
-export { GitShowTool } from "./git-show";
-export { CopilotAgentTool } from "./copilot-agent";
+export { GitDiffTool, gitDiffParameters } from "./git-diff";
+export { GitShowTool, gitShowParameters } from "./git-show";
+export { CopilotAgentTool, copilotAgentParameters } from "./copilot-agent";
 
 import { ToolRegistry } from "./registry";
 import { ReadFileTool } from "./read-file";
