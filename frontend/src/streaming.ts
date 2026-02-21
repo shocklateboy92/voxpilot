@@ -8,7 +8,7 @@
  */
 
 import { connectSession, sendMessage as ssePostMessage, confirmTool } from "./sse";
-import type { ToolCallPayload, ToolResultPayload, ToolConfirmPayload, ReviewArtifactPayload } from "./sse";
+import type { ToolCallPayload, ToolResultPayload, ToolConfirmPayload, ReviewArtifactPayload, CopilotDeltaPayload, CopilotDonePayload } from "./sse";
 import {
   setMessages,
   setStreamingText,
@@ -173,6 +173,32 @@ export function openStream(sessionId: string): void {
         next.set(payload.artifactId, summary);
         return next;
       });
+    },
+
+    onCopilotDelta(payload: CopilotDeltaPayload) {
+      setStreamingToolCalls((prev) =>
+        prev.map((tc): StreamingToolCall => {
+          if (tc.id !== payload.tool_call_id) return tc;
+          return {
+            ...tc,
+            copilotStream: (tc.copilotStream ?? "") + payload.content,
+            copilotSessionName: payload.session_name || tc.copilotSessionName,
+          };
+        }),
+      );
+    },
+
+    onCopilotDone(payload: CopilotDonePayload) {
+      setStreamingToolCalls((prev) =>
+        prev.map((tc): StreamingToolCall => {
+          if (tc.id !== payload.tool_call_id) return tc;
+          return {
+            ...tc,
+            copilotDone: true,
+            copilotSessionName: payload.session_name || tc.copilotSessionName,
+          };
+        }),
+      );
     },
 
     onDone(_model, html) {
