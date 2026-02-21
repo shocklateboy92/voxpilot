@@ -1,14 +1,12 @@
+import { readFile, stat } from "node:fs/promises";
 import { z } from "zod/v4";
-import { stat, readFile } from "node:fs/promises";
-import { type Tool, type ToolResult, resolvePath, simpleResult } from "./base";
+import { resolvePath, simpleResult, type Tool, type ToolResult } from "./base";
 
 const MAX_FILE_SIZE = 100_000;
 
 const parameters = z
   .object({
-    path: z
-      .string()
-      .describe("File path relative to the working directory."),
+    path: z.string().describe("File path relative to the working directory."),
     start_line: z
       .number()
       .int()
