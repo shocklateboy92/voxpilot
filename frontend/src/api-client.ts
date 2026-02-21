@@ -1,105 +1,98 @@
 /**
- * API client functions.
+ * API client functions using Hono RPC.
  *
- * All endpoints use openapi-fetch for type-safe requests
- * derived from the generated OpenAPI spec.
+ * Uses `hc()` from hono/client for type-safe requests
+ * derived from the backend's AppType.
  */
 
-import createClient from "openapi-fetch";
-import type { paths } from "./api";
-import type { SessionSummary, GitHubUser, ArtifactDetail, ReviewCommentData } from "./store";
+import type { AppType } from "@backend/index";
+import { hc } from "hono/client";
+import type {
+  SessionSummary,
+  GitHubUser,
+  ArtifactDetail,
+  ReviewCommentData,
+} from "./store";
 
-// ── Typed client ─────────────────────────────────────────────────────────────
+// ── Typed RPC client ─────────────────────────────────────────────────────────
 
-const client = createClient<paths>({
-  baseUrl: window.location.origin,
-  credentials: "include",
+const rpc = hc<AppType>(window.location.origin, {
+  init: { credentials: "include" },
 });
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Awaits a response, reloads on 401, returns parsed JSON or null on error. */
+async function authedJson<T>(req: Promise<Response>): Promise<T | null> {
+  const res = await req;
+  if (res.status === 401) {
+    window.location.reload();
+    return null;
+  }
+  if (!res.ok) return null;
+  return (await res.json()) as T;
+}
+
+/** Awaits a response, reloads on 401. Ignores body. */
+async function authedVoid(req: Promise<Response>): Promise<void> {
+  const res = await req;
+  if (res.status === 401) {
+    window.location.reload();
+  }
+}
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 export async function fetchCurrentUser(): Promise<GitHubUser | null> {
-  const { data, error } = await client.GET("/api/auth/me");
-  if (error) return null;
-  return data ?? null;
+  return authedJson<GitHubUser>(rpc.api.auth.me.$get());
 }
 
 export async function logout(): Promise<void> {
-  await client.POST("/api/auth/logout");
+  await authedVoid(rpc.api.auth.logout.$post());
   window.location.reload();
 }
 
 // ── Sessions ─────────────────────────────────────────────────────────────────
 
 export async function fetchSessions(): Promise<SessionSummary[]> {
-  const { data } = await client.GET("/api/sessions");
+  const data = await authedJson<SessionSummary[]>(rpc.api.sessions.$get());
   return data ?? [];
 }
 
 export async function createSession(): Promise<SessionSummary> {
-  const { data, error } = await client.POST("/api/sessions");
-  if (error || !data) {
-    const detail = error && "detail" in error
-      ? JSON.stringify(error.detail)
-      : "unknown error";
-    throw new Error(`Failed to create session: ${detail}`);
+  const res = await rpc.api.sessions.$post();
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Failed to create session: ${text}`);
   }
-  return data;
+  return (await res.json()) as SessionSummary;
 }
 
 export async function deleteSession(id: string): Promise<void> {
-  await client.DELETE("/api/sessions/{session_id}", {
-    params: { path: { session_id: id } },
-  });
-}
-
-// ── Messages ─────────────────────────────────────────────────────────────────
-
-/**
- * Post a user message to an active session stream.
- *
- * Uses plain fetch because openapi-fetch doesn't return the raw Response
- * object, and the caller needs the status code for 202/409 handling.
- */
-export async function postMessage(
-  sessionId: string,
-  content: string,
-  model = "gpt-4o",
-): Promise<Response> {
-  const response = await fetch(`/api/sessions/${sessionId}/messages`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ content, model }),
-  });
-
-  if (response.status === 401) {
-    window.location.reload();
-  }
-
-  return response;
+  await authedVoid(
+    rpc.api.sessions[":session_id"].$delete({ param: { session_id: id } }),
+  );
 }
 
 // ── Artifacts ────────────────────────────────────────────────────────────────
 
-export async function fetchArtifact(artifactId: string): Promise<ArtifactDetail | null> {
-  const response = await fetch(`/api/artifacts/${artifactId}`, {
-    credentials: "include",
-  });
-  if (!response.ok) return null;
-  return (await response.json()) as ArtifactDetail;
+export async function fetchArtifact(
+  artifactId: string,
+): Promise<ArtifactDetail | null> {
+  return authedJson<ArtifactDetail>(
+    rpc.api.artifacts[":id"].$get({ param: { id: artifactId } }),
+  );
 }
 
 export async function fetchFileFullText(
   artifactId: string,
   fileId: string,
 ): Promise<{ content: string; lineCount: number } | null> {
-  const response = await fetch(
-    `/api/artifacts/${artifactId}/files/${fileId}/full-text`,
-    { credentials: "include" },
+  return authedJson<{ content: string; lineCount: number }>(
+    rpc.api.artifacts[":id"].files[":fileId"]["full-text"].$get({
+      param: { id: artifactId, fileId },
+    }),
   );
-  if (!response.ok) return null;
-  return (await response.json()) as { content: string; lineCount: number };
 }
 
 export async function patchFileViewed(
@@ -107,12 +100,12 @@ export async function patchFileViewed(
   fileId: string,
   viewed: boolean,
 ): Promise<void> {
-  await fetch(`/api/artifacts/${artifactId}/files/${fileId}/viewed`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ viewed }),
-  });
+  await authedVoid(
+    rpc.api.artifacts[":id"].files[":fileId"].viewed.$patch({
+      param: { id: artifactId, fileId },
+      json: { viewed },
+    }),
+  );
 }
 
 export async function postFileComment(
@@ -122,37 +115,31 @@ export async function postFileComment(
   lineId?: string | null,
   lineNumber?: number | null,
 ): Promise<ReviewCommentData | null> {
-  const response = await fetch(
-    `/api/artifacts/${artifactId}/files/${fileId}/comments`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ content, line_id: lineId, line_number: lineNumber }),
-    },
+  return authedJson<ReviewCommentData>(
+    rpc.api.artifacts[":id"].files[":fileId"].comments.$post({
+      param: { id: artifactId, fileId },
+      json: { content, line_id: lineId, line_number: lineNumber },
+    }),
   );
-  if (!response.ok) return null;
-  return (await response.json()) as ReviewCommentData;
 }
 
 export async function deleteArtifactComment(
   artifactId: string,
   commentId: string,
 ): Promise<void> {
-  await fetch(`/api/artifacts/${artifactId}/comments/${commentId}`, {
-    method: "DELETE",
-    credentials: "include",
-  });
+  await authedVoid(
+    rpc.api.artifacts[":id"].comments[":commentId"].$delete({
+      param: { id: artifactId, commentId },
+    }),
+  );
 }
 
 export async function submitReview(
   artifactId: string,
 ): Promise<{ status: string } | null> {
-  const response = await fetch(`/api/artifacts/${artifactId}/submit`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  if (!response.ok) return null;
-  return (await response.json()) as { status: string };
+  return authedJson<{ status: string }>(
+    rpc.api.artifacts[":id"].submit.$post({
+      param: { id: artifactId },
+    }),
+  );
 }

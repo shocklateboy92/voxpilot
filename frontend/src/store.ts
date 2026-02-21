@@ -7,14 +7,37 @@
  */
 
 import { createSignal } from "solid-js";
-import type { components } from "./api";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export type SessionSummary = components["schemas"]["SessionSummary"];
-export type MessageRead = components["schemas"]["MessageRead"] & { html?: string | null; artifactId?: string };
-export type ToolCallInfo = components["schemas"]["ToolCallInfo"];
-export type GitHubUser = components["schemas"]["GitHubUser"];
+export interface GitHubUser {
+  login: string;
+  name?: string | null;
+  avatar_url: string;
+}
+
+export interface ToolCallInfo {
+  id: string;
+  name: string;
+  arguments: string;
+}
+
+export interface SessionSummary {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MessageRead {
+  role: "user" | "assistant" | "system" | "tool";
+  content: string;
+  created_at: string;
+  tool_calls?: ToolCallInfo[] | null;
+  tool_call_id?: string | null;
+  html?: string | null;
+  artifactId?: string;
+}
 
 export interface StreamingToolCall {
   id: string;
