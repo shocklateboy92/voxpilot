@@ -14,6 +14,15 @@
  *   error       → onError(message)          — something went wrong
  */
 
+import type { AppType } from "@backend/index";
+import { hc } from "hono/client";
+
+// ── RPC client for URL building and POST calls ──────────────────────────────
+
+const rpc = hc<AppType>(window.location.origin, {
+  init: { credentials: "include" },
+});
+
 // ── SSE event payload types (mirror backend schemas) ────────────────────────
 
 export interface ToolCallInfo {
@@ -144,7 +153,9 @@ export function connectSession(
   sessionId: string,
   callbacks: SessionStreamCallbacks,
 ): EventSource {
-  const url = `/api/sessions/${sessionId}/stream`;
+  const url = rpc.api.sessions[":id"].stream.$url({
+    param: { id: sessionId },
+  });
   const es = new EventSource(url, { withCredentials: true });
   const { onError } = callbacks;
 
@@ -196,14 +207,13 @@ export async function sendMessage(
   content: string,
   model: string = "gpt-4.1-mini",
 ): Promise<Response> {
-  const response = await fetch(`/api/sessions/${sessionId}/messages`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ content, model }),
+  const response = await rpc.api.sessions[":id"].messages.$post({
+    param: { id: sessionId },
+    json: { content, model },
   });
 
-  if (response.status === 401) {
+  // Auth middleware may return 401, but that's not in the typed status union
+  if ((response.status as number) === 401) {
     window.location.reload();
   }
 
@@ -220,14 +230,13 @@ export async function confirmTool(
   toolCallId: string,
   approved: boolean,
 ): Promise<Response> {
-  const response = await fetch(`/api/sessions/${sessionId}/confirm`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ tool_call_id: toolCallId, approved }),
+  const response = await rpc.api.sessions[":id"].confirm.$post({
+    param: { id: sessionId },
+    json: { tool_call_id: toolCallId, approved },
   });
 
-  if (response.status === 401) {
+  // Auth middleware may return 401, but that's not in the typed status union
+  if ((response.status as number) === 401) {
     window.location.reload();
   }
 

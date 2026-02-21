@@ -17,11 +17,6 @@ dev-backend:
 dev-frontend:
     cd frontend && npm run dev
 
-# Generate OpenAPI spec and TypeScript client
-generate:
-    cd backend && bun run src/export-openapi.ts
-    cd frontend && npm run generate
-
 # Generate a new Drizzle migration after schema changes
 db-generate:
     cd backend && bunx drizzle-kit generate
@@ -45,7 +40,7 @@ format:
     bunx @biomejs/biome check --write backend/src backend/tests
 
 # Build frontend for production
-build: generate
+build:
     cd frontend && npm run build
 
 # Build frontend and copy to backend static dir
@@ -58,5 +53,5 @@ clean:
     cd frontend && npm run clean
     find backend -type d -name node_modules -prune -o -name '*.tsbuildinfo' -print -exec rm {} +
 
-# Run everything (install, generate, lint, typecheck, test)
-check: install generate lint typecheck test
+# Run everything (install, lint, typecheck, test)
+check: install lint typecheck test

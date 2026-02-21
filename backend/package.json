@@ -5,9 +5,9 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.14.1",
-    "@hono/zod-openapi": "^1.2.2",
+    "@hono/zod-validator": "^0.7.6",
     "drizzle-orm": "^0.45.1",
-    "hono": "^4.11.10",
+    "hono": "4.12.1",
     "markdown-it": "^14.1.1",
     "openai": "^6.22.0",
     "zod": "^4.3.6"

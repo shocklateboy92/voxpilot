@@ -12,6 +12,7 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { SSEStreamingApi } from "hono/streaming";
+import { zValidator } from "@hono/zod-validator";
 import type { AuthEnv } from "../middleware/auth";
 import { getDb } from "../db";
 import { config } from "../config";
@@ -27,12 +28,10 @@ import { registry } from "../services/streams";
 import type { MessagePayload, SessionBroadcaster } from "../services/streams";
 import { runAgentLoop } from "../services/agent";
 import { getExistingConnection } from "../services/copilot-acp";
-import type { SendMessageRequest, ToolConfirmRequest } from "../schemas/api";
+import { SendMessageRequest, ToolConfirmRequest } from "../schemas/api";
 
 const CONFIRM_TIMEOUT_MS = 300_000; // 5 minutes
 const KEEPALIVE_TIMEOUT_MS = 30_000; // 30 seconds
-
-export const chatRouter = new Hono<AuthEnv>();
 
 // ── Message processor (one per session) ─────────────────────────────────────
 
@@ -91,9 +90,11 @@ function makeMessageHandler(sessionId: string) {
   };
 }
 
+export const chatRouter = new Hono<AuthEnv>()
+
 // ── GET /api/sessions/:id/stream ────────────────────────────────────────────
 
-chatRouter.get("/api/sessions/:id/stream", async (c) => {
+  .get("/api/sessions/:id/stream", async (c) => {
   const sessionId = c.req.param("id");
   const db = getDb();
 
@@ -187,11 +188,11 @@ chatRouter.get("/api/sessions/:id/stream", async (c) => {
       console.error("SSE stream error:", err);
     },
   );
-});
+  })
 
 // ── POST /api/sessions/:id/messages ─────────────────────────────────────────
 
-chatRouter.post("/api/sessions/:id/messages", async (c) => {
+  .post("/api/sessions/:id/messages", zValidator("json", SendMessageRequest), async (c) => {
   const sessionId = c.req.param("id");
   const ghToken = c.get("ghToken");
   const db = getDb();
@@ -200,7 +201,7 @@ chatRouter.post("/api/sessions/:id/messages", async (c) => {
     return c.json({ detail: "Session not found" }, 404);
   }
 
-  const body = (await c.req.json()) as SendMessageRequest;
+  const body = c.req.valid("json");
 
   const sent = registry.send(sessionId, {
     content: body.content,
@@ -213,11 +214,11 @@ chatRouter.post("/api/sessions/:id/messages", async (c) => {
   }
 
   return c.body(null, 202);
-});
+  })
 
 // ── POST /api/sessions/:id/confirm ──────────────────────────────────────────
 
-chatRouter.post("/api/sessions/:id/confirm", async (c) => {
+  .post("/api/sessions/:id/confirm", zValidator("json", ToolConfirmRequest), async (c) => {
   const sessionId = c.req.param("id");
   const db = getDb();
 
@@ -225,7 +226,7 @@ chatRouter.post("/api/sessions/:id/confirm", async (c) => {
     return c.json({ detail: "Session not found" }, 404);
   }
 
-  const body = (await c.req.json()) as ToolConfirmRequest;
+  const body = c.req.valid("json");
 
   const ok = registry.resolveConfirmation(
     sessionId,
