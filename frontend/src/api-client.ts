@@ -44,6 +44,9 @@ async function authedJson<T extends ClientResponse<unknown>>(
     return null;
   }
   if (!res.ok) return null;
+  // res.json() returns unknown when T is a union of ClientResponses (its format
+  // parameter isn't narrowed here).  The cast is safe: we've verified ok===true
+  // above, so only the success variant of the union is reachable.
   return res.json() as SuccessOf<T>;
 }
 
