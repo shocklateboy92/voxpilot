@@ -10,7 +10,7 @@
  */
 
 import { Hono } from "hono";
-import { authMiddleware, type AuthEnv } from "../middleware/auth";
+import type { AuthEnv } from "../middleware/auth";
 import { getDb } from "../db";
 import {
   getArtifact,
@@ -26,7 +26,6 @@ import { registry } from "../services/streams";
 import type { ViewedRequest, AddCommentRequest } from "../schemas/api";
 
 export const artifactRouter = new Hono<AuthEnv>();
-artifactRouter.use("*", authMiddleware);
 
 // ── GET /api/artifacts/:id ──────────────────────────────────────────────────
 
