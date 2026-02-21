@@ -11,9 +11,7 @@ import {
   type StopReason,
 } from "@agentclientprotocol/sdk";
 import type { Subprocess } from "bun";
-
-// TODO: Make the copilot CLI path configurable via config.ts
-const COPILOT_COMMAND = "copilot";
+import { config } from "../config";
 
 /** Callback for streaming text deltas from Copilot */
 export type OnDelta = (content: string) => void;
@@ -85,7 +83,7 @@ export class CopilotConnection {
     const existing = connections.get(sessionId);
     if (existing) return existing;
 
-    const proc = Bun.spawn([COPILOT_COMMAND, "--acp", "--stdio"], {
+    const proc = Bun.spawn([config.copilotCliPath, "--acp", "--stdio"], {
       stdin: "pipe",
       stdout: "pipe",
       stderr: "inherit",

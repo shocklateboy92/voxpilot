@@ -7,6 +7,7 @@ export { GrepSearchTool } from "./grep-search";
 export { GlobSearchTool } from "./glob-search";
 export { GitDiffTool } from "./git-diff";
 export { GitShowTool } from "./git-show";
+export { CopilotAgentTool } from "./copilot-agent";
 
 import { ToolRegistry } from "./registry";
 import { ReadFileTool } from "./read-file";
@@ -16,6 +17,7 @@ import { GrepSearchTool } from "./grep-search";
 import { GlobSearchTool } from "./glob-search";
 import { GitDiffTool } from "./git-diff";
 import { GitShowTool } from "./git-show";
+import { CopilotAgentTool } from "./copilot-agent";
 
 function buildDefaultRegistry(): ToolRegistry {
   const reg = new ToolRegistry();
@@ -26,6 +28,7 @@ function buildDefaultRegistry(): ToolRegistry {
   reg.register(new ReadFileExternalTool());
   reg.register(new GitDiffTool());
   reg.register(new GitShowTool());
+  reg.register(new CopilotAgentTool());
   return reg;
 }
 

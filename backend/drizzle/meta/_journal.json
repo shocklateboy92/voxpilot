@@ -8,6 +8,13 @@
       "when": 1771612413657,
       "tag": "0000_panoramic_magus",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1771649238876,
+      "tag": "0001_funny_hawkeye",
+      "breakpoints": true
     }
   ]
 }
