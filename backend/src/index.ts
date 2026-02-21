@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { config } from "./config";
 import { closeDb, initDb } from "./db";
+import { authMiddleware, type AuthEnv } from "./middleware/auth";
 import { healthRouter } from "./routes/health";
 import { authRouter } from "./routes/auth";
 import { sessionsRouter } from "./routes/sessions";
@@ -17,10 +18,17 @@ app.use(
   }),
 );
 
+// Public routes
 app.route("/", healthRouter);
 app.route("/", authRouter);
-app.route("/", sessionsRouter);
-app.route("/", chatRouter);
+
+// Protected routes — authMiddleware is applied once here so individual
+// routers don't need to add it themselves.
+const protectedRouter = new Hono<AuthEnv>();
+protectedRouter.use("*", authMiddleware);
+protectedRouter.route("/", sessionsRouter);
+protectedRouter.route("/", chatRouter);
+app.route("/", protectedRouter);
 
 initDb(config.dbPath);
 console.log(
