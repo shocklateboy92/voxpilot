@@ -41,6 +41,8 @@ process.on("SIGINT", () => {
   process.exit(0);
 });
 
+export type AppType = typeof app;
+
 export default {
   port: 8000,
   fetch: app.fetch,
