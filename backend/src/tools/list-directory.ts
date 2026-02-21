@@ -1,8 +1,8 @@
-import { z } from "zod/v4";
-import { readdir, stat } from "node:fs/promises";
 import type { Dirent } from "node:fs";
-import { resolve, relative } from "node:path";
-import { type Tool, type ToolResult, resolvePath, simpleResult } from "./base";
+import { readdir, stat } from "node:fs/promises";
+import { relative, resolve } from "node:path";
+import { z } from "zod/v4";
+import { resolvePath, simpleResult, type Tool, type ToolResult } from "./base";
 
 const SKIP_DIRS = new Set([
   ".git",
@@ -41,8 +41,7 @@ export class ListDirectoryTool implements Tool<typeof parameters> {
   readonly requiresConfirmation = false;
 
   async execute(args: Params, workDir: string): Promise<ToolResult> {
-    const rawPath =
-      args.path && args.path !== "" ? args.path : ".";
+    const rawPath = args.path && args.path !== "" ? args.path : ".";
 
     const resolved = await resolvePath(rawPath, workDir);
     if (resolved === null) {

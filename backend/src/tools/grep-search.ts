@@ -1,8 +1,8 @@
-import { z } from "zod/v4";
-import { readdir, readFile, stat } from "node:fs/promises";
 import type { Dirent } from "node:fs";
-import { join, relative, resolve, extname } from "node:path";
-import { type Tool, type ToolResult, resolvePath, simpleResult } from "./base";
+import { readdir, readFile, stat } from "node:fs/promises";
+import { extname, join, relative, resolve } from "node:path";
+import { z } from "zod/v4";
+import { resolvePath, simpleResult, type Tool, type ToolResult } from "./base";
 
 const SKIP_DIRS = new Set([
   ".git",
@@ -63,9 +63,7 @@ const BINARY_EXTENSIONS = new Set([
 
 const parameters = z
   .object({
-    pattern: z
-      .string()
-      .describe("Regular expression pattern to search for."),
+    pattern: z.string().describe("Regular expression pattern to search for."),
     path: z
       .string()
       .optional()
@@ -109,8 +107,7 @@ export class GrepSearchTool implements Tool<typeof parameters> {
       );
     }
 
-    const rawPath =
-      args.path && args.path !== "" ? args.path : ".";
+    const rawPath = args.path && args.path !== "" ? args.path : ".";
 
     const resolved = await resolvePath(rawPath, workDir);
     if (resolved === null) {

@@ -1,5 +1,5 @@
-import { z } from "zod/v4";
 import type { ChatCompletionTool } from "openai/resources";
+import { z } from "zod/v4";
 import type { Tool, ToolResult } from "./base";
 
 export class ToolRegistry {
@@ -41,7 +41,7 @@ export class ToolRegistry {
       throw new Error(`Unknown tool: '${name}'`);
     }
     const raw: unknown = rawArgs ? JSON.parse(rawArgs) : {};
-    const parsed: unknown = tool.parameters.parse(raw);
+    const parsed = tool.parameters.parse(raw);
     return tool.execute(parsed, workDir);
   }
 }

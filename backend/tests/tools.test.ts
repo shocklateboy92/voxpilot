@@ -1,16 +1,15 @@
-import { describe, expect, it, beforeEach, afterEach } from "bun:test";
-import { mkdtemp, rm, writeFile, mkdir, symlink } from "node:fs/promises";
-import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-
-import { ReadFileTool } from "../src/tools/read-file";
-import { ReadFileExternalTool } from "../src/tools/read-file-external";
-import { ListDirectoryTool } from "../src/tools/list-directory";
-import { GrepSearchTool } from "../src/tools/grep-search";
-import { GlobSearchTool } from "../src/tools/glob-search";
+import { join } from "node:path";
+import { defaultRegistry } from "../src/tools";
 import { GitDiffTool } from "../src/tools/git-diff";
 import { GitShowTool } from "../src/tools/git-show";
-import { defaultRegistry } from "../src/tools";
+import { GlobSearchTool } from "../src/tools/glob-search";
+import { GrepSearchTool } from "../src/tools/grep-search";
+import { ListDirectoryTool } from "../src/tools/list-directory";
+import { ReadFileTool } from "../src/tools/read-file";
+import { ReadFileExternalTool } from "../src/tools/read-file-external";
 
 let workDir: string;
 
@@ -26,10 +25,7 @@ beforeEach(async () => {
   await writeFile(join(workDir, "src", "nested", "deep.py"), "# deep\n");
   await mkdir(join(workDir, "docs"));
   await writeFile(join(workDir, "docs", "README.md"), "# README\nSome docs.\n");
-  await writeFile(
-    join(workDir, "README.md"),
-    "# Project\nTop-level readme.\n",
-  );
+  await writeFile(join(workDir, "README.md"), "# Project\nTop-level readme.\n");
   await writeFile(join(workDir, ".gitignore"), "*.pyc\n");
 });
 
@@ -43,39 +39,43 @@ describe("ReadFileTool", () => {
   const tool = new ReadFileTool();
 
   it("reads file basic", async () => {
-    const result = (await tool.execute({ path: "README.md" }, workDir)).displayResult;
+    const result = (await tool.execute({ path: "README.md" }, workDir))
+      .displayResult;
     expect(result).toContain("# Project");
     expect(result).toContain("Top-level readme.");
     expect(result).toContain("lines 1-2 of 2");
   });
 
   it("includes line numbers", async () => {
-    const result = (await tool.execute({ path: "src/utils.py" }, workDir)).displayResult;
+    const result = (await tool.execute({ path: "src/utils.py" }, workDir))
+      .displayResult;
     expect(result).toContain("1 |");
     expect(result).toContain("2 |");
     expect(result).toContain("3 |");
   });
 
   it("reads line range", async () => {
-    const result = (await tool.execute(
-      { path: "src/utils.py", start_line: 2, end_line: 2 },
-      workDir,
-    )).displayResult;
+    const result = (
+      await tool.execute(
+        { path: "src/utils.py", start_line: 2, end_line: 2 },
+        workDir,
+      )
+    ).displayResult;
     expect(result).toContain("def helper():");
     expect(result).not.toContain("# utils");
   });
 
   it("errors on not found", async () => {
-    const result = (await tool.execute({ path: "nonexistent.py" }, workDir)).displayResult;
+    const result = (await tool.execute({ path: "nonexistent.py" }, workDir))
+      .displayResult;
     expect(result.startsWith("Error:")).toBe(true);
     expect(result).toContain("does not exist");
   });
 
   it("rejects path traversal", async () => {
-    const result = (await tool.execute(
-      { path: "../../../etc/passwd" },
-      workDir,
-    )).displayResult;
+    const result = (
+      await tool.execute({ path: "../../../etc/passwd" }, workDir)
+    ).displayResult;
     expect(result.startsWith("Error:")).toBe(true);
     expect(result).toContain("outside");
   });
@@ -95,46 +95,54 @@ describe("ReadFileTool", () => {
 
   it("errors on too large file", async () => {
     await writeFile(join(workDir, "big.txt"), "x".repeat(200_000));
-    const result = (await tool.execute({ path: "big.txt" }, workDir)).displayResult;
+    const result = (await tool.execute({ path: "big.txt" }, workDir))
+      .displayResult;
     expect(result.startsWith("Error:")).toBe(true);
     expect(result).toContain("bytes");
   });
 
   it("rejects symlink escape", async () => {
     await symlink("/etc/passwd", join(workDir, "escape_link"));
-    const result = (await tool.execute({ path: "escape_link" }, workDir)).displayResult;
+    const result = (await tool.execute({ path: "escape_link" }, workDir))
+      .displayResult;
     expect(result.startsWith("Error:")).toBe(true);
   });
 
   it("rejects absolute path", async () => {
-    const result = (await tool.execute({ path: "/etc/passwd" }, workDir)).displayResult;
+    const result = (await tool.execute({ path: "/etc/passwd" }, workDir))
+      .displayResult;
     expect(result.startsWith("Error:")).toBe(true);
   });
 
   it("reads json (binary extension allowed)", async () => {
     await writeFile(join(workDir, "data.json"), '{"key": "value"}');
-    const result = (await tool.execute({ path: "data.json" }, workDir)).displayResult;
+    const result = (await tool.execute({ path: "data.json" }, workDir))
+      .displayResult;
     expect(result).toContain("key");
   });
 
   it("preserves unicode encoding", async () => {
     await writeFile(join(workDir, "unicode.txt"), "Hello 🌍 世界\n");
-    const result = (await tool.execute({ path: "unicode.txt" }, workDir)).displayResult;
+    const result = (await tool.execute({ path: "unicode.txt" }, workDir))
+      .displayResult;
     expect(result).toContain("🌍");
     expect(result).toContain("世界");
   });
 
   it("errors when start > end", async () => {
-    const result = (await tool.execute(
-      { path: "README.md", start_line: 5, end_line: 1 },
-      workDir,
-    )).displayResult;
+    const result = (
+      await tool.execute(
+        { path: "README.md", start_line: 5, end_line: 1 },
+        workDir,
+      )
+    ).displayResult;
     expect(result.startsWith("Error:")).toBe(true);
   });
 
   it("allows symlink within work dir", async () => {
     await symlink(join(workDir, "README.md"), join(workDir, "link.md"));
-    const result = (await tool.execute({ path: "link.md" }, workDir)).displayResult;
+    const result = (await tool.execute({ path: "link.md" }, workDir))
+      .displayResult;
     expect(result).toContain("# Project");
   });
 });
@@ -164,7 +172,8 @@ describe("ListDirectoryTool", () => {
   });
 
   it("errors on not found", async () => {
-    const result = (await tool.execute({ path: "nonexistent" }, workDir)).displayResult;
+    const result = (await tool.execute({ path: "nonexistent" }, workDir))
+      .displayResult;
     expect(result.startsWith("Error:")).toBe(true);
   });
 
@@ -176,7 +185,8 @@ describe("ListDirectoryTool", () => {
   });
 
   it("rejects path traversal", async () => {
-    const result = (await tool.execute({ path: "../../.." }, workDir)).displayResult;
+    const result = (await tool.execute({ path: "../../.." }, workDir))
+      .displayResult;
     expect(result.startsWith("Error:")).toBe(true);
   });
 
@@ -196,12 +206,14 @@ describe("ListDirectoryTool", () => {
 
   it("reports empty directory", async () => {
     await mkdir(join(workDir, "empty"));
-    const result = (await tool.execute({ path: "empty" }, workDir)).displayResult;
+    const result = (await tool.execute({ path: "empty" }, workDir))
+      .displayResult;
     expect(result.toLowerCase()).toContain("empty");
   });
 
   it("errors when path is a file", async () => {
-    const result = (await tool.execute({ path: "README.md" }, workDir)).displayResult;
+    const result = (await tool.execute({ path: "README.md" }, workDir))
+      .displayResult;
     expect(result.startsWith("Error:")).toBe(true);
     expect(result).toContain("not a directory");
   });
@@ -213,71 +225,77 @@ describe("GrepSearchTool", () => {
   const tool = new GrepSearchTool();
 
   it("finds basic pattern", async () => {
-    const result = (await tool.execute({ pattern: "hello" }, workDir)).displayResult;
+    const result = (await tool.execute({ pattern: "hello" }, workDir))
+      .displayResult;
     expect(result).toContain("main.py");
     expect(result).toContain("hello");
   });
 
   it("reports no match", async () => {
-    const result = (await tool.execute(
-      { pattern: "nonexistent_string_xyz" },
-      workDir,
-    )).displayResult;
+    const result = (
+      await tool.execute({ pattern: "nonexistent_string_xyz" }, workDir)
+    ).displayResult;
     expect(result).toContain("No matches");
   });
 
   it("filters with include glob", async () => {
-    const result = (await tool.execute(
-      { pattern: "#", include: "*.md" },
-      workDir,
-    )).displayResult;
+    const result = (
+      await tool.execute({ pattern: "#", include: "*.md" }, workDir)
+    ).displayResult;
     expect(result).toContain("README.md");
     expect(result).not.toContain("main.py");
   });
 
   it("restricts to path", async () => {
-    const result = (await tool.execute(
-      { pattern: "#", path: "docs" },
-      workDir,
-    )).displayResult;
+    const result = (await tool.execute({ pattern: "#", path: "docs" }, workDir))
+      .displayResult;
     expect(result).toContain("docs");
     // Should not find root README
-    const lines = result
-      .split("\n")
-      .filter((ln) => ln.startsWith("README.md"));
+    const lines = result.split("\n").filter((ln) => ln.startsWith("README.md"));
     expect(lines).toHaveLength(0);
   });
 
   it("errors on invalid regex", async () => {
-    const result = (await tool.execute({ pattern: "[invalid" }, workDir)).displayResult;
+    const result = (await tool.execute({ pattern: "[invalid" }, workDir))
+      .displayResult;
     expect(result.startsWith("Error:")).toBe(true);
     expect(result.toLowerCase()).toContain("regex");
   });
 
   it("is case insensitive", async () => {
-    const result = (await tool.execute({ pattern: "HELLO" }, workDir)).displayResult;
+    const result = (await tool.execute({ pattern: "HELLO" }, workDir))
+      .displayResult;
     expect(result).toContain("main.py");
   });
 
   it("rejects path traversal", async () => {
-    const result = (await tool.execute(
-      { pattern: "root", path: "../../.." },
-      workDir,
-    )).displayResult;
+    const result = (
+      await tool.execute({ pattern: "root", path: "../../.." }, workDir)
+    ).displayResult;
     expect(result.startsWith("Error:")).toBe(true);
   });
 
   it("includes line numbers", async () => {
-    const result = (await tool.execute({ pattern: "def helper" }, workDir)).displayResult;
+    const result = (await tool.execute({ pattern: "def helper" }, workDir))
+      .displayResult;
     expect(result).toContain(":2:");
   });
 
   it("skips binary files", async () => {
     await writeFile(
       join(workDir, "image.png"),
-      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, ...new Array(100).fill(0x00)]),
+      Buffer.from([
+        0x89,
+        0x50,
+        0x4e,
+        0x47,
+        0x0d,
+        0x0a,
+        ...new Array(100).fill(0x00),
+      ]),
     );
-    const result = (await tool.execute({ pattern: "PNG" }, workDir)).displayResult;
+    const result = (await tool.execute({ pattern: "PNG" }, workDir))
+      .displayResult;
     expect(result).not.toContain("image.png");
   });
 
@@ -288,7 +306,6 @@ describe("GrepSearchTool", () => {
     ).rejects.toThrow();
   });
 });
-;
 
 // ── GlobSearchTool ─────────────────────────────────────────────────────────────
 
@@ -296,44 +313,46 @@ describe("GlobSearchTool", () => {
   const tool = new GlobSearchTool();
 
   it("finds all py files", async () => {
-    const result = (await tool.execute({ pattern: "**/*.py" }, workDir)).displayResult;
+    const result = (await tool.execute({ pattern: "**/*.py" }, workDir))
+      .displayResult;
     expect(result).toContain("src/main.py");
     expect(result).toContain("src/utils.py");
     expect(result).toContain("src/nested/deep.py");
   });
 
   it("finds md files", async () => {
-    const result = (await tool.execute({ pattern: "**/*.md" }, workDir)).displayResult;
+    const result = (await tool.execute({ pattern: "**/*.md" }, workDir))
+      .displayResult;
     expect(result).toContain("README.md");
     expect(result).toContain("docs/README.md");
   });
 
   it("restricts to path", async () => {
-    const result = (await tool.execute(
-      { pattern: "*.py", path: "src" },
-      workDir,
-    )).displayResult;
+    const result = (
+      await tool.execute({ pattern: "*.py", path: "src" }, workDir)
+    ).displayResult;
     expect(result).toContain("main.py");
     expect(result).not.toContain("deep.py");
   });
 
   it("reports no match", async () => {
-    const result = (await tool.execute({ pattern: "**/*.rs" }, workDir)).displayResult;
+    const result = (await tool.execute({ pattern: "**/*.rs" }, workDir))
+      .displayResult;
     expect(result).toContain("No files found");
   });
 
   it("skips __pycache__", async () => {
     await mkdir(join(workDir, "__pycache__"));
     await writeFile(join(workDir, "__pycache__", "test.pyc"), "\x00");
-    const result = (await tool.execute({ pattern: "**/*.pyc" }, workDir)).displayResult;
+    const result = (await tool.execute({ pattern: "**/*.pyc" }, workDir))
+      .displayResult;
     expect(result).toContain("No files found");
   });
 
   it("rejects path traversal", async () => {
-    const result = (await tool.execute(
-      { pattern: "*.py", path: "../../.." },
-      workDir,
-    )).displayResult;
+    const result = (
+      await tool.execute({ pattern: "*.py", path: "../../.." }, workDir)
+    ).displayResult;
     expect(result.startsWith("Error:")).toBe(true);
   });
 
@@ -345,10 +364,9 @@ describe("GlobSearchTool", () => {
   });
 
   it("errors when path is not a directory", async () => {
-    const result = (await tool.execute(
-      { pattern: "*.py", path: "README.md" },
-      workDir,
-    )).displayResult;
+    const result = (
+      await tool.execute({ pattern: "*.py", path: "README.md" }, workDir)
+    ).displayResult;
     expect(result.startsWith("Error:")).toBe(true);
   });
 });
@@ -433,17 +451,17 @@ describe("ReadFileExternalTool", () => {
   it("reads absolute path", async () => {
     const testFile = join(workDir, "external.txt");
     await writeFile(testFile, "line one\nline two\n");
-    const result = (await tool.execute({ path: testFile }, workDir)).displayResult;
+    const result = (await tool.execute({ path: testFile }, workDir))
+      .displayResult;
     expect(result).toContain("line one");
     expect(result).toContain("line two");
     expect(result).toContain("lines 1-2 of 2");
   });
 
   it("errors on file not found", async () => {
-    const result = (await tool.execute(
-      { path: "/nonexistent/file.txt" },
-      workDir,
-    )).displayResult;
+    const result = (
+      await tool.execute({ path: "/nonexistent/file.txt" }, workDir)
+    ).displayResult;
     expect(result.startsWith("Error:")).toBe(true);
     expect(result).toContain("does not exist");
   });
@@ -451,10 +469,12 @@ describe("ReadFileExternalTool", () => {
   it("reads line range", async () => {
     const testFile = join(workDir, "multi.txt");
     await writeFile(testFile, "a\nb\nc\nd\ne\n");
-    const result = (await tool.execute(
-      { path: testFile, start_line: 2, end_line: 4 },
-      workDir,
-    )).displayResult;
+    const result = (
+      await tool.execute(
+        { path: testFile, start_line: 2, end_line: 4 },
+        workDir,
+      )
+    ).displayResult;
     expect(result).toContain("b");
     expect(result).toContain("c");
     expect(result).toContain("d");
@@ -524,7 +544,11 @@ describe("GitDiffTool", () => {
 
   it("shows staged changes (from=HEAD to=INDEX)", async () => {
     await writeFile(join(gitDir, "file.txt"), "modified\n");
-    await Bun.spawn(["git", "add", "file.txt"], { cwd: gitDir, stdout: "pipe", stderr: "pipe" }).exited;
+    await Bun.spawn(["git", "add", "file.txt"], {
+      cwd: gitDir,
+      stdout: "pipe",
+      stderr: "pipe",
+    }).exited;
     const result = await tool.execute({ from: "HEAD", to: "INDEX" }, gitDir);
     expect(result.displayResult).toContain("modified");
     expect(result.displayResult).toContain("diff --git");
@@ -542,8 +566,15 @@ describe("GitDiffTool", () => {
     await mkdir(join(gitDir, "sub"));
     await writeFile(join(gitDir, "sub", "a.txt"), "new file\n");
     await writeFile(join(gitDir, "other.txt"), "other\n");
-    await Bun.spawn(["git", "add", "-A"], { cwd: gitDir, stdout: "pipe", stderr: "pipe" }).exited;
-    const result = await tool.execute({ from: "HEAD", to: "INDEX", path: "sub" }, gitDir);
+    await Bun.spawn(["git", "add", "-A"], {
+      cwd: gitDir,
+      stdout: "pipe",
+      stderr: "pipe",
+    }).exited;
+    const result = await tool.execute(
+      { from: "HEAD", to: "INDEX", path: "sub" },
+      gitDir,
+    );
     expect(result.displayResult).toContain("a.txt");
     expect(result.displayResult).not.toContain("other.txt");
   });
