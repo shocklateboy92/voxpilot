@@ -27,9 +27,6 @@ app.route("/", artifactRouter);
 // Initialize the db so any errors happen
 // before we start accepting requests.
 getDb();
-console.log(
-  `${config.appName} listening on http://localhost:8000 (debug=${String(config.debug)})`,
-);
 
 process.on("SIGINT", () => {
   closeDb();
@@ -40,4 +37,9 @@ export default {
   port: 8000,
   fetch: app.fetch,
   idleTimeout: 255, // seconds — max value; keeps SSE connections alive
+  onListen(server: { hostname: string; port: number }) {
+    console.log(
+      `${config.appName} listening on http://${server.hostname}:${server.port} (debug=${String(config.debug)})`,
+    );
+  },
 };
