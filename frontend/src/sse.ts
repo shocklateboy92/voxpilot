@@ -212,7 +212,8 @@ export async function sendMessage(
     json: { content, model },
   });
 
-  if (response.status === 401) {
+  // Auth middleware may return 401, but that's not in the typed status union
+  if ((response.status as number) === 401) {
     window.location.reload();
   }
 
@@ -234,7 +235,8 @@ export async function confirmTool(
     json: { tool_call_id: toolCallId, approved },
   });
 
-  if (response.status === 401) {
+  // Auth middleware may return 401, but that's not in the typed status union
+  if ((response.status as number) === 401) {
     window.location.reload();
   }
 

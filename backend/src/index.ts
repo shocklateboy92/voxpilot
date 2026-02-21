@@ -9,28 +9,31 @@ import { sessionsRouter } from "./routes/sessions";
 import { chatRouter } from "./routes/chat";
 import { artifactRouter } from "./routes/artifacts";
 
-export const app = new Hono();
+// Protected routes — authMiddleware is applied once here so individual
+// routers don't need to add it themselves.
+const protectedBase = new Hono<AuthEnv>();
+protectedBase.use("*", authMiddleware);
+const protectedRouter = protectedBase
+  .route("/", sessionsRouter)
+  .route("/", chatRouter)
+  .route("/", artifactRouter);
 
-app.use(
+// Chain .route() calls so Hono's type system propagates route
+// definitions — required for the frontend hc<AppType>() RPC client.
+const appBase = new Hono();
+appBase.use(
   "*",
   cors({
     origin: config.corsOrigins,
     credentials: true,
   }),
 );
+export const app = appBase
+  .route("/", healthRouter)
+  .route("/", authRouter)
+  .route("/", protectedRouter);
 
-// Public routes
-app.route("/", healthRouter);
-app.route("/", authRouter);
-
-// Protected routes — authMiddleware is applied once here so individual
-// routers don't need to add it themselves.
-const protectedRouter = new Hono<AuthEnv>();
-protectedRouter.use("*", authMiddleware);
-protectedRouter.route("/", sessionsRouter);
-protectedRouter.route("/", chatRouter);
-protectedRouter.route("/", artifactRouter);
-app.route("/", protectedRouter);
+export type AppType = typeof app;
 
 // Initialize the db so any errors happen
 // before we start accepting requests.
@@ -40,8 +43,6 @@ process.on("SIGINT", () => {
   closeDb();
   process.exit(0);
 });
-
-export type AppType = typeof app;
 
 export default {
   port: 8000,
