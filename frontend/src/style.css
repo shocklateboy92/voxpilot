@@ -466,6 +466,70 @@ h1 {
   font-size: 0.75rem;
 }
 
+/* ── Copilot streaming block ──────────────────────────────────────────────── */
+
+.copilot-block {
+  align-self: flex-start;
+  max-width: 90%;
+  background: #151820;
+  border: 1px solid #2a2d37;
+  border-radius: 0.5rem;
+  font-size: 0.8rem;
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+}
+
+.copilot-block[open] {
+  border-color: #7c3aed;
+}
+
+.copilot-summary {
+  padding: 0.4rem 0.7rem;
+  cursor: pointer;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  user-select: none;
+  list-style: none;
+}
+
+.copilot-summary::-webkit-details-marker {
+  display: none;
+}
+
+.copilot-summary::before {
+  content: "▸ ";
+  color: #7c3aed;
+}
+
+.copilot-block[open] > .copilot-summary::before {
+  content: "▾ ";
+}
+
+.copilot-spinner {
+  font-size: 0.75rem;
+}
+
+.copilot-done-label {
+  color: #4ade80;
+  font-size: 0.75rem;
+}
+
+.copilot-stream {
+  margin: 0;
+  padding: 0.5rem 0.7rem;
+  border-top: 1px solid #2a2d37;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-text);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 20rem;
+  overflow-y: auto;
+  line-height: 1.4;
+  background: var(--color-bg);
+}
+
 /* ── Tool confirmation prompt ─────────────────────────────────────────────── */
 
 .tool-confirm {
