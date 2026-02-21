@@ -19,7 +19,7 @@ export function MessageBubble(props: Props) {
             when={props.message.html}
             fallback={<div class="message assistant">{props.message.content}</div>}
           >
-            <div class="message assistant markdown-body" innerHTML={props.message.html ?? undefined} />
+            {(html) => <div class="message assistant markdown-body" innerHTML={html()} />}
           </Show>
         </Show>
         <For each={props.message.tool_calls}>
@@ -43,7 +43,7 @@ export function MessageBubble(props: Props) {
           when={props.message.role === "assistant" && props.message.html}
           fallback={<div class={`message ${props.message.role}`}>{props.message.content}</div>}
         >
-          <div class="message assistant markdown-body" innerHTML={props.message.html ?? undefined} />
+          {(html) => <div class="message assistant markdown-body" innerHTML={html()} />}
         </Show>
       </Show>
     </>

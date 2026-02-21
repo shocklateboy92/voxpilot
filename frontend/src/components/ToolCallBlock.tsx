@@ -4,7 +4,6 @@
  * Used for both in-flight streaming tool calls and history display.
  */
 
-import { Show } from "solid-js";
 import type { StreamingToolCall } from "../store";
 
 interface Props {
@@ -24,16 +23,14 @@ export function ToolCallBlock(props: Props) {
     <details class="tool-block" data-tool-call-id={props.call.id}>
       <summary class="tool-summary">
         ⚙ {props.call.name}
-        <Show when={props.call.result === undefined}>
-          <span class="tool-spinner"> ⏳</span>
-        </Show>
+        {props.call.result === undefined && <span class="tool-spinner"> ⏳</span>}
       </summary>
       <div class="tool-arguments">{argsText()}</div>
-      <Show when={props.call.result !== undefined}>
+      {props.call.result !== undefined && (
         <div class={`tool-result${props.call.isError ? " tool-error" : ""}`}>
           <pre>{props.call.result}</pre>
         </div>
-      </Show>
+      )}
     </details>
   );
 }
