@@ -21,7 +21,7 @@ browser refreshes and backend restarts without custom buffering.
 | Tool input | Free-form prompt string — the main AI composes the prompt |
 | Copilot permissions | Auto-approve all (`outcome: "allowed"`) |
 | Process lifecycle | Long-lived per session — one `copilot --acp --stdio` process per voxpilot session, with **multiple ACP sessions** on that connection for independent tasks |
-| Session model | Each tool invocation can reuse the current ACP session (follow-ups) or create a fresh one (new independent task) via the `new_session` parameter |
+| Session model | Named ACP sessions — the AI picks a descriptive `session_name` (e.g. `"auth-bug-fix"`) per task; same name = follow-up, new name = independent task |
 | Streaming UX | Expanded while streaming, auto-collapse on done |
 | Reconnection | ACP `session/load` replays full conversation; backend buffers per-tool-call output for mid-stream SSE reconnects |
 
@@ -49,18 +49,22 @@ the main AI to start independent coding tasks without spawning new processes.
   - `sessionUpdate()` → emits streaming chunks via a callback so the agent loop
     can yield SSE events.
 - `initialize()` → calls `connection.initialize(...)`.
-- `newSession()` → calls `connection.newSession({ cwd: workDir, mcpServers: [] })`,
-  stores the ACP `sessionId`. Can be called multiple times on the same
-  connection to create independent task contexts.
-- `loadSession(acpSessionId, workDir)` → calls `connection.loadSession({ sessionId, cwd, mcpServers: [] })`.
-  Replays the full conversation history via `session/update` notifications.
-  Returns the accumulated output text so the caller can use it for display.
-- `prompt(text, onDelta, opts?)` → calls `connection.prompt(...)`, streams
+- `getOrCreateSession(name, workDir)` → looks up `name` in the internal
+  `sessions` map. If found, returns the existing ACP session ID. If not,
+  calls `connection.newSession({ cwd: workDir, mcpServers: [] })`, stores the
+  mapping `name → acpSessionId`, persists it to the `acp_sessions` DB table,
+  and returns the new ID.
+- `loadSession(name, acpSessionId, workDir)` → calls
+  `connection.loadSession({ sessionId, cwd, mcpServers: [] })`. Replays the
+  full conversation history via `session/update` notifications. Stores the
+  mapping in the `sessions` map. Used on backend restart to restore all
+  previously created named sessions.
+- `prompt(sessionName, text, onDelta)` → resolves the ACP session ID from the
+  `sessions` map by name, calls `connection.prompt(...)`, streams
   `agent_message_chunk` updates via the `onDelta` callback, returns
-  `PromptResponse` with `stopReason`. If `opts.newSession` is true, calls
-  `newSession()` first to get a fresh ACP session before prompting.
-- `currentSessionId` — tracks the active ACP session ID. Callers can inspect
-  this to know whether a session already exists.
+  `PromptResponse` with `stopReason`.
+- `sessions` — a `Map<string, string>` mapping logical session names to ACP
+  session IDs. Populated by `getOrCreateSession()` and `loadSession()`.
 - `destroy()` → kills the child process, cleans up all sessions.
 - `outputBuffer` — a `Map<string, string>` keyed by `tool_call_id`.
   Accumulates all `copilot-delta` text per tool call. Used to replay output on
@@ -75,17 +79,20 @@ voxpilot session ID. Clean up on session broadcaster shutdown.
 ```
 voxpilot session
   └── CopilotConnection (one child process)
-        ├── ACP Session A  ← first copilot_agent call (implicit newSession)
+        ├── ACP Session "auth-bug-fix"   ← copilot_agent(session_name="auth-bug-fix")
         │     ├── prompt 1  "fix the auth bug"
-        │     └── prompt 2  "also add a test for it"  (follow-up, same session)
-        └── ACP Session B  ← copilot_agent call with new_session: true
-              └── prompt 3  "refactor the logger"     (independent task)
+        │     └── prompt 2  "also add a test for it"   (same session_name = follow-up)
+        ├── ACP Session "refactor-logger" ← copilot_agent(session_name="refactor-logger")
+        │     └── prompt 3  "refactor the logger"      (different name = independent)
+        └── ACP Session "auth-bug-fix"   ← copilot_agent(session_name="auth-bug-fix")
+              └── prompt 4  "one more edge case"       (back to first session)
 ```
 
-The first `copilot_agent` invocation always creates an ACP session. Subsequent
-calls reuse it by default (for follow-up instructions). When the main AI
-determines the task is unrelated, it sets `new_session: true` to start a fresh
-ACP session on the same underlying connection/process.
+The AI chooses a short descriptive `session_name` for each task (e.g.
+`"auth-bug-fix"`, `"refactor-logger"`). Using the same name routes to the
+existing ACP session for follow-ups; using a new name creates a fresh ACP
+session on the same underlying connection/process. The AI can freely switch
+between named sessions across tool calls.
 
 #### Reconnection flows
 
@@ -108,9 +115,11 @@ Browser refreshes
 **Backend restart (process dies and restarts):**
 
 The child `copilot` process dies with the backend. On restart, when Copilot is
-needed again, `getOrCreate()` spawns a fresh process. If a previous ACP session
-ID is stored in the DB, `loadSession()` replays the full conversation via
-`session/update` notifications, restoring context for follow-up prompts.
+needed again, `getOrCreate()` spawns a fresh process and reads all rows from
+the `acp_sessions` DB table for this voxpilot session. It calls `loadSession()`
+for each named session to replay their full conversation history via
+`session/update` notifications, restoring context for follow-up prompts to any
+of the named sessions.
 
 Completed `copilot_agent` tool calls already have their output persisted in the
 DB as the tool result message's `displayResult` — the frontend renders these
@@ -128,8 +137,8 @@ Backend restarts
   → completed copilot_agent calls rendered from tool result messages
   → interrupted copilot_agent calls shown as incomplete (error state)
   → next copilot_agent call: getOrCreate() spawns new process
-  → loadSession() restores ACP context from stored sessionId
-  → follow-up prompts work as if nothing happened
+  → loadSession() restores all named ACP sessions from acp_sessions table
+  → follow-up prompts to any named session work as if nothing happened
 ```
 
 ### 3. Add new SSE event schemas
@@ -138,8 +147,8 @@ Backend restarts
 
 | Event | Schema | Purpose |
 |---|---|---|
-| `copilot-delta` | `{ tool_call_id: string, content: string }` | Streaming text chunks from Copilot |
-| `copilot-done` | `{ tool_call_id: string, summary: string, stop_reason: string }` | Signals completion with summary |
+| `copilot-delta` | `{ tool_call_id: string, content: string, session_name: string }` | Streaming text chunks from Copilot |
+| `copilot-done` | `{ tool_call_id: string, summary: string, stop_reason: string, session_name: string }` | Signals completion with summary |
 
 ### 4. Create `CopilotAgentTool`
 
@@ -150,15 +159,15 @@ Backend restarts
 - `definition`:
   - name: `copilot_agent`
   - description: "Delegate a coding task to GitHub Copilot. Copilot will
-    autonomously modify files in the workspace. Set `new_session` to true when
-    starting an unrelated task (creates a fresh context); omit or set false for
-    follow-up instructions to the current task."
+    autonomously modify files in the workspace. Use the same session_name for
+    follow-up instructions to the same task. Use a different session_name for
+    independent tasks."
   - parameters:
     - `prompt: string` (required) — the instruction to send to Copilot.
-    - `new_session: boolean` (optional, default `false`) — when true, creates a
-      new ACP session for this task instead of continuing the current one. The
-      main AI should set this when the user asks for an independent/unrelated
-      coding task.
+    - `session_name: string` (required) — a short descriptive name for the
+      ACP session context (e.g. `"auth-bug-fix"`, `"refactor-logger"`). The
+      AI picks this autonomously. First use of a name creates a new ACP
+      session; subsequent uses route to the existing session for follow-ups.
 - `execute()` returns a `ToolResult` after Copilot finishes:
   - `llmResult`: compact summary of what Copilot did.
   - `displayResult`: full accumulated Copilot output (from `outputBuffer`).
@@ -174,17 +183,23 @@ Backend restarts
 Special-case `copilot_agent` in the tool execution block (similar to how diff
 tools are special-cased for artifact creation):
 
-1. Before calling `tool.execute()`, set up the ACP connection's `sessionUpdate`
-   callback to yield `copilot-delta` events with the `tool_call_id`.
-2. Capture `agent_message_chunk` updates where `content.type === "text"` and
+1. Extract `session_name` from the parsed tool arguments.
+2. Call `copilotConnection.getOrCreateSession(session_name, workDir)` to
+   ensure the named ACP session exists.
+3. Before calling `tool.execute()`, set up the ACP connection's `sessionUpdate`
+   callback to yield `copilot-delta` events with the `tool_call_id` and
+   `session_name`.
+4. Capture `agent_message_chunk` updates where `content.type === "text"` and
    yield them as `copilot-delta` SSE events. Also append to
    `CopilotConnection.outputBuffer[tool_call_id]`.
-3. When `.prompt()` resolves, yield a `copilot-done` event with the stop reason.
-4. The standard `tool-result` event still fires afterward with the summary.
-5. Clear `outputBuffer[tool_call_id]` after the tool result is persisted.
+5. When `.prompt()` resolves, yield a `copilot-done` event with the stop reason
+   and `session_name`.
+6. The standard `tool-result` event still fires afterward with the summary.
+7. Clear `outputBuffer[tool_call_id]` after the tool result is persisted.
 
-Pass `sessionId` and `workDir` to the copilot tool via an extended context
-parameter or by directly calling the copilot service from the agent loop.
+Pass `sessionId`, `session_name`, and `workDir` to the copilot tool via an
+extended context parameter or by directly calling the copilot service from
+the agent loop.
 
 ### 5b. Replay Copilot state on SSE reconnect
 
@@ -222,15 +237,24 @@ the CLI binary path.
 
 **File**: `backend/src/schema.ts`
 
-Add an `acpSessionId` column to the `sessions` table (nullable text). When
-`CopilotConnection.newSession()` creates an ACP session, persist the returned
-`sessionId` to this column. On backend restart, `getOrCreate()` reads this to
-decide whether to call `loadSession()` vs `newSession()`.
+Create a new `acp_sessions` table to store named ACP session mappings:
 
-This also enables the `copilot_agent` tool to check whether a previous ACP
-session exists without the `CopilotConnection` being live in memory.
+```
+acpSessions:
+  id            TEXT PRIMARY KEY   -- auto-generated UUID
+  sessionId     TEXT NOT NULL FK→sessions
+  name          TEXT NOT NULL      -- logical name chosen by AI (e.g. "auth-bug-fix")
+  acpSessionId  TEXT NOT NULL      -- ACP protocol session ID
+  createdAt     TEXT NOT NULL
+  UNIQUE(sessionId, name)
+```
 
-**Migration**: `ALTER TABLE sessions ADD COLUMN acp_session_id TEXT;`
+When `CopilotConnection.getOrCreateSession()` creates a new ACP session,
+persist the `name → acpSessionId` mapping to this table. On backend restart,
+`getOrCreate()` reads all rows for the voxpilot session and calls
+`loadSession()` for each to restore all named ACP sessions.
+
+**Migration**: `CREATE TABLE acp_sessions (...);`
 
 ## Frontend
 
@@ -248,8 +272,9 @@ export interface StreamingToolCall {
   result?: string;
   isError?: boolean;
   artifactId?: string;
-  copilotStream?: string;   // accumulated Copilot output text
-  copilotDone?: boolean;     // true when Copilot finishes
+  copilotStream?: string;      // accumulated Copilot output text
+  copilotDone?: boolean;        // true when Copilot finishes
+  copilotSessionName?: string;  // named ACP session (e.g. "auth-bug-fix")
 }
 ```
 
@@ -272,8 +297,8 @@ export interface StreamingToolCall {
 - Renders inside `ToolCallBlock` when the tool is `copilot_agent`.
 - Uses `<details class="copilot-block">` with `open` attribute bound to
   `!copilotDone`.
-- `<summary>`: shows "🤖 Copilot" + spinner while running, or
-  "🤖 Copilot — done" when finished.
+- `<summary>`: shows "🤖 Copilot [session-name]" + spinner while running, or
+  "🤖 Copilot [session-name] — done" when finished.
 - Body: renders the streaming `copilotStream` text in a `<pre>` with
   auto-scroll.
 - When `copilotDone` becomes true, removes the `open` attribute (auto-collapses).
@@ -320,10 +345,15 @@ DB when the tool completed (no ACP replay needed for this case).
 - [ ] Verify the block auto-collapses when Copilot finishes.
 - [ ] Verify the summary is returned to the main AI for further conversation.
 - [ ] Verify history replay shows collapsed Copilot blocks correctly.
-- [ ] Verify multiple ACP sessions work: a follow-up prompt reuses the session,
-      and `new_session: true` creates a fresh one.
+- [ ] Verify named sessions work: two different `session_name` values create
+      two independent ACP sessions on the same connection.
+- [ ] Verify follow-up prompts to the same `session_name` reuse the ACP
+      session context.
+- [ ] Verify the AI can switch between named sessions across tool calls.
 - [ ] Verify the process is reused across sessions (only one `copilot` child
       process per voxpilot session).
+- [ ] Verify the frontend displays the session name in the Copilot stream
+      block summary.
 - [ ] **Browser refresh mid-stream**: refresh while Copilot is running, verify
       the reconnected client catches up (buffered output replayed, then live
       deltas resume).
@@ -331,6 +361,6 @@ DB when the tool completed (no ACP replay needed for this case).
       verify the completed block renders correctly from history.
 - [ ] **Backend restart recovery**: kill and restart the backend, verify
       completed copilot blocks still display from DB history, and a follow-up
-      `copilot_agent` call restores the ACP session via `session/load` before
-      prompting.
+      `copilot_agent` call restores all named ACP sessions via `session/load`
+      before prompting.
 - [ ] Run existing tests (`bun test`) to ensure no regressions.
