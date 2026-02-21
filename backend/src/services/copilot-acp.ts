@@ -135,9 +135,14 @@ export class CopilotConnection {
     instance = new CopilotConnection(proc, connection);
     connections.set(sessionId, instance);
 
-    // Perform the ACP protocol handshake
+    // Perform the ACP protocol handshake.
     await connection.initialize({
       protocolVersion: PROTOCOL_VERSION,
+      // clientCapabilities advertises what *our* process can do on behalf of
+      // the agent (e.g. fs.readTextFile, fs.writeTextFile, terminal).  Passing
+      // {} means Copilot won't delegate those operations back to us — it still
+      // performs file and terminal operations itself, using its own built-in
+      // tools inside the child process.
       clientCapabilities: {},
     });
 
