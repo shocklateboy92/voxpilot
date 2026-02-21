@@ -349,9 +349,9 @@ describe("GlobSearchTool", () => {
 // ── Tool Framework ─────────────────────────────────────────────────────────────
 
 describe("ToolRegistry", () => {
-  it("has all 7 tools", () => {
+  it("has all 8 tools", () => {
     const tools = defaultRegistry.all();
-    expect(tools).toHaveLength(7);
+    expect(tools).toHaveLength(8);
     const names = new Set(tools.map((t) => t.definition.name));
     expect(names).toEqual(
       new Set([
@@ -362,13 +362,14 @@ describe("ToolRegistry", () => {
         "read_file_external",
         "git_diff",
         "git_show",
+        "copilot_agent",
       ]),
     );
   });
 
   it("produces OpenAI format", () => {
     const specs = defaultRegistry.toOpenAiTools();
-    expect(specs).toHaveLength(7);
+    expect(specs).toHaveLength(8);
     for (const spec of specs) {
       expect(spec.type).toBe("function");
       expect(spec.function.name).toBeTruthy();
