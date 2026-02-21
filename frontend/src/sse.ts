@@ -64,6 +64,19 @@ export interface ToolConfirmPayload {
   arguments: string;
 }
 
+export interface CopilotDeltaPayload {
+  tool_call_id: string;
+  content: string;
+  session_name: string;
+}
+
+export interface CopilotDonePayload {
+  tool_call_id: string;
+  summary: string;
+  stop_reason: string;
+  session_name: string;
+}
+
 export interface ReviewArtifactPayload {
   artifactId: string;
   title: string;
@@ -89,6 +102,8 @@ export interface SessionStreamCallbacks {
   onToolResult: (payload: ToolResultPayload) => void;
   onToolConfirm: (payload: ToolConfirmPayload) => void;
   onReviewArtifact: (payload: ReviewArtifactPayload) => void;
+  onCopilotDelta: (payload: CopilotDeltaPayload) => void;
+  onCopilotDone: (payload: CopilotDonePayload) => void;
   onDone: (model: string, html: string | null) => void;
   onError: (message: string) => void;
 }
@@ -147,6 +162,8 @@ export function connectSession(
   addJsonEventListener<ToolResultPayload>(es, "tool-result", onError, callbacks.onToolResult);
   addJsonEventListener<ToolConfirmPayload>(es, "tool-confirm", onError, callbacks.onToolConfirm);
   addJsonEventListener<ReviewArtifactPayload>(es, "review-artifact", onError, callbacks.onReviewArtifact);
+  addJsonEventListener<CopilotDeltaPayload>(es, "copilot-delta", onError, callbacks.onCopilotDelta);
+  addJsonEventListener<CopilotDonePayload>(es, "copilot-done", onError, callbacks.onCopilotDone);
 
   addJsonEventListener<DonePayload>(es, "done", onError, (p) =>
     callbacks.onDone(p.model, p.html ?? null),

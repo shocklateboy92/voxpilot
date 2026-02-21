@@ -23,6 +23,9 @@ export interface StreamingToolCall {
   result?: string;
   isError?: boolean;
   artifactId?: string;
+  copilotStream?: string;
+  copilotDone?: boolean;
+  copilotSessionName?: string;
 }
 
 // ── Review artifact types ────────────────────────────────────────────────────
