@@ -75,3 +75,20 @@ export const ReviewArtifactEvent = z.object({
   files: z.array(ReviewArtifactFileEvent),
 });
 export type ReviewArtifactEvent = z.infer<typeof ReviewArtifactEvent>;
+
+// ── Copilot ACP SSE events ──────────────────────────────────────────────────
+
+export const CopilotDeltaEvent = z.object({
+  tool_call_id: z.string(),
+  content: z.string(),
+  session_name: z.string(),
+});
+export type CopilotDeltaEvent = z.infer<typeof CopilotDeltaEvent>;
+
+export const CopilotDoneEvent = z.object({
+  tool_call_id: z.string(),
+  summary: z.string(),
+  stop_reason: z.string(),
+  session_name: z.string(),
+});
+export type CopilotDoneEvent = z.infer<typeof CopilotDoneEvent>;
