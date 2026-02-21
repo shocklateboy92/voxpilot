@@ -60,6 +60,30 @@ function HistoryToolCall(props: { call: ToolCallInfo }) {
     argsText = props.call.arguments;
   }
 
+  if (props.call.name === "copilot_agent") {
+    let sessionName = "copilot";
+    try {
+      const parsed: unknown = JSON.parse(props.call.arguments);
+      if (
+        typeof parsed === "object" &&
+        parsed !== null &&
+        "session_name" in parsed &&
+        typeof (parsed as Record<string, unknown>).session_name === "string"
+      ) {
+        sessionName = (parsed as Record<string, unknown>).session_name as string;
+      }
+    } catch { /* ignore */ }
+
+    return (
+      <details class="copilot-block" data-tool-call-id={props.call.id}>
+        <summary class="copilot-summary">
+          🤖 Copilot [{sessionName}]
+          <span class="copilot-done-label"> — done</span>
+        </summary>
+      </details>
+    );
+  }
+
   return (
     <details class="tool-block" data-tool-call-id={props.call.id}>
       <summary class="tool-summary">⚙ {props.call.name}</summary>
