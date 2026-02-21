@@ -5,7 +5,6 @@
  * When the tool result includes an artifact_id, renders a ChangesetCard.
  */
 
-import { Show } from "solid-js";
 import type { StreamingToolCall } from "../store";
 import { artifacts } from "../store";
 import { ChangesetCard } from "./ChangesetCard";
@@ -38,16 +37,14 @@ export function ToolCallBlock(props: Props) {
           <details class="tool-block" data-tool-call-id={props.call.id}>
             <summary class="tool-summary">
               ⚙ {props.call.name}
-              <Show when={props.call.result === undefined}>
-                <span class="tool-spinner"> ⏳</span>
-              </Show>
+              {props.call.result === undefined && <span class="tool-spinner"> ⏳</span>}
             </summary>
             <div class="tool-arguments">{argsText()}</div>
-            <Show when={props.call.result !== undefined && !artifact()}>
+            {props.call.result !== undefined && !artifact() && (
               <div class={`tool-result${props.call.isError ? " tool-error" : ""}`}>
                 <pre>{props.call.result}</pre>
               </div>
-            </Show>
+            )}
           </details>
           <Show when={artifact()}>
             {(a) => <ChangesetCard artifact={a()} />}
