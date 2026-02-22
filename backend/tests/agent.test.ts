@@ -150,7 +150,6 @@ describe("runAgentLoop", () => {
       runAgentLoop({
         messages: [{ role: "user", content: "What is 2+2?", tool_calls: null }],
         model: "gpt-4o",
-        ghToken: "gho_fake",
         workDir,
         db: getDb(),
         sessionId,
@@ -198,7 +197,6 @@ describe("runAgentLoop", () => {
       runAgentLoop({
         messages: [{ role: "user", content: "What files?", tool_calls: null }],
         model: "gpt-4o",
-        ghToken: "gho_fake",
         workDir,
         db: getDb(),
         sessionId,
@@ -258,7 +256,6 @@ describe("runAgentLoop", () => {
       runAgentLoop({
         messages: [{ role: "user", content: "Read a file", tool_calls: null }],
         model: "gpt-4o",
-        ghToken: "gho_fake",
         workDir,
         db: getDb(),
         sessionId,
@@ -296,7 +293,6 @@ describe("runAgentLoop", () => {
       runAgentLoop({
         messages: [{ role: "user", content: "Loop", tool_calls: null }],
         model: "gpt-4o",
-        ghToken: "gho_fake",
         workDir,
         db: getDb(),
         sessionId,
@@ -345,7 +341,6 @@ describe("runAgentLoop", () => {
           { role: "user", content: "Use a weird tool", tool_calls: null },
         ],
         model: "gpt-4o",
-        ghToken: "gho_fake",
         workDir,
         db: getDb(),
         sessionId,
@@ -397,7 +392,6 @@ describe("runAgentLoop", () => {
           { role: "user", content: "Read /etc/hostname", tool_calls: null },
         ],
         model: "gpt-4o",
-        ghToken: "gho_fake",
         workDir,
         db: getDb(),
         sessionId,
@@ -451,7 +445,6 @@ describe("runAgentLoop", () => {
           { role: "user", content: "Read /etc/shadow", tool_calls: null },
         ],
         model: "gpt-4o",
-        ghToken: "gho_fake",
         workDir,
         db: getDb(),
         sessionId,
@@ -507,7 +500,6 @@ describe("runAgentLoop", () => {
       runAgentLoop({
         messages: [{ role: "user", content: "List files", tool_calls: null }],
         model: "gpt-4o",
-        ghToken: "gho_fake",
         workDir,
         db: getDb(),
         sessionId,
@@ -531,7 +523,6 @@ describe("runAgentLoop", () => {
       runAgentLoop({
         messages: [{ role: "user", content: "Hello", tool_calls: null }],
         model: "gpt-4o",
-        ghToken: "gho_fake",
         workDir,
         db: getDb(),
         sessionId,
@@ -562,7 +553,6 @@ describe("runAgentLoop", () => {
           { role: "user", content: "Long response", tool_calls: null },
         ],
         model: "gpt-4o",
-        ghToken: "gho_fake",
         workDir,
         db: getDb(),
         sessionId,

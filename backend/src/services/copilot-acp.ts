@@ -1,13 +1,13 @@
 import {
+  type Agent,
+  type Client,
   ClientSideConnection,
   ndJsonStream,
   PROTOCOL_VERSION,
-  type Agent,
-  type Client,
-  type SessionNotification,
+  type PromptResponse,
   type RequestPermissionRequest,
   type RequestPermissionResponse,
-  type PromptResponse,
+  type SessionNotification,
   type StopReason,
 } from "@agentclientprotocol/sdk";
 import type { Subprocess } from "bun";
@@ -247,7 +247,9 @@ export async function getConnection(
  * Tears down the CopilotConnection for a voxpilot session.
  */
 /** Returns the existing CopilotConnection for a session, or undefined. */
-export function getExistingConnection(sessionId: string): CopilotConnection | undefined {
+export function getExistingConnection(
+  sessionId: string,
+): CopilotConnection | undefined {
   return connections.get(sessionId);
 }
 

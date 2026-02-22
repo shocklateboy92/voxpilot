@@ -19,6 +19,7 @@ import type {
   ChatCompletionToolMessageParam,
   ChatCompletionUserMessageParam,
 } from "openai/resources/chat/completions";
+import { config } from "../config";
 import type { getDb } from "../db";
 import type { ChatMessage, ToolCallInfo } from "../schemas/api";
 import type {
@@ -47,8 +48,6 @@ import { addMessage } from "./sessions";
 import { AsyncChannel } from "./streams";
 
 type Db = ReturnType<typeof getDb>;
-
-const GITHUB_MODELS_BASE_URL = "https://models.inference.ai.azure.com";
 
 // ── SSE event types ─────────────────────────────────────────────────────────
 
@@ -111,8 +110,7 @@ class StreamedToolCall {
 
 export interface AgentLoopOptions {
   messages: ChatMessage[];
-  model: string;
-  ghToken: string;
+  model?: string;
   workDir: string;
   db: Db;
   sessionId: string;
@@ -133,7 +131,6 @@ export async function* runAgentLoop(
   const {
     messages,
     model,
-    ghToken,
     workDir,
     db,
     sessionId,
@@ -142,24 +139,25 @@ export async function* runAgentLoop(
     requestConfirmation,
   } = opts;
 
+  const resolvedModel = model ?? config.llmDefaultModel;
+  const client = new OpenAI({
+    baseURL: config.llmBaseUrl,
+    apiKey: config.llmApiKey,
+  });
+
   const openaiMessages: ChatCompletionMessageParam[] =
     messages.map(toMessageParam);
   const toolsSpec = defaultRegistry.toOpenAiTools();
 
   for (let iteration = 0; iteration < maxIterations; iteration++) {
-    const client = new OpenAI({
-      baseURL: GITHUB_MODELS_BASE_URL,
-      apiKey: ghToken,
-    });
-
-    let modelName = model;
+    let modelName = resolvedModel;
     let accumulatedText = "";
     const toolCallMap = new Map<number, StreamedToolCall>();
     let finishReason: string | null = null;
 
     try {
       console.log(
-        `[agent] iteration=${iteration} sending ${openaiMessages.length} messages to model=${model}`,
+        `[agent] iteration=${iteration} sending ${openaiMessages.length} messages to model=${resolvedModel}`,
       );
       for (const msg of openaiMessages) {
         const preview =
@@ -176,7 +174,7 @@ export async function* runAgentLoop(
       }
 
       const llmStream = await client.chat.completions.create({
-        model,
+        model: resolvedModel,
         messages: openaiMessages,
         tools: toolsSpec,
         stream: true,

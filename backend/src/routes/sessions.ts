@@ -2,20 +2,19 @@
  * Session CRUD routes.
  */
 
-import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import type { AuthEnv } from "../middleware/auth";
+import { Hono } from "hono";
 import { getDb } from "../db";
+import { SessionUpdate } from "../schemas/api";
 import {
-  listSessions,
   createSession,
-  getSession,
   deleteSession,
+  getSession,
+  listSessions,
   updateSessionTitle,
 } from "../services/sessions";
-import { SessionUpdate } from "../schemas/api";
 
-export const sessionsRouter = new Hono<AuthEnv>()
+export const sessionsRouter = new Hono()
   .get("/api/sessions", async (c) => {
     const db = getDb();
     const result = await listSessions(db);
@@ -44,13 +43,17 @@ export const sessionsRouter = new Hono<AuthEnv>()
     }
     return c.body(null, 204);
   })
-  .patch("/api/sessions/:session_id", zValidator("json", SessionUpdate), async (c) => {
-    const db = getDb();
-    const sessionId = c.req.param("session_id");
-    const body = c.req.valid("json");
-    const session = await updateSessionTitle(db, sessionId, body.title);
-    if (!session) {
-      return c.json({ detail: "Session not found" }, 404);
-    }
-    return c.json(session, 200);
-  });
+  .patch(
+    "/api/sessions/:session_id",
+    zValidator("json", SessionUpdate),
+    async (c) => {
+      const db = getDb();
+      const sessionId = c.req.param("session_id");
+      const body = c.req.valid("json");
+      const session = await updateSessionTitle(db, sessionId, body.title);
+      if (!session) {
+        return c.json({ detail: "Session not found" }, 404);
+      }
+      return c.json(session, 200);
+    },
+  );

@@ -11,7 +11,6 @@ import type { ClientResponse } from "hono/client";
 import type { SuccessStatusCode } from "hono/utils/http-status";
 import type {
   SessionSummary,
-  GitHubUser,
   ArtifactDetail,
   ReviewCommentData,
 } from "./store";
@@ -76,21 +75,6 @@ async function authedVoid(req: Promise<Response>): Promise<void> {
     const body = await res.text();
     throw new ApiError(res.status, res.statusText, body);
   }
-}
-
-// ── Auth ──────────────────────────────────────────────────────────────────────
-
-export async function fetchCurrentUser(): Promise<GitHubUser | null> {
-  try {
-    return await authedJson(rpc.api.auth.me.$get());
-  } catch {
-    return null;
-  }
-}
-
-export async function logout(): Promise<void> {
-  await authedVoid(rpc.api.auth.logout.$post());
-  window.location.reload();
 }
 
 // ── Sessions ─────────────────────────────────────────────────────────────────

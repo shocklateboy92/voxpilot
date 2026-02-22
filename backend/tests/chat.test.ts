@@ -68,8 +68,6 @@ mock.module("openai", () => ({
 // Re-import app after mock is installed
 const { app } = await import("../src/index");
 
-const AUTH = { headers: { Cookie: "gh_token=gho_fake" } };
-
 async function createTestSession(): Promise<string> {
   const db = getDb();
   const session = await createSession(db);
@@ -119,7 +117,6 @@ describe("chat", () => {
           method: "POST",
           body: JSON.stringify({ content: "Hello", model: "gpt-4o" }),
           headers: {
-            ...AUTH.headers,
             "Content-Type": "application/json",
           },
         });
@@ -135,20 +132,10 @@ describe("chat", () => {
         method: "POST",
         body: JSON.stringify({ content: "Hello", model: "gpt-4o" }),
         headers: {
-          ...AUTH.headers,
           "Content-Type": "application/json",
         },
       });
       expect(res.status).toBe(409);
-    });
-
-    it("returns 401 without cookie", async () => {
-      const res = await app.request("/api/sessions/some-id/messages", {
-        method: "POST",
-        body: JSON.stringify({ content: "Hi" }),
-        headers: { "Content-Type": "application/json" },
-      });
-      expect(res.status).toBe(401);
     });
 
     it("returns 404 for nonexistent session", async () => {
@@ -156,7 +143,6 @@ describe("chat", () => {
         method: "POST",
         body: JSON.stringify({ content: "Hi" }),
         headers: {
-          ...AUTH.headers,
           "Content-Type": "application/json",
         },
       });
@@ -171,7 +157,6 @@ describe("chat", () => {
           method: "POST",
           body: JSON.stringify({ content: "Hello world", model: "gpt-4o" }),
           headers: {
-            Cookie: "gh_token=gho_fake_token_123",
             "Content-Type": "application/json",
           },
         });
@@ -182,7 +167,6 @@ describe("chat", () => {
         if (payload) {
           expect(payload.content).toBe("Hello world");
           expect(payload.model).toBe("gpt-4o");
-          expect(payload.gh_token).toBe("gho_fake_token_123");
         }
       } finally {
         registry.unsubscribe(sessionId, listenerId);
@@ -193,13 +177,8 @@ describe("chat", () => {
   // ── GET /api/sessions/:id/stream ──────────────────────────────────────────
 
   describe("GET /stream", () => {
-    it("returns 401 without cookie", async () => {
-      const res = await app.request("/api/sessions/some-id/stream");
-      expect(res.status).toBe(401);
-    });
-
     it("returns 404 for nonexistent session", async () => {
-      const res = await app.request("/api/sessions/nonexistent/stream", AUTH);
+      const res = await app.request("/api/sessions/nonexistent/stream");
       expect(res.status).toBe(404);
     });
 
@@ -210,10 +189,7 @@ describe("chat", () => {
       await addMessage(db, sessionId, "assistant", "Hi there!");
 
       // Start streaming and immediately send sentinel to end
-      const streamPromise = app.request(
-        `/api/sessions/${sessionId}/stream`,
-        AUTH,
-      );
+      const streamPromise = app.request(`/api/sessions/${sessionId}/stream`);
 
       // Wait for the stream to register, then send sentinel
       await waitForBroadcaster(sessionId);
@@ -254,16 +230,12 @@ describe("chat", () => {
       ];
       createFn = () => mockStream(chunks);
 
-      const streamPromise = app.request(
-        `/api/sessions/${sessionId}/stream`,
-        AUTH,
-      );
+      const streamPromise = app.request(`/api/sessions/${sessionId}/stream`);
 
       await waitForBroadcaster(sessionId);
       registry.send(sessionId, {
         content: "Hi",
         model: "gpt-4o",
-        gh_token: "gho_fake",
       });
 
       // Wait briefly for processing, then send sentinel
@@ -313,16 +285,12 @@ describe("chat", () => {
       ];
       createFn = () => mockStream(chunks);
 
-      const streamPromise = app.request(
-        `/api/sessions/${sessionId}/stream`,
-        AUTH,
-      );
+      const streamPromise = app.request(`/api/sessions/${sessionId}/stream`);
 
       await waitForBroadcaster(sessionId);
       registry.send(sessionId, {
         content: "Hello",
         model: "gpt-4o",
-        gh_token: "gho_fake",
       });
 
       await sleep(200);
@@ -352,16 +320,12 @@ describe("chat", () => {
       ];
       createFn = () => mockStream(chunks);
 
-      const streamPromise = app.request(
-        `/api/sessions/${sessionId}/stream`,
-        AUTH,
-      );
+      const streamPromise = app.request(`/api/sessions/${sessionId}/stream`);
 
       await waitForBroadcaster(sessionId);
       registry.send(sessionId, {
         content: "Tell me about cats",
         model: "gpt-4o",
-        gh_token: "gho_fake",
       });
 
       await sleep(100);
@@ -381,16 +345,12 @@ describe("chat", () => {
         throw new Error("rate limit exceeded");
       };
 
-      const streamPromise = app.request(
-        `/api/sessions/${sessionId}/stream`,
-        AUTH,
-      );
+      const streamPromise = app.request(`/api/sessions/${sessionId}/stream`);
 
       await waitForBroadcaster(sessionId);
       registry.send(sessionId, {
         content: "Hi",
         model: "gpt-4o",
-        gh_token: "gho_fake",
       });
 
       await sleep(100);
@@ -408,10 +368,7 @@ describe("chat", () => {
     it("cleans up on exit", async () => {
       const sessionId = await createTestSession();
 
-      const streamPromise = app.request(
-        `/api/sessions/${sessionId}/stream`,
-        AUTH,
-      );
+      const streamPromise = app.request(`/api/sessions/${sessionId}/stream`);
 
       await waitForBroadcaster(sessionId);
       registry.send(sessionId, null);
@@ -434,7 +391,6 @@ describe("chat", () => {
           approved: true,
         }),
         headers: {
-          ...AUTH.headers,
           "Content-Type": "application/json",
         },
       });
@@ -450,7 +406,6 @@ describe("chat", () => {
           approved: true,
         }),
         headers: {
-          ...AUTH.headers,
           "Content-Type": "application/json",
         },
       });
@@ -468,7 +423,6 @@ describe("chat", () => {
             approved: true,
           }),
           headers: {
-            ...AUTH.headers,
             "Content-Type": "application/json",
           },
         });
@@ -489,7 +443,6 @@ describe("chat", () => {
           approved: true,
         }),
         headers: {
-          ...AUTH.headers,
           "Content-Type": "application/json",
         },
       });

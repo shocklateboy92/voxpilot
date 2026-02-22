@@ -8,15 +8,12 @@ export type StatusResponse = z.infer<typeof StatusResponse>;
 export const HealthResponse = z.object({
   status: z.string(),
   app_name: z.string(),
+  llm: z.string().optional(),
+  models: z.number().optional(),
+  defaultModel: z.string().optional(),
+  detail: z.string().optional(),
 });
 export type HealthResponse = z.infer<typeof HealthResponse>;
-
-export const GitHubUser = z.object({
-  login: z.string(),
-  name: z.string().nullable().optional(),
-  avatar_url: z.string(),
-});
-export type GitHubUser = z.infer<typeof GitHubUser>;
 
 export const ToolCallInfo = z.object({
   id: z.string(),
@@ -37,7 +34,7 @@ export type ChatMessage = z.infer<typeof ChatMessage>;
 
 export const SendMessageRequest = z.object({
   content: z.string(),
-  model: z.string().default("gpt-4o"),
+  model: z.string().optional(),
 });
 export type SendMessageRequest = z.infer<typeof SendMessageRequest>;
 

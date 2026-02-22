@@ -1,4 +1,4 @@
-import { beforeEach, afterEach } from "bun:test";
+import { afterEach, beforeEach } from "bun:test";
 import { closeDb } from "../src/db";
 
 export function setupTestDb() {
