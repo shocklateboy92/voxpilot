@@ -22,6 +22,20 @@ const rpc = hc<AppType>(window.location.origin, {
   init: { credentials: "include" },
 });
 
+// ── Error type ───────────────────────────────────────────────────────────────
+
+/** Error thrown when an API request returns a non-success status code. */
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly statusText: string,
+    public readonly body: string,
+  ) {
+    super(`HTTP ${status}: ${body || statusText}`);
+    this.name = "ApiError";
+  }
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
@@ -32,36 +46,46 @@ type SuccessOf<T extends ClientResponse<unknown>> =
   T extends ClientResponse<infer D, SuccessStatusCode, "json"> ? D : never;
 
 /**
- * Awaits a response, reloads on 401, returns parsed JSON or null on error.
+ * Awaits a response, throws ApiError on non-OK responses (including 401).
  * T is inferred from the success variant of the Hono ClientResponse union.
  */
 async function authedJson<T extends ClientResponse<unknown>>(
   req: Promise<T>,
-): Promise<SuccessOf<T> | null> {
+): Promise<SuccessOf<T>> {
   const res = await req;
   if (res.status === 401) {
-    window.location.reload();
-    return null;
+    throw new ApiError(401, res.statusText, "Unauthorized");
   }
-  if (!res.ok) return null;
+  if (!res.ok) {
+    const body = await res.text();
+    throw new ApiError(res.status, res.statusText, body);
+  }
   // res.json() returns unknown when T is a union of ClientResponses (its format
   // parameter isn't narrowed here).  The cast is safe: we've verified ok===true
   // above, so only the success variant of the union is reachable.
   return res.json() as SuccessOf<T>;
 }
 
-/** Awaits a response, reloads on 401. Ignores body. */
+/** Awaits a response, throws ApiError on non-OK responses (including 401). */
 async function authedVoid(req: Promise<Response>): Promise<void> {
   const res = await req;
   if (res.status === 401) {
-    window.location.reload();
+    throw new ApiError(401, res.statusText, "Unauthorized");
+  }
+  if (!res.ok) {
+    const body = await res.text();
+    throw new ApiError(res.status, res.statusText, body);
   }
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 export async function fetchCurrentUser(): Promise<GitHubUser | null> {
-  return authedJson(rpc.api.auth.me.$get());
+  try {
+    return await authedJson(rpc.api.auth.me.$get());
+  } catch {
+    return null;
+  }
 }
 
 export async function logout(): Promise<void> {
@@ -72,14 +96,11 @@ export async function logout(): Promise<void> {
 // ── Sessions ─────────────────────────────────────────────────────────────────
 
 export async function fetchSessions(): Promise<SessionSummary[]> {
-  const data = await authedJson(rpc.api.sessions.$get());
-  return data ?? [];
+  return authedJson(rpc.api.sessions.$get());
 }
 
 export async function createSession(): Promise<SessionSummary> {
-  const session = await authedJson(rpc.api.sessions.$post());
-  if (!session) throw new Error("Failed to create session");
-  return session;
+  return authedJson(rpc.api.sessions.$post());
 }
 
 export function deleteSession(id: string): Promise<void> {
@@ -92,7 +113,7 @@ export function deleteSession(id: string): Promise<void> {
 
 export async function fetchArtifact(
   artifactId: string,
-): Promise<ArtifactDetail | null> {
+): Promise<ArtifactDetail> {
   return authedJson(
     rpc.api.artifacts[":id"].$get({ param: { id: artifactId } }),
   );
@@ -101,7 +122,7 @@ export async function fetchArtifact(
 export async function fetchFileFullText(
   artifactId: string,
   fileId: string,
-): Promise<{ content: string; lineCount: number } | null> {
+): Promise<{ content: string; lineCount: number }> {
   return authedJson(
     rpc.api.artifacts[":id"].files[":fileId"]["full-text"].$get({
       param: { id: artifactId, fileId },
@@ -128,7 +149,7 @@ export async function postFileComment(
   content: string,
   lineId?: string | null,
   lineNumber?: number | null,
-): Promise<ReviewCommentData | null> {
+): Promise<ReviewCommentData> {
   return authedJson(
     rpc.api.artifacts[":id"].files[":fileId"].comments.$post({
       param: { id: artifactId, fileId },
@@ -150,7 +171,7 @@ export function deleteArtifactComment(
 
 export async function submitReview(
   artifactId: string,
-): Promise<{ status: string } | null> {
+): Promise<{ status: string }> {
   return authedJson(
     rpc.api.artifacts[":id"].submit.$post({
       param: { id: artifactId },

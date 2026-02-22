@@ -6,15 +6,15 @@
  */
 
 import { describe, expect, it, mock } from "bun:test";
-import { setupTestDb } from "./helpers";
 import { getDb } from "../src/db";
 import {
-  createSession,
   addMessage,
+  createSession,
   getMessages,
   getSession,
 } from "../src/services/sessions";
 import { registry } from "../src/services/streams";
+import { setupTestDb } from "./helpers";
 
 // ── Mock OpenAI ─────────────────────────────────────────────────────────────
 
@@ -56,7 +56,7 @@ let createFn: (...args: unknown[]) => unknown;
 
 mock.module("openai", () => ({
   default: class MockOpenAI {
-    constructor() {}
+    static APIError = class extends Error {};
     chat = {
       completions: {
         create: (...args: unknown[]) => createFn(...args),
@@ -115,17 +115,14 @@ describe("chat", () => {
       const sessionId = await createTestSession();
       const { listenerId } = registry.subscribe(sessionId);
       try {
-        const res = await app.request(
-          `/api/sessions/${sessionId}/messages`,
-          {
-            method: "POST",
-            body: JSON.stringify({ content: "Hello", model: "gpt-4o" }),
-            headers: {
-              ...AUTH.headers,
-              "Content-Type": "application/json",
-            },
+        const res = await app.request(`/api/sessions/${sessionId}/messages`, {
+          method: "POST",
+          body: JSON.stringify({ content: "Hello", model: "gpt-4o" }),
+          headers: {
+            ...AUTH.headers,
+            "Content-Type": "application/json",
           },
-        );
+        });
         expect(res.status).toBe(202);
       } finally {
         registry.unsubscribe(sessionId, listenerId);
@@ -134,17 +131,14 @@ describe("chat", () => {
 
     it("returns 409 without active stream", async () => {
       const sessionId = await createTestSession();
-      const res = await app.request(
-        `/api/sessions/${sessionId}/messages`,
-        {
-          method: "POST",
-          body: JSON.stringify({ content: "Hello", model: "gpt-4o" }),
-          headers: {
-            ...AUTH.headers,
-            "Content-Type": "application/json",
-          },
+      const res = await app.request(`/api/sessions/${sessionId}/messages`, {
+        method: "POST",
+        body: JSON.stringify({ content: "Hello", model: "gpt-4o" }),
+        headers: {
+          ...AUTH.headers,
+          "Content-Type": "application/json",
         },
-      );
+      });
       expect(res.status).toBe(409);
     });
 
@@ -158,17 +152,14 @@ describe("chat", () => {
     });
 
     it("returns 404 for nonexistent session", async () => {
-      const res = await app.request(
-        "/api/sessions/nonexistent/messages",
-        {
-          method: "POST",
-          body: JSON.stringify({ content: "Hi" }),
-          headers: {
-            ...AUTH.headers,
-            "Content-Type": "application/json",
-          },
+      const res = await app.request("/api/sessions/nonexistent/messages", {
+        method: "POST",
+        body: JSON.stringify({ content: "Hi" }),
+        headers: {
+          ...AUTH.headers,
+          "Content-Type": "application/json",
         },
-      );
+      });
       expect(res.status).toBe(404);
     });
 
@@ -208,10 +199,7 @@ describe("chat", () => {
     });
 
     it("returns 404 for nonexistent session", async () => {
-      const res = await app.request(
-        "/api/sessions/nonexistent/stream",
-        AUTH,
-      );
+      const res = await app.request("/api/sessions/nonexistent/stream", AUTH);
       expect(res.status).toBe(404);
     });
 
@@ -439,39 +427,33 @@ describe("chat", () => {
 
   describe("POST /confirm", () => {
     it("returns 404 for nonexistent session", async () => {
-      const res = await app.request(
-        "/api/sessions/nonexistent/confirm",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            tool_call_id: "call_xxx",
-            approved: true,
-          }),
-          headers: {
-            ...AUTH.headers,
-            "Content-Type": "application/json",
-          },
+      const res = await app.request("/api/sessions/nonexistent/confirm", {
+        method: "POST",
+        body: JSON.stringify({
+          tool_call_id: "call_xxx",
+          approved: true,
+        }),
+        headers: {
+          ...AUTH.headers,
+          "Content-Type": "application/json",
         },
-      );
+      });
       expect(res.status).toBe(404);
     });
 
     it("returns 409 when no stream is connected", async () => {
       const sessionId = await createTestSession();
-      const res = await app.request(
-        `/api/sessions/${sessionId}/confirm`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            tool_call_id: "call_xxx",
-            approved: true,
-          }),
-          headers: {
-            ...AUTH.headers,
-            "Content-Type": "application/json",
-          },
+      const res = await app.request(`/api/sessions/${sessionId}/confirm`, {
+        method: "POST",
+        body: JSON.stringify({
+          tool_call_id: "call_xxx",
+          approved: true,
+        }),
+        headers: {
+          ...AUTH.headers,
+          "Content-Type": "application/json",
         },
-      );
+      });
       expect(res.status).toBe(409);
     });
 
@@ -479,20 +461,17 @@ describe("chat", () => {
       const sessionId = await createTestSession();
       registry.awaitConfirmation(sessionId, "call_real");
       try {
-        const res = await app.request(
-          `/api/sessions/${sessionId}/confirm`,
-          {
-            method: "POST",
-            body: JSON.stringify({
-              tool_call_id: "call_WRONG",
-              approved: true,
-            }),
-            headers: {
-              ...AUTH.headers,
-              "Content-Type": "application/json",
-            },
+        const res = await app.request(`/api/sessions/${sessionId}/confirm`, {
+          method: "POST",
+          body: JSON.stringify({
+            tool_call_id: "call_WRONG",
+            approved: true,
+          }),
+          headers: {
+            ...AUTH.headers,
+            "Content-Type": "application/json",
           },
-        );
+        });
         expect(res.status).toBe(409);
       } finally {
         registry.resolveConfirmation(sessionId, "call_real", false);
@@ -503,20 +482,17 @@ describe("chat", () => {
       const sessionId = await createTestSession();
       const promise = registry.awaitConfirmation(sessionId, "call_test");
 
-      const res = await app.request(
-        `/api/sessions/${sessionId}/confirm`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            tool_call_id: "call_test",
-            approved: true,
-          }),
-          headers: {
-            ...AUTH.headers,
-            "Content-Type": "application/json",
-          },
+      const res = await app.request(`/api/sessions/${sessionId}/confirm`, {
+        method: "POST",
+        body: JSON.stringify({
+          tool_call_id: "call_test",
+          approved: true,
+        }),
+        headers: {
+          ...AUTH.headers,
+          "Content-Type": "application/json",
         },
-      );
+      });
       expect(res.status).toBe(202);
       expect(await promise).toBe(true);
     });

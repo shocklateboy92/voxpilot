@@ -28,6 +28,7 @@ import type {
   CopilotDoneEvent,
 } from "@backend/schemas/events";
 import { hc } from "hono/client";
+import { ApiError } from "./api-client";
 
 // Re-export backend event types so callers don't need a direct backend import.
 export type {
@@ -45,10 +46,10 @@ export type {
 
 // ── RPC client for URL building and POST calls ──────────────────────────────
 
-/** Reload the page when the server returns 401 (session expired / logged out). */
+/** Throw ApiError when the server returns 401 (session expired / logged out). */
 function handle401(res: Response): Response {
   if (res.status === 401) {
-    window.location.reload();
+    throw new ApiError(401, res.statusText, "Unauthorized");
   }
   return res;
 }

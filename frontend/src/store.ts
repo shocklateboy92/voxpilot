@@ -116,6 +116,34 @@ export const [reviewOverlayArtifactId, setReviewOverlayArtifactId] = createSigna
 /** Full artifact detail for the currently open overlay. */
 export const [reviewDetail, setReviewDetail] = createSignal<ArtifactDetail | null>(null);
 
+// ── Toasts ───────────────────────────────────────────────────────────────────
+
+/** A transient notification displayed briefly then auto-dismissed. */
+export interface Toast {
+  id: number;
+  message: string;
+}
+
+let nextToastId = 1;
+
+/** Active toast notifications (newest last). */
+export const [toasts, setToasts] = createSignal<Toast[]>([]);
+
+/** Show a transient error toast that auto-dismisses after a few seconds. */
+export function showToast(message: string): void {
+  const id = nextToastId++;
+  setToasts((prev) => [...prev, { id, message }]);
+  setTimeout(() => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, 5000);
+}
+
+/** Extract a user-friendly message from an error. */
+export function extractErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return "An unexpected error occurred";
+}
+
 // ── Derived ──────────────────────────────────────────────────────────────────
 
 /** The currently active session summary, or undefined. */

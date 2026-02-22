@@ -62,17 +62,19 @@ export function ReviewOverlay() {
     }
 
     void fetchArtifact(target.artifactId).then((detail) => {
-      if (detail) {
-        setReviewDetail(detail);
-        if (target.fileId) {
-          const idx = detail.files.findIndex((f) => f.id === target.fileId);
-          setCurrentFileIndex(idx >= 0 ? idx : 0);
-        } else {
-          // Start at first unviewed file, or 0
-          const idx = detail.files.findIndex((f) => !f.viewed);
-          setCurrentFileIndex(idx >= 0 ? idx : 0);
-        }
+      setReviewDetail(detail);
+      if (target.fileId) {
+        const idx = detail.files.findIndex((f) => f.id === target.fileId);
+        setCurrentFileIndex(idx >= 0 ? idx : 0);
+      } else {
+        // Start at first unviewed file, or 0
+        const idx = detail.files.findIndex((f) => !f.viewed);
+        setCurrentFileIndex(idx >= 0 ? idx : 0);
       }
+    }).catch((err: unknown) => {
+      // Close the overlay so it doesn't stay in a loading state
+      setReviewOverlayArtifactId(null);
+      throw err;
     });
   });
 
@@ -146,13 +148,11 @@ export function ReviewOverlay() {
     if (!detail || !file) return;
 
     const comment = await postFileComment(detail.artifact.id, file.id, text);
-    if (comment) {
-      setReviewDetail((prev) => {
-        if (!prev) return prev;
-        return { ...prev, comments: [...prev.comments, comment] };
-      });
-      setCommentText("");
-    }
+    setReviewDetail((prev) => {
+      if (!prev) return prev;
+      return { ...prev, comments: [...prev.comments, comment] };
+    });
+    setCommentText("");
   }
 
   async function handleSubmit() {
@@ -160,8 +160,8 @@ export function ReviewOverlay() {
     if (!detail) return;
     setSubmitting(true);
 
-    const result = await submitReview(detail.artifact.id);
-    if (result) {
+    try {
+      const result = await submitReview(detail.artifact.id);
       // Update artifact summary status
       setArtifacts((prev) => {
         const next = new Map(prev);
@@ -171,9 +171,10 @@ export function ReviewOverlay() {
         }
         return next;
       });
+      close();
+    } finally {
+      setSubmitting(false);
     }
-    setSubmitting(false);
-    close();
   }
 
   const fileCommentsForCurrent = () => {
