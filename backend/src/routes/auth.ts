@@ -1,11 +1,11 @@
 import { Hono } from "hono";
-import { setCookie, getCookie, deleteCookie } from "hono/cookie";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { config } from "../config";
-import { authMiddleware, type AuthEnv } from "../middleware/auth";
+import { type AuthEnv, authMiddleware } from "../middleware/auth";
 import {
-  generateState,
   buildAuthorizationUrl,
   exchangeCodeForToken,
+  generateState,
   getGithubUser,
 } from "../services/github";
 

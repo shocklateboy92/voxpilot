@@ -2,12 +2,12 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { config } from "./config";
 import { closeDb, getDb } from "./db";
-import { authMiddleware, type AuthEnv } from "./middleware/auth";
-import { healthRouter } from "./routes/health";
-import { authRouter } from "./routes/auth";
-import { sessionsRouter } from "./routes/sessions";
-import { chatRouter } from "./routes/chat";
+import { type AuthEnv, authMiddleware } from "./middleware/auth";
 import { artifactRouter } from "./routes/artifacts";
+import { authRouter } from "./routes/auth";
+import { chatRouter } from "./routes/chat";
+import { healthRouter } from "./routes/health";
+import { sessionsRouter } from "./routes/sessions";
 
 // Protected routes — authMiddleware is applied once here so individual
 // routers don't need to add it themselves.

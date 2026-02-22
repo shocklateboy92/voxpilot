@@ -1,18 +1,18 @@
 import { describe, expect, it } from "bun:test";
-import { setupTestDb } from "./helpers";
 import { getDb } from "../src/db";
+import type { DiffHunk } from "../src/schemas/diff-document";
 import {
+  addComment,
   createArtifact,
   createArtifactFile,
-  getArtifact,
-  setFileViewed,
-  addComment,
   deleteComment,
-  updateArtifactStatus,
-  getFileFullText,
+  getArtifact,
   getArtifactComments,
+  getFileFullText,
+  setFileViewed,
+  updateArtifactStatus,
 } from "../src/services/artifacts";
-import type { DiffHunk } from "../src/schemas/diff-document";
+import { setupTestDb } from "./helpers";
 
 setupTestDb();
 
@@ -45,8 +45,22 @@ const sampleHunks: DiffHunk[] = [
     newStart: 1,
     newLines: 4,
     lines: [
-      { id: "h-0-L0", kind: "context", oldLine: 1, newLine: 1, content: "a", fullTextLine: 1 },
-      { id: "h-0-L1", kind: "add", oldLine: null, newLine: 2, content: "b", fullTextLine: 2 },
+      {
+        id: "h-0-L0",
+        kind: "context",
+        oldLine: 1,
+        newLine: 1,
+        content: "a",
+        fullTextLine: 1,
+      },
+      {
+        id: "h-0-L1",
+        kind: "add",
+        oldLine: null,
+        newLine: 2,
+        content: "b",
+        fullTextLine: 2,
+      },
     ],
   },
 ];
@@ -172,8 +186,12 @@ describe("artifacts CRUD", () => {
       await seedArtifactAndFile();
 
       const comment = await addComment(
-        db(), "art-1", "f-1", "Nit: rename this",
-        "h-0-L1", 2,
+        db(),
+        "art-1",
+        "f-1",
+        "Nit: rename this",
+        "h-0-L1",
+        2,
       );
       expect(comment.lineId).toBe("h-0-L1");
       expect(comment.lineNumber).toBe(2);
@@ -241,7 +259,11 @@ describe("artifacts CRUD", () => {
     });
 
     it("returns false for missing artifact", async () => {
-      const result = await updateArtifactStatus(db(), "nonexistent", "approved");
+      const result = await updateArtifactStatus(
+        db(),
+        "nonexistent",
+        "approved",
+      );
       expect(result).toBe(false);
     });
   });

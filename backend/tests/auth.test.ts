@@ -1,4 +1,4 @@
-import { mock, describe, expect, it } from "bun:test";
+import { describe, expect, it, mock } from "bun:test";
 
 mock.module("../src/services/github", () => ({
   generateState: () => "mock_state_abc123",

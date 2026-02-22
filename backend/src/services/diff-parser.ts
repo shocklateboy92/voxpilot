@@ -7,11 +7,11 @@
  */
 
 import type {
-  DiffLine,
-  DiffHunk,
-  DiffFile,
-  DiffDocument,
   ChangeType,
+  DiffDocument,
+  DiffFile,
+  DiffHunk,
+  DiffLine,
 } from "../schemas/diff-document";
 
 // ── Stable ID generation ─────────────────────────────────────────────────────
@@ -30,17 +30,13 @@ function stableHunkId(fileId: string, hunkIndex: number): string {
   return `${fileId}-h${hunkIndex}`;
 }
 
-function stableLineId(
-  hunkId: string,
-  lineIndex: number,
-): string {
+function stableLineId(hunkId: string, lineIndex: number): string {
   return `${hunkId}-L${lineIndex}`;
 }
 
 // ── Hunk header regex ────────────────────────────────────────────────────────
 
-const HUNK_HEADER_RE =
-  /^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@/;
+const HUNK_HEADER_RE = /^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@/;
 
 // ── File header detection ────────────────────────────────────────────────────
 
@@ -186,10 +182,7 @@ export function parseUnifiedDiff(
         }
 
         // Stop at next hunk, next file, or end of diff content
-        if (
-          diffLine.startsWith("@@") ||
-          diffLine.startsWith("diff --git")
-        ) {
+        if (diffLine.startsWith("@@") || diffLine.startsWith("diff --git")) {
           break;
         }
 

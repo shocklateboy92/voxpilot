@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { parseUnifiedDiff, buildDiffFiles } from "../src/services/diff-parser";
+import { buildDiffFiles, parseUnifiedDiff } from "../src/services/diff-parser";
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -151,7 +151,7 @@ describe("parseUnifiedDiff", () => {
       expect(lines).toHaveLength(7);
 
       expect(lines[0]?.kind).toBe("context");
-      expect(lines[0]?.content).toBe("import { app } from \"./app\";");
+      expect(lines[0]?.content).toBe('import { app } from "./app";');
       expect(lines[0]?.oldLine).toBe(1);
       expect(lines[0]?.newLine).toBe(1);
 
@@ -166,7 +166,7 @@ describe("parseUnifiedDiff", () => {
       expect(lines[3]?.newLine).toBe(3);
 
       expect(lines[4]?.kind).toBe("add");
-      expect(lines[4]?.content).toBe("const host = \"0.0.0.0\";");
+      expect(lines[4]?.content).toBe('const host = "0.0.0.0";');
       expect(lines[4]?.newLine).toBe(4);
     });
   });
@@ -273,7 +273,10 @@ describe("parseUnifiedDiff", () => {
     });
 
     it("returns empty result for non-diff text", () => {
-      const result = parseUnifiedDiff("some random text\nnothing here", "art-junk");
+      const result = parseUnifiedDiff(
+        "some random text\nnothing here",
+        "art-junk",
+      );
       expect(result.files).toHaveLength(0);
     });
   });

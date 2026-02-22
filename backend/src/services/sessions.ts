@@ -4,9 +4,14 @@
 
 import { asc, desc, eq } from "drizzle-orm";
 import type { getDb } from "../db";
-import { messages, sessions } from "../schema";
 import type { ToolCallInfo } from "../schema";
-import type { ChatMessage, MessageRead, SessionDetail, SessionSummary } from "../schemas/api";
+import { messages, sessions } from "../schema";
+import type {
+  ChatMessage,
+  MessageRead,
+  SessionDetail,
+  SessionSummary,
+} from "../schemas/api";
 import type { MessageEvent } from "../schemas/events";
 import { renderMarkdown } from "./markdown";
 
@@ -47,7 +52,9 @@ export async function listSessions(db: Db): Promise<SessionSummary[]> {
 export async function createSession(db: Db): Promise<SessionSummary> {
   const id = crypto.randomUUID();
   const now = nowIso();
-  await db.insert(sessions).values({ id, title: "", createdAt: now, updatedAt: now });
+  await db
+    .insert(sessions)
+    .values({ id, title: "", createdAt: now, updatedAt: now });
   return { id, title: "", created_at: now, updated_at: now };
 }
 
@@ -124,7 +131,11 @@ export async function addMessage(
   sessionId: string,
   role: string,
   content: string,
-  opts?: { toolCalls?: string | null; toolCallId?: string | null; artifactId?: string | null },
+  opts?: {
+    toolCalls?: string | null;
+    toolCallId?: string | null;
+    artifactId?: string | null;
+  },
 ): Promise<void> {
   const now = nowIso();
   const toolCalls = opts?.toolCalls
@@ -214,8 +225,5 @@ export async function autoTitleIfNeeded(
   if (content.length > 50) {
     title += "\u2026";
   }
-  await db
-    .update(sessions)
-    .set({ title })
-    .where(eq(sessions.id, sessionId));
+  await db.update(sessions).set({ title }).where(eq(sessions.id, sessionId));
 }

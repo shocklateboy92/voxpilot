@@ -6,14 +6,11 @@
 
 import type { getDb } from "../db";
 import type { ReviewArtifactEvent } from "../schemas/events";
-import { parseUnifiedDiff, buildDiffFiles } from "./diff-parser";
-import { resolveFullText } from "./diff-fulltext";
-import { renderDiffFileHtml, renderFullFileHtml } from "./diff-render";
-import {
-  createArtifact,
-  createArtifactFile,
-} from "./artifacts";
 import { ensureGitRepo } from "../tools/git-utils";
+import { createArtifact, createArtifactFile } from "./artifacts";
+import { resolveFullText } from "./diff-fulltext";
+import { buildDiffFiles, parseUnifiedDiff } from "./diff-parser";
+import { renderDiffFileHtml, renderFullFileHtml } from "./diff-render";
 
 type Db = ReturnType<typeof getDb>;
 
@@ -40,15 +37,8 @@ export interface ArtifactPipelineResult {
 export async function createReviewArtifact(
   input: ArtifactPipelineInput,
 ): Promise<ArtifactPipelineResult | null> {
-  const {
-    db,
-    sessionId,
-    toolName,
-    toolCallId,
-    toRef,
-    diffText,
-    workDir,
-  } = input;
+  const { db, sessionId, toolName, toolCallId, toRef, diffText, workDir } =
+    input;
 
   const artifactId = crypto.randomUUID();
 
@@ -85,11 +75,7 @@ export async function createReviewArtifact(
   for (const skeleton of fileSkeletons) {
     // Resolve full text (non-blocking failure)
     // Use repoRoot because git diff paths are relative to the repo root
-    const fullText = await resolveFullText(
-      skeleton.path,
-      toRef,
-      repoRoot,
-    );
+    const fullText = await resolveFullText(skeleton.path, toRef, repoRoot);
 
     // Render HTML
     const html = renderDiffFileHtml(
@@ -99,9 +85,15 @@ export async function createReviewArtifact(
     );
 
     // Render full-file HTML with diff highlights
-    const fullTextHtml = fullText.available && fullText.content !== null
-      ? renderFullFileHtml(skeleton.id, skeleton.path, fullText.content, skeleton.hunksJson)
-      : null;
+    const fullTextHtml =
+      fullText.available && fullText.content !== null
+        ? renderFullFileHtml(
+            skeleton.id,
+            skeleton.path,
+            fullText.content,
+            skeleton.hunksJson,
+          )
+        : null;
 
     // Persist file
     await createArtifactFile(db, {

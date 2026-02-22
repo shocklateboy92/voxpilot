@@ -5,16 +5,20 @@
  * and status transitions backed by Drizzle ORM.
  */
 
-import { eq, asc } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import type { getDb } from "../db";
 import {
-  reviewArtifacts,
   artifactFiles,
-  reviewComments,
   messages,
+  reviewArtifacts,
+  reviewComments,
 } from "../schema";
-import type { DiffDocument, DiffFile, ReviewComment } from "../schemas/diff-document";
-import type { DiffHunk } from "../schemas/diff-document";
+import type {
+  DiffDocument,
+  DiffFile,
+  DiffHunk,
+  ReviewComment,
+} from "../schemas/diff-document";
 import type { ReviewArtifactEvent } from "../schemas/events";
 
 type Db = ReturnType<typeof getDb>;
@@ -274,7 +278,10 @@ export async function getFileFullText(
   if (!row || !row.fullTextAvailable || row.fullTextContent === null) {
     return null;
   }
-  return { content: row.fullTextContent, lineCount: row.fullTextLineCount ?? 0 };
+  return {
+    content: row.fullTextContent,
+    lineCount: row.fullTextLineCount ?? 0,
+  };
 }
 
 // ── Get all comments for an artifact ─────────────────────────────────────────
