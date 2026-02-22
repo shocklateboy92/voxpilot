@@ -162,11 +162,11 @@ export function connectSession(
 export async function sendMessage(
   sessionId: string,
   content: string,
-  model: string = "gpt-4.1-mini",
+  model?: string,
 ): Promise<Response> {
   return rpc.api.sessions[":id"].messages.$post({
     param: { id: sessionId },
-    json: { content, model },
+    json: model ? { content, model } : { content },
   });
 }
 

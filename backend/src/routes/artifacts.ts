@@ -11,7 +11,6 @@
 
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import type { AuthEnv } from "../middleware/auth";
 import { getDb } from "../db";
 import {
   getArtifact,
@@ -26,7 +25,7 @@ import { addMessage } from "../services/sessions";
 import { registry } from "../services/streams";
 import { ViewedRequest, AddCommentRequest } from "../schemas/api";
 
-export const artifactRouter = new Hono<AuthEnv>()
+export const artifactRouter = new Hono()
 
 // ── GET /api/artifacts/:id ──────────────────────────────────────────────────
 

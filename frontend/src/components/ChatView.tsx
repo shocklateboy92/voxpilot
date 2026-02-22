@@ -2,32 +2,59 @@
  * Main chat view — chat area + bottom nav with session picker.
  */
 
-import { onMount } from "solid-js";
-import type { GitHubUser } from "../store";
-import { logout } from "../api-client";
+import { onMount, onCleanup, createSignal } from "solid-js";
 import { initSessions } from "../sessions";
+import { fetchHealth } from "../api-client";
 import { ChatMain } from "./ChatMain";
 import { BottomNav } from "./BottomNav";
 import { SessionPicker } from "./SessionPicker";
 import { ReviewOverlay } from "./ReviewOverlay";
 
-interface Props {
-  user: GitHubUser;
+const HEALTH_POLL_MS = 30_000;
+
+interface HealthStatus {
+  llm: string;
+  defaultModel?: string;
 }
 
-export function ChatView(props: Props) {
+export function ChatView() {
+  const [health, setHealth] = createSignal<HealthStatus | null>(null);
+
+  const pollHealth = async () => {
+    try {
+      const data = await fetchHealth();
+      setHealth({ llm: data.llm ?? "unknown", defaultModel: data.defaultModel });
+    } catch {
+      setHealth({ llm: "unreachable" });
+    }
+  };
+
   onMount(() => {
     void initSessions();
+    void pollHealth();
   });
+
+  const interval = setInterval(() => void pollHealth(), HEALTH_POLL_MS);
+  onCleanup(() => clearInterval(interval));
+
+  const statusDot = () => {
+    const h = health();
+    if (!h) return "⏳";
+    return h.llm === "connected" ? "🟢" : "🔴";
+  };
+
+  const statusText = () => {
+    const h = health();
+    if (!h) return "Checking…";
+    if (h.llm === "connected") return h.defaultModel ?? "Connected";
+    return "LLM offline";
+  };
 
   return (
     <main id="app">
-      <div id="user-info">
-        <img id="user-avatar" src={props.user.avatar_url} alt="avatar" />
-        <span id="user-name">{props.user.name ?? props.user.login}</span>
-        <button class="btn btn-small" onClick={() => void logout()}>
-          Sign out
-        </button>
+      <div id="status-bar">
+        <span class="status-dot">{statusDot()}</span>
+        <span class="status-label">{statusText()}</span>
       </div>
       <ChatMain />
       <BottomNav />

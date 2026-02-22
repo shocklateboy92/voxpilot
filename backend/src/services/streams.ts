@@ -73,7 +73,6 @@ interface PendingConfirm {
 export interface MessagePayload {
   content: string;
   model: string;
-  gh_token: string;
 }
 
 // ── MessageHandler callback ─────────────────────────────────────────────────

@@ -20,6 +20,7 @@ import type {
   ChatCompletionUserMessageParam,
 } from "openai/resources/chat/completions";
 import type { getDb } from "../db";
+import { config } from "../config";
 import type { ChatMessage, ToolCallInfo } from "../schemas/api";
 import type {
   CopilotDeltaEvent,
@@ -47,8 +48,6 @@ import { addMessage } from "./sessions";
 import { AsyncChannel } from "./streams";
 
 type Db = ReturnType<typeof getDb>;
-
-const GITHUB_MODELS_BASE_URL = "https://models.inference.ai.azure.com";
 
 // ── SSE event types ─────────────────────────────────────────────────────────
 
@@ -112,7 +111,6 @@ class StreamedToolCall {
 export interface AgentLoopOptions {
   messages: ChatMessage[];
   model: string;
-  ghToken: string;
   workDir: string;
   db: Db;
   sessionId: string;
@@ -133,7 +131,6 @@ export async function* runAgentLoop(
   const {
     messages,
     model,
-    ghToken,
     workDir,
     db,
     sessionId,
@@ -146,11 +143,12 @@ export async function* runAgentLoop(
     messages.map(toMessageParam);
   const toolsSpec = defaultRegistry.toOpenAiTools();
 
+  const client = new OpenAI({
+    baseURL: config.llmBaseUrl,
+    apiKey: config.llmApiKey,
+  });
+
   for (let iteration = 0; iteration < maxIterations; iteration++) {
-    const client = new OpenAI({
-      baseURL: GITHUB_MODELS_BASE_URL,
-      apiKey: ghToken,
-    });
 
     let modelName = model;
     let accumulatedText = "";

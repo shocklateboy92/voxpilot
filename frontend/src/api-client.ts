@@ -11,7 +11,6 @@ import type { ClientResponse } from "hono/client";
 import type { SuccessStatusCode } from "hono/utils/http-status";
 import type {
   SessionSummary,
-  GitHubUser,
   ArtifactDetail,
   ReviewCommentData,
 } from "./store";
@@ -78,19 +77,23 @@ async function authedVoid(req: Promise<Response>): Promise<void> {
   }
 }
 
-// ── Auth ──────────────────────────────────────────────────────────────────────
+// ── Health ────────────────────────────────────────────────────────────────────
 
-export async function fetchCurrentUser(): Promise<GitHubUser | null> {
-  try {
-    return await authedJson(rpc.api.auth.me.$get());
-  } catch {
-    return null;
-  }
+export interface HealthData {
+  status: string;
+  app_name: string;
+  llm?: string;
+  models?: number;
+  defaultModel?: string;
+  detail?: string;
 }
 
-export async function logout(): Promise<void> {
-  await authedVoid(rpc.api.auth.logout.$post());
-  window.location.reload();
+export async function fetchHealth(): Promise<HealthData> {
+  const res = await rpc.api.health.$get();
+  if (!res.ok) {
+    throw new ApiError(res.status, res.statusText, await res.text());
+  }
+  return res.json() as Promise<HealthData>;
 }
 
 // ── Sessions ─────────────────────────────────────────────────────────────────
