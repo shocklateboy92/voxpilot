@@ -2,7 +2,9 @@
 
 > **Status: Plan — awaiting review.**
 > Move the primary AI off GitHub Models onto a self-hosted inference
-> server running on the local RTX 4090 (24 GB VRAM).
+> server running on the local RTX 4090 (24 GB VRAM). Remove the GitHub
+> Models provider entirely, along with the GitHub OAuth authentication
+> flow that was only needed to obtain API keys for it.
 
 ---
 
@@ -10,17 +12,22 @@
 
 VoxPilot currently sends every LLM request to the GitHub Models API
 (`models.inference.ai.azure.com`) using the user's GitHub OAuth token as
-the API key. This works, but:
+the API key. This has several problems:
 
 1. **Latency** — round-trip to Azure adds 200–500 ms on top of
    inference time.
 2. **Privacy** — all code context leaves the local network.
-3. **Cost / rate limits** — GitHub Models has token-per-minute caps that
-   throttle long agentic runs.
+3. **Cost / rate limits** — GitHub Models free-tier limits are very low,
+   and enterprise licenses only work inside the Copilot CLI (which we
+   already run via ACP mode).
 4. **Model choice** — limited to the models GitHub exposes.
+5. **Unnecessary auth complexity** — the entire GitHub OAuth flow exists
+   solely to obtain a token for GitHub Models. With a self-hosted
+   provider, there's no need for it.
 
-A self-hosted inference server on the local RTX 4090 eliminates all four
-issues and aligns with VoxPilot's "self-hosted" identity.
+A self-hosted inference server on the local RTX 4090 eliminates all five
+issues and aligns with VoxPilot's "self-hosted" identity. Removing the
+auth flow simplifies the codebase significantly.
 
 ---
 
@@ -86,7 +93,9 @@ change.
 ### Current flow
 
 ```
-Frontend → POST /api/sessions/{id}/messages { content, model: "gpt-4o" }
+Frontend → LoginView (GitHub OAuth) → gh_token cookie
+         → POST /api/sessions/{id}/messages { content, model: "gpt-4o" }
+           (authMiddleware extracts gh_token from cookie)
          → agent.ts → new OpenAI({ baseURL: GITHUB_MODELS, apiKey: ghToken })
          → models.inference.ai.azure.com
 ```
@@ -94,11 +103,13 @@ Frontend → POST /api/sessions/{id}/messages { content, model: "gpt-4o" }
 ### Proposed flow
 
 ```
-Frontend → POST /api/sessions/{id}/messages { content, model: "qwen3-coder:32b" }
-         → agent.ts → new OpenAI({ baseURL, apiKey })
-                       ↑ resolved from config: local Ollama or GitHub Models
-         → localhost:11434  (self-hosted)
-      OR → models.inference.ai.azure.com  (fallback/cloud)
+Frontend → ChatView (no login required)
+         → POST /api/sessions/{id}/messages { content }
+         → agent.ts → new OpenAI({ baseURL, apiKey })  ← from config
+         → localhost:11434  (self-hosted Ollama)
+
+Frontend ← GET /api/health  → { status, llm: "connected", model: "qwen3-coder:32b" }
+           (health indicator replaces user avatar / sign-out button)
 ```
 
 The key insight is that Ollama's `/v1/chat/completions` endpoint is
@@ -106,16 +117,18 @@ wire-compatible with the OpenAI SDK. **The agent loop (`agent.ts`) does
 not need to change its core logic.** Only the client construction needs
 to be parameterised.
 
+Since GitHub Models is removed entirely, the GitHub OAuth flow, auth
+middleware, and all `ghToken` plumbing can be deleted.
+
 ---
 
 ## 4  Implementation Steps
 
-### Step 1: Add provider configuration to `config.ts`
+### Step 1: Add LLM provider configuration to `config.ts`
 
-Add new environment variables:
+Add new environment variables, remove GitHub OAuth vars:
 
 ```
-VOXPILOT_LLM_PROVIDER=ollama          # "ollama" | "github" | "custom"
 VOXPILOT_LLM_BASE_URL=http://localhost:11434/v1
 VOXPILOT_LLM_API_KEY=ollama           # Ollama ignores this, but SDK requires it
 VOXPILOT_LLM_DEFAULT_MODEL=qwen3-coder:32b
@@ -124,138 +137,145 @@ VOXPILOT_LLM_DEFAULT_MODEL=qwen3-coder:32b
 Update the Zod config schema:
 
 ```typescript
-llmProvider: z.enum(["ollama", "github", "custom"]).default("github"),
-llmBaseUrl: z.string().default(""),
-llmApiKey: z.string().default(""),
-llmDefaultModel: z.string().default("gpt-4o"),
+// Add
+llmBaseUrl: z.string().default("http://localhost:11434/v1"),
+llmApiKey: z.string().default("ollama"),
+llmDefaultModel: z.string().default("qwen3-coder:32b"),
+
+// Remove
+githubClientId      // no longer needed
+githubClientSecret  // no longer needed
 ```
 
-**Backward-compatible**: defaults to `github` provider, preserving
-current behaviour for users who haven't set up Ollama.
+Estimated effort: **~10 min, ~10 lines changed.**
 
-Estimated effort: **~15 min, ~20 lines changed.**
+### Step 2: Remove GitHub auth flow (backend)
 
-### Step 2: Create a provider resolver in `agent.ts`
+Delete or gut the following files:
 
-Extract the OpenAI client construction into a helper:
+| File | Action |
+|---|---|
+| `backend/src/routes/auth.ts` | **Delete** — login, callback, logout, /me endpoints |
+| `backend/src/middleware/auth.ts` | **Delete** — `authMiddleware` and `AuthEnv` type |
+| `backend/src/services/github.ts` | **Delete** — OAuth token exchange, user fetch |
+| `backend/tests/auth.test.ts` | **Delete** — auth route tests |
+
+Update files that reference auth:
+
+| File | Change |
+|---|---|
+| `backend/src/index.ts` | Remove `authMiddleware` from protected routes; remove `authRouter` import and `.route()` call. All routes become public. |
+| `backend/src/routes/chat.ts` | Remove `AuthEnv` type param from Hono app; remove `c.get("ghToken")`; remove `gh_token` from message payload. |
+| `backend/src/routes/sessions.ts` | Remove `AuthEnv` type param. |
+| `backend/src/routes/artifacts.ts` | Remove `AuthEnv` type param. |
+| `backend/src/services/streams.ts` | Remove `gh_token` from `MessagePayload` type. |
+| `backend/src/schemas/api.ts` | Remove `GitHubUser` schema (or keep if used elsewhere). |
+
+Estimated effort: **~45 min, ~4 files deleted, ~6 files updated.**
+
+### Step 3: Update the agent loop (`agent.ts`)
+
+Replace the inline `new OpenAI(...)` that uses `ghToken`:
 
 ```typescript
-function createLlmClient(config: Config, ghToken?: string): OpenAI {
-  switch (config.llmProvider) {
-    case "ollama":
-      return new OpenAI({
-        baseURL: config.llmBaseUrl || "http://localhost:11434/v1",
-        apiKey: config.llmApiKey || "ollama",
-      });
-    case "custom":
-      return new OpenAI({
-        baseURL: config.llmBaseUrl,
-        apiKey: config.llmApiKey,
-      });
-    case "github":
-    default:
-      if (!ghToken) throw new Error("GitHub token required for github LLM provider");
-      return new OpenAI({
-        baseURL: "https://models.inference.ai.azure.com",
-        apiKey: ghToken,
-      });
-  }
-}
+// Before (inside the per-iteration loop):
+const client = new OpenAI({
+  baseURL: GITHUB_MODELS_BASE_URL,
+  apiKey: ghToken,
+});
+
+// After (once, outside the loop):
+const client = new OpenAI({
+  baseURL: config.llmBaseUrl,
+  apiKey: config.llmApiKey,
+});
 ```
 
-Note: `ghToken` is optional because self-hosted providers don't need it.
-The `github` case validates its presence at runtime.
-
-In `runAgentLoop`, replace the inline `new OpenAI(...)` with a call to
-this helper. Also move the client construction **outside** the
-per-iteration loop (it's stateless; creating it once is fine).
+Remove `ghToken` from `AgentLoopOptions` interface. Remove the
+`GITHUB_MODELS_BASE_URL` constant. Move client creation outside the
+per-iteration loop (it's stateless).
 
 Resolve the model name: use `opts.model` if provided, otherwise fall
 back to `config.llmDefaultModel`.
 
-Estimated effort: **~30 min, ~30 lines changed.**
+Estimated effort: **~20 min, ~15 lines changed.**
 
-### Step 3: Update `SendMessageRequest` and default model
+### Step 4: Remove GitHub auth flow (frontend)
 
-In `schemas/api.ts`, change the default model:
+| File | Change |
+|---|---|
+| `frontend/src/components/LoginView.tsx` | **Delete** — no login view needed |
+| `frontend/src/App.tsx` | Remove auth check on mount, remove `LoginView` import, remove `user()`/`authChecked()` gating — go directly to `ChatView`. |
+| `frontend/src/components/ChatView.tsx` | Remove `GitHubUser` prop, remove user avatar / "Sign out" button — replace with LLM health indicator (see Step 5). |
+| `frontend/src/store.ts` | Remove `user`, `setUser`, `authChecked`, `setAuthChecked` signals. Remove `GitHubUser` re-export. |
+| `frontend/src/api-client.ts` | Remove `fetchCurrentUser()` and `logout()` functions. |
+
+Estimated effort: **~30 min, ~1 file deleted, ~4 files simplified.**
+
+### Step 5: Add LLM health indicator
+
+Replace the user avatar / sign-out button in the header with a health
+indicator showing Ollama connectivity and loaded model:
+
+**Backend** — extend `/api/health` (or add `/api/health/llm`):
 
 ```typescript
-export const SendMessageRequest = z.object({
-  content: z.string(),
-  model: z.string().optional(),  // Remove hardcoded default; resolve from config
+app.get("/api/health", async (c) => {
+  const base = { status: "ok", app_name: config.appName };
+  try {
+    const ollamaBase = config.llmBaseUrl.replace(/\/v1\/?$/, "");
+    const res = await fetch(`${ollamaBase}/api/tags`);
+    if (!res.ok) {
+      return c.json({ ...base, llm: "error", detail: `HTTP ${res.status}` });
+    }
+    const data: unknown = await res.json();
+    const models = Array.isArray((data as Record<string, unknown>)?.["models"])
+      ? ((data as Record<string, unknown>)["models"] as Array<unknown>).length
+      : 0;
+    return c.json({ ...base, llm: "connected", models, defaultModel: config.llmDefaultModel });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "unknown error";
+    return c.json({ ...base, llm: "unreachable", detail: msg });
+  }
 });
 ```
 
-In `routes/chat.ts`, resolve the model at send time:
+**Frontend** — small status dot in the header:
 
-```typescript
-model: body.model ?? config.llmDefaultModel,
-```
+- 🟢 Green dot + model name when Ollama is connected
+- 🔴 Red dot + "LLM offline" when unreachable
+- Poll `/api/health` every 30 seconds (or on mount + after errors)
 
-This lets the frontend omit the model field and get the server's
-configured default.
+This replaces the user info section that currently shows avatar + name +
+sign-out button.
 
-Estimated effort: **~10 min, ~5 lines changed.**
+Estimated effort: **~30 min backend, ~30 min frontend.**
 
-### Step 4: Update `.env.example` and documentation
+### Step 6: Update `.env.example` and documentation
 
-Add the new env vars to `.env.example` with clear comments:
+Replace the old `.env.example`:
 
 ```bash
-# LLM Provider: "ollama" for self-hosted, "github" for GitHub Models, "custom" for any OpenAI-compatible endpoint
-VOXPILOT_LLM_PROVIDER=ollama
+# LLM Configuration
+# Base URL for the OpenAI-compatible inference API
 VOXPILOT_LLM_BASE_URL=http://localhost:11434/v1
+# API key (Ollama ignores this, but the OpenAI SDK requires a non-empty value)
 VOXPILOT_LLM_API_KEY=ollama
+# Default model to use for chat completions
 VOXPILOT_LLM_DEFAULT_MODEL=qwen3-coder:32b
 ```
 
-Update `ARCHITECTURE.md` to reflect the new provider abstraction.
+Update `ARCHITECTURE.md` to remove references to GitHub OAuth,
+`gh_token` cookie, and GitHub Models. Document the new health indicator
+and LLM config.
 
 Estimated effort: **~15 min.**
 
-### Step 5: (Optional) Health check for local provider
-
-Add an Ollama connectivity check to the existing `/api/health` endpoint
-or a new `/api/health/llm` endpoint:
-
-```typescript
-// Ping Ollama to verify it's running
-try {
-  const res = await fetch(`${config.llmBaseUrl.replace("/v1", "")}/api/tags`);
-  if (!res.ok) {
-    return c.json({ status: "degraded", llm: "unreachable", detail: `HTTP ${res.status}` }, 200);
-  }
-  const data = await res.json();
-  return c.json({ status: "ok", llm: "connected", models: data.models?.length ?? 0 }, 200);
-} catch (err) {
-  const msg = err instanceof Error ? err.message : "unknown error";
-  return c.json({ status: "degraded", llm: "unreachable", detail: msg }, 200);
-}
-```
-
-This gives the frontend a way to show whether the local LLM server is
-reachable.
-
-Estimated effort: **~20 min, ~15 lines.**
-
-### Step 6: (Optional) Frontend model selector
-
-The frontend currently hardcodes `model: "gpt-4o"` in the message
-submission. Two options:
-
-- **Minimal**: Remove the hardcoded model from the frontend; let the
-  backend resolve via config. No UI change needed.
-- **Enhanced**: Add a model dropdown in the chat input area that queries
-  Ollama's `/api/tags` endpoint (via a backend proxy) to list available
-  models.
-
-The minimal approach is recommended for the initial integration.
-
-Estimated effort: **Minimal: ~5 min. Enhanced: ~2 hours.**
-
 ---
 
-## 5  What Does NOT Need to Change
+## 5  What Changes vs. What Stays
+
+### Stays the same
 
 | Component | Why |
 |---|---|
@@ -263,9 +283,26 @@ Estimated effort: **Minimal: ~5 min. Enhanced: ~2 hours.**
 | **Tool framework** (`tools/`) | Tools are LLM-agnostic; they execute locally regardless of provider |
 | **SSE streaming** | Same event types, same flow |
 | **Database schema** | Messages table is provider-agnostic |
-| **Frontend** (aside from model default) | All rendering, streaming, artifact handling unchanged |
 | **Copilot ACP integration** | Independent subsystem; continues to work alongside |
-| **Auth flow** | GitHub OAuth still needed for the app itself; just not used as LLM API key when provider is `ollama` |
+| **Frontend components** | MessageBubble, ToolCallBlock, ReviewOverlay, etc. — all unchanged |
+
+### Removed
+
+| Component | Files | Why |
+|---|---|---|
+| **GitHub OAuth flow** | `routes/auth.ts`, `middleware/auth.ts`, `services/github.ts`, `tests/auth.test.ts` | Only existed to obtain `gh_token` for GitHub Models API |
+| **Auth middleware** | `middleware/auth.ts`, references in `index.ts` | Routes become public (single-user self-hosted app) |
+| **Login view** | `frontend/src/components/LoginView.tsx` | No authentication needed |
+| **User signals** | `user`, `authChecked` in `store.ts` | No user identity to track |
+| **GitHub config vars** | `VOXPILOT_GITHUB_CLIENT_ID`, `VOXPILOT_GITHUB_CLIENT_SECRET` in `config.ts` | No OAuth app needed |
+
+### Added
+
+| Component | Files | Why |
+|---|---|---|
+| **LLM config vars** | `config.ts`, `.env.example` | `llmBaseUrl`, `llmApiKey`, `llmDefaultModel` |
+| **LLM health check** | `routes/health.ts` | Pings Ollama to report connectivity |
+| **Health indicator** | `ChatView.tsx` header area | Replaces user avatar / sign-out with connection status |
 
 ---
 
@@ -273,10 +310,14 @@ Estimated effort: **Minimal: ~5 min. Enhanced: ~2 hours.**
 
 ### Unit tests
 
-- Test `createLlmClient()` returns correct baseURL/apiKey for each
-  provider setting.
 - Existing `agent.test.ts` tests continue to work (they mock the OpenAI
-  SDK; the mock is provider-agnostic).
+  SDK; the mock is provider-agnostic). Update to remove `ghToken` from
+  test options.
+- Remove `auth.test.ts` (deleted code).
+- Update `chat.test.ts` — remove auth-related assertions, verify
+  messages flow without `gh_token`.
+- Add a health endpoint test that mocks Ollama responses (connected vs.
+  unreachable).
 
 ### Integration testing
 
@@ -287,11 +328,11 @@ Estimated effort: **Minimal: ~5 min. Enhanced: ~2 hours.**
 
 ### Manual verification
 
-- Send a coding prompt → verify streamed response appears in UI.
-- Trigger a tool call (e.g. "read the README") → verify tool execution
-  and result display.
-- Switch between `ollama` and `github` providers via env var → verify
-  both work.
+- Open the app → should go directly to chat (no login screen).
+- Verify the health indicator shows green + model name.
+- Send a coding prompt → verify streamed response appears.
+- Stop Ollama → verify health indicator turns red.
+- Trigger a tool call (e.g. "read the README") → verify tool execution.
 
 ---
 
@@ -309,7 +350,6 @@ curl http://localhost:11434/api/tags
 
 # 4. Configure VoxPilot
 cat >> .env <<EOF
-VOXPILOT_LLM_PROVIDER=ollama
 VOXPILOT_LLM_BASE_URL=http://localhost:11434/v1
 VOXPILOT_LLM_API_KEY=ollama
 VOXPILOT_LLM_DEFAULT_MODEL=qwen3-coder:32b
@@ -317,54 +357,90 @@ EOF
 
 # 5. Start VoxPilot
 just dev-backend
+# Open http://localhost:8000 — no login required, starts chatting immediately
 ```
 
 ---
 
-## 8  Migration Path and Backward Compatibility
+## 8  Code Deletion Summary
+
+Removing the GitHub auth flow is a net code reduction. Here's the full
+inventory of what gets deleted or simplified:
+
+### Files deleted (4 files, ~150 lines)
+
+| File | Lines | Purpose |
+|---|---|---|
+| `backend/src/routes/auth.ts` | ~67 | Login, callback, logout, /me routes |
+| `backend/src/middleware/auth.ts` | ~17 | Cookie-based auth middleware |
+| `backend/src/services/github.ts` | ~81 | OAuth token exchange, user fetch |
+| `frontend/src/components/LoginView.tsx` | ~17 | GitHub sign-in view |
+
+### Files simplified (estimated lines removed)
+
+| File | Lines removed | Change |
+|---|---|---|
+| `backend/src/index.ts` | ~5 | Remove `authMiddleware`, `authRouter`, `protectedBase` |
+| `backend/src/config.ts` | ~4 | Remove `githubClientId`, `githubClientSecret` |
+| `backend/src/routes/chat.ts` | ~3 | Remove `AuthEnv`, `c.get("ghToken")`, `gh_token` from payload |
+| `backend/src/routes/sessions.ts` | ~1 | Remove `AuthEnv` type param |
+| `backend/src/routes/artifacts.ts` | ~1 | Remove `AuthEnv` type param |
+| `backend/src/services/streams.ts` | ~1 | Remove `gh_token` from `MessagePayload` |
+| `backend/src/services/agent.ts` | ~5 | Remove `ghToken` from options, remove `GITHUB_MODELS_BASE_URL` |
+| `backend/src/schemas/api.ts` | ~5 | Remove `GitHubUser` schema |
+| `frontend/src/App.tsx` | ~10 | Remove auth check, LoginView gating, user prop |
+| `frontend/src/store.ts` | ~8 | Remove `user`, `authChecked` signals, `GitHubUser` re-export |
+| `frontend/src/api-client.ts` | ~12 | Remove `fetchCurrentUser()`, `logout()` |
+| `frontend/src/components/ChatView.tsx` | ~8 | Remove user prop, avatar, sign-out button |
+| `backend/tests/auth.test.ts` | ~all | Delete entire test file |
+
+**Net effect: ~5 files deleted, ~10 files simplified, ~200+ lines
+removed, ~30 lines added (config + health check).** The codebase gets
+significantly simpler.
+
+---
+
+## 9  Compatibility Notes
+
+This is a **breaking change** — the GitHub OAuth flow is removed and
+the app no longer requires (or supports) GitHub authentication.
 
 | Scenario | Behaviour |
 |---|---|
-| No `VOXPILOT_LLM_*` env vars set | Defaults to `github` provider → existing behaviour unchanged |
-| `VOXPILOT_LLM_PROVIDER=ollama` | Uses local Ollama; GitHub token still needed for app auth but not for LLM |
-| `VOXPILOT_LLM_PROVIDER=custom` | Uses any OpenAI-compatible endpoint (e.g. vLLM, OpenRouter, Together AI) |
-| Frontend sends `model` in request | Used as-is (user override) |
-| Frontend omits `model` | Server resolves from `VOXPILOT_LLM_DEFAULT_MODEL` |
-
-This design means:
-- **Zero breaking changes** for existing users.
-- **One config change** to switch to self-hosted.
-- **Future-proof** — any OpenAI-compatible provider works via `custom`.
+| Default config (no `.env` changes) | Connects to `http://localhost:11434/v1` with `ollama` key |
+| `VOXPILOT_LLM_BASE_URL` set to vLLM/OpenRouter/etc. | Works with any OpenAI-compatible endpoint |
+| Frontend loads | Goes directly to ChatView, no login screen |
+| Ollama is down | Health indicator shows red; chat requests fail with clear error |
 
 ---
 
-## 9  Future Enhancements (post-initial integration)
+## 10  Future Enhancements (post-initial integration)
 
 | Enhancement | Notes |
 |---|---|
-| **Model routing** | Use a fast local model for tool-heavy iterations, cloud model for complex reasoning |
-| **Automatic fallback** | If Ollama is unreachable, fall back to GitHub Models |
+| **Model selector UI** | Dropdown in chat input querying Ollama's `/api/tags` for available models |
 | **Model warm-up** | Pre-load the model on backend startup to eliminate first-request latency |
 | **GPU monitoring** | Surface Ollama's GPU utilisation in the health endpoint |
-| **Multiple providers per session** | Let the user pick provider+model per message |
+| **Cloud fallback** | Optional cloud provider (OpenRouter, etc.) for when local GPU is busy |
+| **Multiple models per session** | Let the user pick model per message |
 
 ---
 
-## 10  Estimated Total Effort
+## 11  Estimated Total Effort
 
 | Step | Effort |
 |---|---|
-| Config schema update | 15 min |
-| Provider resolver in agent.ts | 30 min |
-| Default model resolution | 10 min |
-| .env.example + docs | 15 min |
-| Health check (optional) | 20 min |
-| Testing | 30 min |
-| **Total** | **~2 hours** |
+| LLM config in config.ts | 10 min |
+| Remove GitHub auth (backend) | 45 min |
+| Update agent.ts | 20 min |
+| Remove GitHub auth (frontend) | 30 min |
+| Add health indicator | 60 min |
+| Update .env.example + docs | 15 min |
+| Update tests | 30 min |
+| **Total** | **~3.5 hours** |
 
-The entire change is **< 100 lines of code** across 4–5 files, with
-zero changes to the agent loop logic, tool framework, or frontend
-components.
+Net code change: **~200+ lines deleted, ~80 lines added.** The codebase
+gets simpler despite adding new functionality (health check).
 
 ---
 
@@ -374,6 +450,7 @@ components.
 |---|---|---|
 | Inference server | Ollama | Simplest setup, OpenAI-compatible API, built-in model management, auto VRAM management |
 | Primary model | Qwen 3 Coder 32B (Q4) | Best coding benchmark scores, tool-calling support, fits in 24 GB VRAM |
-| Integration pattern | OpenAI SDK baseURL swap | Zero changes to agent loop logic; provider is just a config value |
-| Auth when self-hosted | GitHub OAuth for app, not used for LLM | Clean separation; LLM provider has its own (or no) auth |
-| Default provider | `github` (backward-compatible) | Existing users unaffected |
+| Integration pattern | OpenAI SDK baseURL swap | Zero changes to agent loop logic; provider is just config values |
+| GitHub auth | **Remove entirely** | Only existed for GitHub Models API key; self-hosted app doesn't need authentication |
+| Health indicator | Replace user avatar area | Frontend shows Ollama connectivity + model name instead of GitHub user info |
+| Default config | Ollama at `localhost:11434` | Self-hosted is now the only supported mode; any OpenAI-compatible endpoint works via config |
