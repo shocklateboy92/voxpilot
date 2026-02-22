@@ -1,4 +1,6 @@
 import { z } from "zod/v4";
+import { loadConfigSync } from "zod-config";
+import { envAdapter } from "zod-config/env-adapter";
 
 const configSchema = z.object({
   appName: z.string().default("VoxPilot"),
@@ -24,20 +26,16 @@ const configSchema = z.object({
 
 export type Config = z.infer<typeof configSchema>;
 
-function loadConfig(): Config {
-  const env = Bun.env;
-  return configSchema.parse({
-    appName: env["VOXPILOT_APP_NAME"],
-    debug: env["VOXPILOT_DEBUG"],
-    corsOrigins: env["VOXPILOT_CORS_ORIGINS"],
-    llmBaseUrl: env["VOXPILOT_LLM_BASE_URL"],
-    llmApiKey: env["VOXPILOT_LLM_API_KEY"],
-    llmDefaultModel: env["VOXPILOT_LLM_DEFAULT_MODEL"],
-    dbPath: env["VOXPILOT_DB_PATH"],
-    workDir: env["VOXPILOT_WORK_DIR"],
-    maxAgentIterations: env["VOXPILOT_MAX_AGENT_ITERATIONS"],
-    copilotCliPath: env["VOXPILOT_COPILOT_CLI_PATH"],
-  });
-}
+const ENV_PREFIX = "VOXPILOT_";
 
-export const config = loadConfig();
+export const config: Config = loadConfigSync({
+  schema: configSchema,
+  keyMatching: "lenient",
+  adapters: envAdapter({
+    regex: /^VOXPILOT_/,
+    transform: ({ key, value }) => ({
+      key: key.slice(ENV_PREFIX.length),
+      value,
+    }),
+  }),
+});
