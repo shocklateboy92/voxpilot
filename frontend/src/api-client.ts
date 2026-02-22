@@ -77,16 +77,13 @@ export async function fetchSessions(): Promise<SessionSummary[]> {
 }
 
 export async function createSession(): Promise<SessionSummary> {
-  const res = await rpc.api.sessions.$post();
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Failed to create session: ${text}`);
-  }
-  return (await res.json()) as SessionSummary;
+  const session = await authedJson(rpc.api.sessions.$post());
+  if (!session) throw new Error("Failed to create session");
+  return session;
 }
 
-export async function deleteSession(id: string): Promise<void> {
-  await authedVoid(
+export function deleteSession(id: string): Promise<void> {
+  return authedVoid(
     rpc.api.sessions[":session_id"].$delete({ param: { session_id: id } }),
   );
 }
@@ -112,12 +109,12 @@ export async function fetchFileFullText(
   );
 }
 
-export async function patchFileViewed(
+export function patchFileViewed(
   artifactId: string,
   fileId: string,
   viewed: boolean,
 ): Promise<void> {
-  await authedVoid(
+  return authedVoid(
     rpc.api.artifacts[":id"].files[":fileId"].viewed.$patch({
       param: { id: artifactId, fileId },
       json: { viewed },
@@ -140,11 +137,11 @@ export async function postFileComment(
   );
 }
 
-export async function deleteArtifactComment(
+export function deleteArtifactComment(
   artifactId: string,
   commentId: string,
 ): Promise<void> {
-  await authedVoid(
+  return authedVoid(
     rpc.api.artifacts[":id"].comments[":commentId"].$delete({
       param: { id: artifactId, commentId },
     }),
