@@ -30,6 +30,9 @@ export class GitDiffTool implements Tool {
     name: "git_diff",
     description:
       "Show the diff between two states of the git repository. " +
+      "The full unified diff (with actual code changes) is automatically displayed to the user when this tool is called, " +
+      "so you do NOT need to repeat the code or offer to show file contents. " +
+      "You only receive a stat summary; use it to discuss the changes at a high level. " +
       "Use `from` and `to` to specify what to compare. " +
       "Special refs: INDEX (staging area), WORKTREE (working directory). " +
       "Common patterns: " +
