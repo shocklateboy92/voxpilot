@@ -9,6 +9,15 @@
 import { createSignal } from "solid-js";
 
 // ── Types ────────────────────────────────────────────────────────────────────
+//
+// These types annotate the SolidJS signals below.  Several of them (GitHubUser,
+// ToolCallInfo, SessionSummary) mirror the Zod-inferred types exported from
+// backend/src/schemas/api.ts; they are redefined here to avoid pulling in Zod
+// and to allow frontend-specific extensions where needed (e.g. MessageRead adds
+// `html` and `artifactId` for pre-rendered content the backend never sends).
+// The review-artifact types (ArtifactDetail, ArtifactFileDetail, etc.) mirror
+// the interfaces in backend/src/services/artifacts.ts, projected to the subset
+// of fields the UI needs.
 
 export interface GitHubUser {
   login: string;
