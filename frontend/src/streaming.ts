@@ -257,7 +257,9 @@ export function openStream(sessionId: string): void {
       setIsStreaming(false);
 
       // Refresh session list (title may have been auto-set)
-      void fetchSessions().then(setSessions);
+      void fetchSessions().then(setSessions).catch(() => {
+        // Best-effort refresh; ignore errors since the stream completed successfully
+      });
     },
 
     onError(message) {
