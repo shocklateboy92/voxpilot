@@ -21,7 +21,7 @@ export function MessageBubble(props: Props) {
             when={props.message.html}
             fallback={<div class="message assistant">{props.message.content}</div>}
           >
-            <div class="message assistant markdown-body" innerHTML={props.message.html ?? undefined} />
+            {(html) => <div class="message assistant markdown-body" innerHTML={html()} />}
           </Show>
         </Show>
         <For each={props.message.tool_calls}>
@@ -30,24 +30,18 @@ export function MessageBubble(props: Props) {
       </Show>
 
       {/* For tool result messages, render inside matching block or standalone */}
-      <Show when={props.message.role === "tool"}>
-        <HistoryToolResult message={props.message} />
-      </Show>
+      {props.message.role === "tool" && <HistoryToolResult message={props.message} />}
 
       {/* For regular user/assistant/system messages */}
-      <Show
-        when={
-          !(props.message.role === "assistant" && props.message.tool_calls?.length) &&
-          props.message.role !== "tool"
-        }
-      >
+      {!(props.message.role === "assistant" && props.message.tool_calls?.length) &&
+        props.message.role !== "tool" && (
         <Show
           when={props.message.role === "assistant" && props.message.html}
           fallback={<div class={`message ${props.message.role}`}>{props.message.content}</div>}
         >
-          <div class="message assistant markdown-body" innerHTML={props.message.html ?? undefined} />
+          {(html) => <div class="message assistant markdown-body" innerHTML={html()} />}
         </Show>
-      </Show>
+      )}
     </>
   );
 }
@@ -58,6 +52,30 @@ function HistoryToolCall(props: { call: ToolCallInfo }) {
     argsText = JSON.stringify(JSON.parse(props.call.arguments), null, 2);
   } catch {
     argsText = props.call.arguments;
+  }
+
+  if (props.call.name === "copilot_agent") {
+    let sessionName = "copilot";
+    try {
+      const parsed: unknown = JSON.parse(props.call.arguments);
+      if (
+        typeof parsed === "object" &&
+        parsed !== null &&
+        "session_name" in parsed &&
+        typeof (parsed as Record<string, unknown>).session_name === "string"
+      ) {
+        sessionName = (parsed as Record<string, unknown>).session_name as string;
+      }
+    } catch { /* ignore */ }
+
+    return (
+      <details class="copilot-block" data-tool-call-id={props.call.id}>
+        <summary class="copilot-summary">
+          🤖 Copilot [{sessionName}]
+          <span class="copilot-done-label"> — done</span>
+        </summary>
+      </details>
+    );
   }
 
   return (
@@ -78,13 +96,13 @@ function HistoryToolResult(props: { message: MessageRead }) {
 
   return (
     <>
-      <Show when={!artifact()}>
+      {!artifact() && (
         <div class="tool-result-standalone">
           <div class={`tool-result${isError() ? " tool-error" : ""}`}>
             <pre>{props.message.content}</pre>
           </div>
         </div>
-      </Show>
+      )}
       <Show when={artifact()}>
         {(a) => <ChangesetCard artifact={a()} />}
       </Show>

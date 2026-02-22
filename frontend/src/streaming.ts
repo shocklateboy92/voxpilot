@@ -8,7 +8,14 @@
  */
 
 import { connectSession, sendMessage as ssePostMessage, confirmTool } from "./sse";
-import type { ToolCallPayload, ToolResultPayload, ToolConfirmPayload, ReviewArtifactPayload } from "./sse";
+import type {
+  ToolCallEvent,
+  ToolResultEvent,
+  ToolConfirmEvent,
+  ReviewArtifactEvent,
+  CopilotDeltaEvent,
+  CopilotDoneEvent,
+} from "@backend/schemas/events";
 import {
   setMessages,
   setStreamingText,
@@ -105,7 +112,7 @@ export function openStream(sessionId: string): void {
       pendingText += content;
     },
 
-    onToolCall(payload: ToolCallPayload) {
+    onToolCall(payload: ToolCallEvent) {
       // Finalize any in-progress streaming text
       stopRafLoop();
       if (pendingText) {
@@ -128,9 +135,9 @@ export function openStream(sessionId: string): void {
       setStreamingToolCalls((prev) => [...prev, tc]);
     },
 
-    onToolResult(payload: ToolResultPayload) {
+    onToolResult(payload: ToolResultEvent) {
       setPendingConfirm(null);
-      const rawArtifactId = (payload as ToolResultPayload & { artifact_id?: string }).artifact_id;
+      const rawArtifactId = payload.artifact_id;
       setStreamingToolCalls((prev) =>
         prev.map((tc): StreamingToolCall => {
           if (tc.id !== payload.id) return tc;
@@ -147,7 +154,7 @@ export function openStream(sessionId: string): void {
       );
     },
 
-    onToolConfirm(payload: ToolConfirmPayload) {
+    onToolConfirm(payload: ToolConfirmEvent) {
       setPendingConfirm({
         id: payload.id,
         name: payload.name,
@@ -155,7 +162,7 @@ export function openStream(sessionId: string): void {
       });
     },
 
-    onReviewArtifact(payload: ReviewArtifactPayload) {
+    onReviewArtifact(payload: ReviewArtifactEvent) {
       const summary: ArtifactSummary = {
         artifactId: payload.artifactId,
         title: payload.title,
@@ -173,6 +180,36 @@ export function openStream(sessionId: string): void {
         next.set(payload.artifactId, summary);
         return next;
       });
+    },
+
+    onCopilotDelta(payload: CopilotDeltaEvent) {
+      setStreamingToolCalls((prev) =>
+        prev.map((tc): StreamingToolCall => {
+          if (tc.id !== payload.tool_call_id) return tc;
+          const sessionName = payload.session_name || tc.copilotSessionName;
+          const updated: StreamingToolCall = {
+            ...tc,
+            copilotStream: (tc.copilotStream ?? "") + payload.content,
+          };
+          if (sessionName) updated.copilotSessionName = sessionName;
+          return updated;
+        }),
+      );
+    },
+
+    onCopilotDone(payload: CopilotDoneEvent) {
+      setStreamingToolCalls((prev) =>
+        prev.map((tc): StreamingToolCall => {
+          if (tc.id !== payload.tool_call_id) return tc;
+          const sessionName = payload.session_name || tc.copilotSessionName;
+          const updated: StreamingToolCall = {
+            ...tc,
+            copilotDone: true,
+          };
+          if (sessionName) updated.copilotSessionName = sessionName;
+          return updated;
+        }),
+      );
     },
 
     onDone(_model, html) {

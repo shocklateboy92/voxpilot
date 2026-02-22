@@ -7,14 +7,46 @@
  */
 
 import { createSignal } from "solid-js";
-import type { components } from "./api";
 
 // ── Types ────────────────────────────────────────────────────────────────────
+//
+// These types annotate the SolidJS signals below.  Several of them (GitHubUser,
+// ToolCallInfo, SessionSummary) mirror the Zod-inferred types exported from
+// backend/src/schemas/api.ts; they are redefined here to avoid pulling in Zod
+// and to allow frontend-specific extensions where needed (e.g. MessageRead adds
+// `html` and `artifactId` for pre-rendered content the backend never sends).
+// The review-artifact types (ArtifactDetail, ArtifactFileDetail, etc.) mirror
+// the interfaces in backend/src/services/artifacts.ts, projected to the subset
+// of fields the UI needs.
 
-export type SessionSummary = components["schemas"]["SessionSummary"];
-export type MessageRead = components["schemas"]["MessageRead"] & { html?: string | null; artifactId?: string };
-export type ToolCallInfo = components["schemas"]["ToolCallInfo"];
-export type GitHubUser = components["schemas"]["GitHubUser"];
+export interface GitHubUser {
+  login: string;
+  name?: string | null | undefined;
+  avatar_url: string;
+}
+
+export interface ToolCallInfo {
+  id: string;
+  name: string;
+  arguments: string;
+}
+
+export interface SessionSummary {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MessageRead {
+  role: "user" | "assistant" | "system" | "tool";
+  content: string;
+  created_at: string;
+  tool_calls?: ToolCallInfo[] | null;
+  tool_call_id?: string | null;
+  html?: string | null;
+  artifactId?: string;
+}
 
 export interface StreamingToolCall {
   id: string;
@@ -23,6 +55,9 @@ export interface StreamingToolCall {
   result?: string;
   isError?: boolean;
   artifactId?: string;
+  copilotStream?: string;
+  copilotDone?: boolean;
+  copilotSessionName?: string;
 }
 
 // ── Review artifact types ────────────────────────────────────────────────────
@@ -130,8 +165,13 @@ export const [pendingConfirm, setPendingConfirm] = createSignal<PendingConfirm |
 /** Map of artifactId → ArtifactSummary for inline changeset cards. */
 export const [artifacts, setArtifacts] = createSignal<Map<string, ArtifactSummary>>(new Map());
 
-/** Currently open review overlay artifact ID (null = closed). */
-export const [reviewOverlayArtifactId, setReviewOverlayArtifactId] = createSignal<string | null>(null);
+/** Currently open review overlay target (null = closed). */
+export interface ReviewOverlayTarget {
+  artifactId: string;
+  /** File ID to jump to when opening (undefined = default first-unviewed behaviour). */
+  fileId?: string;
+}
+export const [reviewOverlayArtifactId, setReviewOverlayArtifactId] = createSignal<ReviewOverlayTarget | null>(null);
 
 /** Full artifact detail for the currently open overlay. */
 export const [reviewDetail, setReviewDetail] = createSignal<ArtifactDetail | null>(null);

@@ -54,19 +54,24 @@ export function ReviewOverlay() {
 
   // Load artifact detail when overlay opens
   createEffect(() => {
-    const artifactId = reviewOverlayArtifactId();
-    if (!artifactId) {
+    const target = reviewOverlayArtifactId();
+    if (!target) {
       setReviewDetail(null);
       setCurrentFileIndex(0);
       return;
     }
 
-    void fetchArtifact(artifactId).then((detail) => {
+    void fetchArtifact(target.artifactId).then((detail) => {
       if (detail) {
         setReviewDetail(detail);
-        // Start at first unviewed file, or 0
-        const idx = detail.files.findIndex((f) => !f.viewed);
-        setCurrentFileIndex(idx >= 0 ? idx : 0);
+        if (target.fileId) {
+          const idx = detail.files.findIndex((f) => f.id === target.fileId);
+          setCurrentFileIndex(idx >= 0 ? idx : 0);
+        } else {
+          // Start at first unviewed file, or 0
+          const idx = detail.files.findIndex((f) => !f.viewed);
+          setCurrentFileIndex(idx >= 0 ? idx : 0);
+        }
       }
     });
   });
@@ -265,7 +270,7 @@ function ReviewContent(props: ReviewContentProps) {
         </button>
         <div class="review-page-indicator">
           <Show when={!props.isOnSummaryPage && props.currentFile} fallback="Review Summary">
-            {props.currentFile?.path}
+            {(file) => file().path}
           </Show>
           <span class="review-page-count">
             {" "}
@@ -304,7 +309,7 @@ function ReviewContent(props: ReviewContentProps) {
                 when={props.viewMode === "full" && file().fullTextHtml}
                 fallback={<div class="review-diff-scroll" innerHTML={file().html} />}
               >
-                <div class="review-fulltext-scroll" innerHTML={file().fullTextHtml ?? ""} />
+                {(html) => <div class="review-fulltext-scroll" innerHTML={html()} />}
               </Show>
             )}
           </Show>
@@ -332,20 +337,20 @@ function ReviewContent(props: ReviewContentProps) {
           </div>
 
           {/* Comments list */}
-          <Show when={props.fileComments.length > 0}>
+          {props.fileComments.length > 0 && (
             <div class="review-comments-list">
               <For each={props.fileComments}>
                 {(c) => (
                   <div class="review-comment-item">
                     <Show when={c.lineNumber}>
-                      <span class="review-comment-line">L{c.lineNumber}</span>
+                      {(lineNum) => <span class="review-comment-line">L{lineNum()}</span>}
                     </Show>
                     <span class="review-comment-text">{c.content}</span>
                   </div>
                 )}
               </For>
             </div>
-          </Show>
+          )}
 
           {/* Comment input */}
           <div class="review-comment-input-row">
@@ -393,7 +398,7 @@ function ReviewSummaryPage(props: ReviewSummaryProps) {
             <div
               class="review-summary-file"
               onClick={() => {
-                if (!file.viewed) props.onNavigate(index());
+                props.onNavigate(index());
               }}
             >
               <span class="review-summary-icon">
@@ -408,7 +413,7 @@ function ReviewSummaryPage(props: ReviewSummaryProps) {
         </For>
 
         {/* Show comment digest */}
-        <Show when={props.detail.comments.length > 0}>
+        {props.detail.comments.length > 0 && (
           <div class="review-summary-comments">
             <For each={props.detail.comments}>
               {(c) => {
@@ -420,9 +425,11 @@ function ReviewSummaryPage(props: ReviewSummaryProps) {
                       {file()?.path ?? "unknown"}
                     </span>
                     <Show when={c.lineNumber}>
-                      <span class="review-summary-comment-line">
-                        L{c.lineNumber}
-                      </span>
+                      {(lineNum) => (
+                        <span class="review-summary-comment-line">
+                          L{lineNum()}
+                        </span>
+                      )}
                     </Show>
                     : {c.content}
                   </div>
@@ -430,7 +437,7 @@ function ReviewSummaryPage(props: ReviewSummaryProps) {
               }}
             </For>
           </div>
-        </Show>
+        )}
       </div>
 
       <div class="review-summary-actions">

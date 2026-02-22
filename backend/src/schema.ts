@@ -1,4 +1,4 @@
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
 import type { DiffHunk } from "./schemas/diff-document";
 
 export interface ToolCallInfo {
@@ -91,4 +91,23 @@ export const reviewComments = sqliteTable(
     createdAt: text("created_at").notNull(),
   },
   (table) => [index("ix_review_comments_artifact").on(table.artifactId)],
+);
+
+// ── ACP sessions ─────────────────────────────────────────────────────────────
+
+export const acpSessions = sqliteTable(
+  "acp_sessions",
+  {
+    id: text("id").primaryKey().notNull(),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => sessions.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    acpSessionId: text("acp_session_id").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [
+    index("ix_acp_sessions_session").on(table.sessionId),
+    unique("uq_acp_sessions_session_name").on(table.sessionId, table.name),
+  ],
 );

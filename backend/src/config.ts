@@ -18,6 +18,7 @@ const configSchema = z.object({
     .string()
     .default("25")
     .transform((v) => Number.parseInt(v, 10)),
+  copilotCliPath: z.string().default("copilot"),
 });
 
 export type Config = z.infer<typeof configSchema>;
@@ -33,6 +34,7 @@ function loadConfig(): Config {
     dbPath: env["VOXPILOT_DB_PATH"],
     workDir: env["VOXPILOT_WORK_DIR"],
     maxAgentIterations: env["VOXPILOT_MAX_AGENT_ITERATIONS"],
+    copilotCliPath: env["VOXPILOT_COPILOT_CLI_PATH"],
   });
 }
 

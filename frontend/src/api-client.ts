@@ -1,118 +1,125 @@
 /**
- * API client functions.
+ * API client functions using Hono RPC.
  *
- * All endpoints use openapi-fetch for type-safe requests
- * derived from the generated OpenAPI spec.
+ * Uses `hc()` from hono/client for type-safe requests
+ * derived from the backend's AppType.
  */
 
-import createClient from "openapi-fetch";
-import type { paths } from "./api";
-import type { SessionSummary, GitHubUser, ArtifactDetail, ReviewCommentData } from "./store";
+import type { AppType } from "@backend/index";
+import { hc } from "hono/client";
+import type { ClientResponse } from "hono/client";
+import type { SuccessStatusCode } from "hono/utils/http-status";
+import type {
+  SessionSummary,
+  GitHubUser,
+  ArtifactDetail,
+  ReviewCommentData,
+} from "./store";
 
-// ── Typed client ─────────────────────────────────────────────────────────────
+// ── Typed RPC client ─────────────────────────────────────────────────────────
 
-const client = createClient<paths>({
-  baseUrl: window.location.origin,
-  credentials: "include",
+const rpc = hc<AppType>(window.location.origin, {
+  init: { credentials: "include" },
 });
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Extracts the JSON body type from the success-status variants of a Hono
+ * ClientResponse union (one variant per status code).
+ */
+type SuccessOf<T extends ClientResponse<unknown>> =
+  T extends ClientResponse<infer D, SuccessStatusCode, "json"> ? D : never;
+
+/**
+ * Awaits a response, reloads on 401, returns parsed JSON or null on error.
+ * T is inferred from the success variant of the Hono ClientResponse union.
+ */
+async function authedJson<T extends ClientResponse<unknown>>(
+  req: Promise<T>,
+): Promise<SuccessOf<T> | null> {
+  const res = await req;
+  if (res.status === 401) {
+    window.location.reload();
+    return null;
+  }
+  if (!res.ok) return null;
+  // res.json() returns unknown when T is a union of ClientResponses (its format
+  // parameter isn't narrowed here).  The cast is safe: we've verified ok===true
+  // above, so only the success variant of the union is reachable.
+  return res.json() as SuccessOf<T>;
+}
+
+/** Awaits a response, reloads on 401. Ignores body. */
+async function authedVoid(req: Promise<Response>): Promise<void> {
+  const res = await req;
+  if (res.status === 401) {
+    window.location.reload();
+  }
+}
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 export async function fetchCurrentUser(): Promise<GitHubUser | null> {
-  const { data, error } = await client.GET("/api/auth/me");
-  if (error) return null;
-  return data ?? null;
+  return authedJson(rpc.api.auth.me.$get());
 }
 
 export async function logout(): Promise<void> {
-  await client.POST("/api/auth/logout");
+  await authedVoid(rpc.api.auth.logout.$post());
   window.location.reload();
 }
 
 // ── Sessions ─────────────────────────────────────────────────────────────────
 
 export async function fetchSessions(): Promise<SessionSummary[]> {
-  const { data } = await client.GET("/api/sessions");
+  const data = await authedJson(rpc.api.sessions.$get());
   return data ?? [];
 }
 
 export async function createSession(): Promise<SessionSummary> {
-  const { data, error } = await client.POST("/api/sessions");
-  if (error || !data) {
-    const detail = error && "detail" in error
-      ? JSON.stringify(error.detail)
-      : "unknown error";
-    throw new Error(`Failed to create session: ${detail}`);
-  }
-  return data;
+  const session = await authedJson(rpc.api.sessions.$post());
+  if (!session) throw new Error("Failed to create session");
+  return session;
 }
 
-export async function deleteSession(id: string): Promise<void> {
-  await client.DELETE("/api/sessions/{session_id}", {
-    params: { path: { session_id: id } },
-  });
-}
-
-// ── Messages ─────────────────────────────────────────────────────────────────
-
-/**
- * Post a user message to an active session stream.
- *
- * Uses plain fetch because openapi-fetch doesn't return the raw Response
- * object, and the caller needs the status code for 202/409 handling.
- */
-export async function postMessage(
-  sessionId: string,
-  content: string,
-  model = "gpt-4o",
-): Promise<Response> {
-  const response = await fetch(`/api/sessions/${sessionId}/messages`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ content, model }),
-  });
-
-  if (response.status === 401) {
-    window.location.reload();
-  }
-
-  return response;
+export function deleteSession(id: string): Promise<void> {
+  return authedVoid(
+    rpc.api.sessions[":session_id"].$delete({ param: { session_id: id } }),
+  );
 }
 
 // ── Artifacts ────────────────────────────────────────────────────────────────
 
-export async function fetchArtifact(artifactId: string): Promise<ArtifactDetail | null> {
-  const response = await fetch(`/api/artifacts/${artifactId}`, {
-    credentials: "include",
-  });
-  if (!response.ok) return null;
-  return (await response.json()) as ArtifactDetail;
+export async function fetchArtifact(
+  artifactId: string,
+): Promise<ArtifactDetail | null> {
+  return authedJson(
+    rpc.api.artifacts[":id"].$get({ param: { id: artifactId } }),
+  );
 }
 
 export async function fetchFileFullText(
   artifactId: string,
   fileId: string,
 ): Promise<{ content: string; lineCount: number } | null> {
-  const response = await fetch(
-    `/api/artifacts/${artifactId}/files/${fileId}/full-text`,
-    { credentials: "include" },
+  return authedJson(
+    rpc.api.artifacts[":id"].files[":fileId"]["full-text"].$get({
+      param: { id: artifactId, fileId },
+    }),
   );
-  if (!response.ok) return null;
-  return (await response.json()) as { content: string; lineCount: number };
 }
 
-export async function patchFileViewed(
+export function patchFileViewed(
   artifactId: string,
   fileId: string,
   viewed: boolean,
 ): Promise<void> {
-  await fetch(`/api/artifacts/${artifactId}/files/${fileId}/viewed`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ viewed }),
-  });
+  return authedVoid(
+    rpc.api.artifacts[":id"].files[":fileId"].viewed.$patch({
+      param: { id: artifactId, fileId },
+      json: { viewed },
+    }),
+  );
 }
 
 export async function postFileComment(
@@ -122,37 +129,31 @@ export async function postFileComment(
   lineId?: string | null,
   lineNumber?: number | null,
 ): Promise<ReviewCommentData | null> {
-  const response = await fetch(
-    `/api/artifacts/${artifactId}/files/${fileId}/comments`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ content, line_id: lineId, line_number: lineNumber }),
-    },
+  return authedJson(
+    rpc.api.artifacts[":id"].files[":fileId"].comments.$post({
+      param: { id: artifactId, fileId },
+      json: { content, line_id: lineId, line_number: lineNumber },
+    }),
   );
-  if (!response.ok) return null;
-  return (await response.json()) as ReviewCommentData;
 }
 
-export async function deleteArtifactComment(
+export function deleteArtifactComment(
   artifactId: string,
   commentId: string,
 ): Promise<void> {
-  await fetch(`/api/artifacts/${artifactId}/comments/${commentId}`, {
-    method: "DELETE",
-    credentials: "include",
-  });
+  return authedVoid(
+    rpc.api.artifacts[":id"].comments[":commentId"].$delete({
+      param: { id: artifactId, commentId },
+    }),
+  );
 }
 
 export async function submitReview(
   artifactId: string,
 ): Promise<{ status: string } | null> {
-  const response = await fetch(`/api/artifacts/${artifactId}/submit`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  if (!response.ok) return null;
-  return (await response.json()) as { status: string };
+  return authedJson(
+    rpc.api.artifacts[":id"].submit.$post({
+      param: { id: artifactId },
+    }),
+  );
 }

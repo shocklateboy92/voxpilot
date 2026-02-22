@@ -14,81 +14,61 @@
  *   error       → onError(message)          — something went wrong
  */
 
-// ── SSE event payload types (mirror backend schemas) ────────────────────────
+import type { AppType } from "@backend/index";
+import type {
+  MessageEvent as SseMessageEvent,
+  TextDeltaEvent,
+  ToolCallEvent,
+  ToolResultEvent,
+  DoneEvent,
+  ErrorEvent as SseErrorEvent,
+  ToolConfirmEvent,
+  ReviewArtifactEvent,
+  CopilotDeltaEvent,
+  CopilotDoneEvent,
+} from "@backend/schemas/events";
+import { hc } from "hono/client";
 
-export interface ToolCallInfo {
-  id: string;
-  name: string;
-  arguments: string;
+// Re-export backend event types so callers don't need a direct backend import.
+export type {
+  SseMessageEvent as MessageEvent,
+  TextDeltaEvent,
+  ToolCallEvent,
+  ToolResultEvent,
+  DoneEvent,
+  SseErrorEvent as ErrorEvent,
+  ToolConfirmEvent,
+  ReviewArtifactEvent,
+  CopilotDeltaEvent,
+  CopilotDoneEvent,
+};
+
+// ── RPC client for URL building and POST calls ──────────────────────────────
+
+/** Reload the page when the server returns 401 (session expired / logged out). */
+function handle401(res: Response): Response {
+  if (res.status === 401) {
+    window.location.reload();
+  }
+  return res;
 }
 
-export interface MessagePayload {
-  role: "user" | "assistant" | "system" | "tool";
-  content: string;
-  created_at: string;
-  tool_calls?: ToolCallInfo[] | null;
-  tool_call_id?: string | null;
-  artifact_id?: string | null;
-  html?: string | null;
-}
-
-export interface TextDeltaPayload {
-  content: string;
-}
-
-export interface ToolCallPayload {
-  id: string;
-  name: string;
-  arguments: string;
-}
-
-export interface ToolResultPayload {
-  id: string;
-  name: string;
-  content: string;
-  is_error: boolean;
-}
-
-export interface DonePayload {
-  model: string;
-  html?: string | null;
-}
-
-export interface ErrorPayload {
-  message: string;
-}
-
-export interface ToolConfirmPayload {
-  id: string;
-  name: string;
-  arguments: string;
-}
-
-export interface ReviewArtifactPayload {
-  artifactId: string;
-  title: string;
-  status: string;
-  totalFiles: number;
-  totalAdditions: number;
-  totalDeletions: number;
-  files: Array<{
-    id: string;
-    path: string;
-    changeType: string;
-    additions: number;
-    deletions: number;
-    viewed?: boolean;
-  }>;
-}
+const rpc = hc<AppType>(window.location.origin, {
+  init: { credentials: "include" },
+  fetch: async (input: RequestInfo | URL, init?: RequestInit) =>
+    fetch(input, init).then(handle401),
+});
 
 export interface SessionStreamCallbacks {
-  onMessage: (payload: MessagePayload) => void;
+  onMessage: (payload: SseMessageEvent) => void;
   onReady: () => void;
   onTextDelta: (content: string) => void;
-  onToolCall: (payload: ToolCallPayload) => void;
-  onToolResult: (payload: ToolResultPayload) => void;
-  onToolConfirm: (payload: ToolConfirmPayload) => void;
-  onReviewArtifact: (payload: ReviewArtifactPayload) => void;
+  onToolCall: (payload: ToolCallEvent) => void;
+  onToolResult: (payload: ToolResultEvent) => void;
+  onToolConfirm: (payload: ToolConfirmEvent) => void;
+  onReviewArtifact: (payload: ReviewArtifactEvent) => void;
+  onCopilotDelta: (payload: CopilotDeltaEvent) => void;
+  onCopilotDone: (payload: CopilotDoneEvent) => void;
   onDone: (model: string, html: string | null) => void;
   onError: (message: string) => void;
 }
@@ -129,26 +109,30 @@ export function connectSession(
   sessionId: string,
   callbacks: SessionStreamCallbacks,
 ): EventSource {
-  const url = `/api/sessions/${sessionId}/stream`;
+  const url = rpc.api.sessions[":id"].stream.$url({
+    param: { id: sessionId },
+  });
   const es = new EventSource(url, { withCredentials: true });
   const { onError } = callbacks;
 
-  addJsonEventListener<MessagePayload>(es, "message", onError, callbacks.onMessage);
+  addJsonEventListener<SseMessageEvent>(es, "message", onError, callbacks.onMessage);
 
   es.addEventListener("ready", () => {
     callbacks.onReady();
   });
 
-  addJsonEventListener<TextDeltaPayload>(es, "text-delta", onError, (p) =>
+  addJsonEventListener<TextDeltaEvent>(es, "text-delta", onError, (p) =>
     callbacks.onTextDelta(p.content),
   );
 
-  addJsonEventListener<ToolCallPayload>(es, "tool-call", onError, callbacks.onToolCall);
-  addJsonEventListener<ToolResultPayload>(es, "tool-result", onError, callbacks.onToolResult);
-  addJsonEventListener<ToolConfirmPayload>(es, "tool-confirm", onError, callbacks.onToolConfirm);
-  addJsonEventListener<ReviewArtifactPayload>(es, "review-artifact", onError, callbacks.onReviewArtifact);
+  addJsonEventListener<ToolCallEvent>(es, "tool-call", onError, callbacks.onToolCall);
+  addJsonEventListener<ToolResultEvent>(es, "tool-result", onError, callbacks.onToolResult);
+  addJsonEventListener<ToolConfirmEvent>(es, "tool-confirm", onError, callbacks.onToolConfirm);
+  addJsonEventListener<ReviewArtifactEvent>(es, "review-artifact", onError, callbacks.onReviewArtifact);
+  addJsonEventListener<CopilotDeltaEvent>(es, "copilot-delta", onError, callbacks.onCopilotDelta);
+  addJsonEventListener<CopilotDoneEvent>(es, "copilot-done", onError, callbacks.onCopilotDone);
 
-  addJsonEventListener<DonePayload>(es, "done", onError, (p) =>
+  addJsonEventListener<DoneEvent>(es, "done", onError, (p) =>
     callbacks.onDone(p.model, p.html ?? null),
   );
 
@@ -158,7 +142,7 @@ export function connectSession(
     // server-sent payload; otherwise let EventSource reconnect.
     if (e.data) {
       try {
-        const payload = JSON.parse(e.data) as ErrorPayload;
+        const payload = JSON.parse(e.data) as SseErrorEvent;
         onError(payload.message);
       } catch {
         onError(`Failed to parse error event: ${e.data}`);
@@ -179,18 +163,10 @@ export async function sendMessage(
   content: string,
   model: string = "gpt-4.1-mini",
 ): Promise<Response> {
-  const response = await fetch(`/api/sessions/${sessionId}/messages`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ content, model }),
+  return rpc.api.sessions[":id"].messages.$post({
+    param: { id: sessionId },
+    json: { content, model },
   });
-
-  if (response.status === 401) {
-    window.location.reload();
-  }
-
-  return response;
 }
 
 /**
@@ -203,16 +179,8 @@ export async function confirmTool(
   toolCallId: string,
   approved: boolean,
 ): Promise<Response> {
-  const response = await fetch(`/api/sessions/${sessionId}/confirm`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ tool_call_id: toolCallId, approved }),
+  return rpc.api.sessions[":id"].confirm.$post({
+    param: { id: sessionId },
+    json: { tool_call_id: toolCallId, approved },
   });
-
-  if (response.status === 401) {
-    window.location.reload();
-  }
-
-  return response;
 }

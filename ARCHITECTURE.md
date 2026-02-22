@@ -11,7 +11,7 @@ VoxPilot is a **self-hosted, web-based AI coding assistant** — an alternative 
 ## Stack
 
 - **Backend**: TypeScript 5.9, Bun 1.3, Hono 4, Zod v4, Drizzle ORM, `markdown-it`, Biome
-- **Frontend**: SolidJS 1.9 + TypeScript 5.7, Vite, `openapi-fetch`
+- **Frontend**: SolidJS 1.9 + TypeScript 5.7, Vite, Hono RPC client (`hc`)
 - **Database**: SQLite via `bun:sqlite` + Drizzle ORM (WAL mode, foreign keys enabled)
 - **Task runner**: `just` (see Justfile for all recipes)
 - **Tests**: `bun test` with `mock.module()`, in-memory SQLite
@@ -20,7 +20,7 @@ VoxPilot is a **self-hosted, web-based AI coding assistant** — an alternative 
 
 ```
 Browser (SolidJS SPA)
-  │  openapi-fetch, EventSource, cookies
+  │  hono/client (RPC), EventSource, cookies
   │
   ▼  HTTP/JSON + SSE
 Hono (Bun :8000)
@@ -61,7 +61,7 @@ sessions                          messages
 
 ## Key Conventions
 
-- **API contract pipeline**: Backend schema changes must flow through `just generate` → exports OpenAPI spec → `openapi-typescript` generates `frontend/src/api.d.ts` → compile-time type safety on frontend API calls.
+- **API contract pipeline**: The backend exports an `AppType` (Hono app type); the frontend imports it via a `@backend/*` tsconfig path alias and uses `hc<AppType>()` from `hono/client` for compile-time type-safe RPC calls. No codegen step required.
 - **Auth**: GitHub token stored in plain `HttpOnly`/`SameSite=Lax` cookie (`gh_token`). No JWT. The `authMiddleware` (Hono middleware) extracts it or returns 401.
 - **Config**: Environment variables with `VOXPILOT_` prefix loaded via `dotenv` in Justfile. Key settings: `dbPath` (default `voxpilot.db`), `githubClientId`, `githubClientSecret`, `workDir` (defaults to cwd — root for all tool file access), `maxAgentIterations` (default 25).
 - **DB lifecycle**: `initDb()`/`closeDb()` managed via the `db.ts` module. Single `bun:sqlite` `Database` wrapped with Drizzle ORM. `getDb()` provides the Drizzle instance to routes and services. Schema changes are managed via Drizzle migrations (`backend/drizzle/`); run `just db-generate` after editing `schema.ts` to create a new migration. Migrations are applied automatically on startup via `migrate()` from `drizzle-orm/bun-sqlite/migrator`.
@@ -84,7 +84,7 @@ sessions                          messages
 | **rAF-batched streaming** | SSE `text-delta` tokens arrive faster than 60fps. Buffering into a string and flushing via `requestAnimationFrame` collapses N tokens/frame into 1 signal write → 1 text node update. Eliminates layout thrashing. |
 | **Server-side markdown** | Backend renders Markdown→HTML via `markdown-it` so the frontend doesn't need a JS markdown parser. `done` event delivers the final HTML; history replay includes it per-message. `markdown-it`'s token/rule architecture allows any render rule to be replaced without forking, enabling future custom syntax highlighting. |
 | **Swipe navigation (mobile)** | Left/right swipe on the chat area navigates sessions. Touches within 25px of screen edges are ignored to avoid Safari's native back/forward gesture. Axis locking after 10px prevents unintentional swipes during vertical scroll. |
-| **openapi-fetch + codegen** | Type-safe API calls; contract enforced at compile time |
+| **Hono RPC (`hc`) client** | Type-safe API calls derived from backend `AppType`; no codegen step, contract enforced at compile time |
 | **GitHub token as Models API key** | GitHub Models accepts OAuth tokens directly; no separate key management |
 | **Cookie auth (no JWT)** | Simpler; `HttpOnly` mitigates XSS; no refresh logic needed |
 | **SQLite via Drizzle + bun:sqlite** | Type-safe queries, single-file DB. Drizzle is a thin headless ORM (~7.4kB). bun:sqlite is sync under the hood but queries are small (single-user app). |

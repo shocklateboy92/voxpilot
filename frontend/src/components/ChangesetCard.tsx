@@ -44,9 +44,7 @@ export function ChangesetCard(props: Props) {
   });
 
   function openReview(fileId?: string) {
-    // Store which file to jump to if needed (via a data attribute or similar)
-    void fileId; // reserved for future jump-to-file functionality
-    setReviewOverlayArtifactId(props.artifact.artifactId);
+    setReviewOverlayArtifactId({ artifactId: props.artifact.artifactId, fileId });
   }
 
   return (
@@ -99,20 +97,22 @@ export function ChangesetCard(props: Props) {
 
       <div class="changeset-status-line">
         {viewedCount()}/{props.artifact.files.length} viewed
-        <Show when={props.artifact.status !== "pending"}>
-          {" — "}
-          <span
-            class={
-              props.artifact.status === "approved"
-                ? "changeset-approved"
-                : "changeset-changes-requested"
-            }
-          >
-            {props.artifact.status === "approved"
-              ? "Approved"
-              : "Changes requested"}
-          </span>
-        </Show>
+        {props.artifact.status !== "pending" && (
+          <>
+            {" — "}
+            <span
+              class={
+                props.artifact.status === "approved"
+                  ? "changeset-approved"
+                  : "changeset-changes-requested"
+              }
+            >
+              {props.artifact.status === "approved"
+                ? "Approved"
+                : "Changes requested"}
+            </span>
+          </>
+        )}
       </div>
     </div>
   );
