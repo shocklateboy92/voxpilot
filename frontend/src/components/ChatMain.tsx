@@ -17,6 +17,8 @@ import {
   sessions,
   activeIndex,
   pendingConfirm,
+  planMode,
+  setPlanMode,
 } from "../store";
 import { sendUserMessage } from "../streaming";
 import { navigateNext, navigatePrev } from "../sessions";
@@ -181,11 +183,21 @@ export function ChatMain() {
       </div>
 
       <form id="chat-form" onSubmit={handleSubmit}>
+        <button
+          type="button"
+          class={`btn btn-mode${planMode() ? " btn-mode-active" : ""}`}
+          onClick={() => setPlanMode(!planMode())}
+          title={planMode() ? "Plan mode: AI will analyse and plan only. Click to switch to act mode." : "Act mode: AI will plan and execute changes. Click to switch to plan mode."}
+          disabled={isStreaming()}
+          aria-pressed={planMode()}
+        >
+          {planMode() ? "📋 Plan" : "⚡ Act"}
+        </button>
         <input
           ref={inputRef}
           id="chat-input"
           type="text"
-          placeholder="Send a message…"
+          placeholder={planMode() ? "Describe what to plan…" : "Send a message…"}
           autocomplete="off"
           disabled={isStreaming()}
         />

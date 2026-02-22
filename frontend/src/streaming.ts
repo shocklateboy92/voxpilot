@@ -26,6 +26,7 @@ import {
   setSessions,
   setPendingConfirm,
   setArtifacts,
+  planMode,
   type MessageRead,
   type StreamingToolCall,
   type ArtifactSummary,
@@ -309,7 +310,7 @@ export async function sendUserMessage(content: string): Promise<boolean> {
   setErrorMessage(null);
 
   try {
-    const response = await ssePostMessage(sessionId, content);
+    const response = await ssePostMessage(sessionId, content, undefined, planMode());
     if (!response.ok && response.status !== 202) {
       const text = await response.text();
       setErrorMessage(`Failed to send: HTTP ${response.status} — ${text}`);

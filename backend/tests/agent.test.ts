@@ -3,13 +3,13 @@
  * the OpenAI constructor via bun's mock.module().
  */
 
-import { describe, expect, it, beforeEach, afterEach, mock } from "bun:test";
-import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { getDb, closeDb } from "../src/db";
-import { createSession, getMessages } from "../src/services/sessions";
+import { join } from "node:path";
 import type { ChatMessage } from "../schemas/api";
+import { closeDb, getDb } from "../src/db";
+import { createSession, getMessages } from "../src/services/sessions";
 
 // ── Mock helpers ────────────────────────────────────────────────────────────
 
@@ -559,7 +559,9 @@ describe("runAgentLoop", () => {
     let disconnected = false;
     const events = await collectEvents(
       runAgentLoop({
-        messages: [{ role: "user", content: "Long response", tool_calls: null }],
+        messages: [
+          { role: "user", content: "Long response", tool_calls: null },
+        ],
         model: "gpt-4o",
         ghToken: "gho_fake",
         workDir,
@@ -577,5 +579,96 @@ describe("runAgentLoop", () => {
     // Should have very few events since we disconnected early
     expect(events.length).toBeLessThan(10);
     expect(events.map((e) => e.event)).not.toContain("done");
+  });
+
+  it("plan mode injects system prompt and excludes copilot_agent", async () => {
+    const sessionId = await createTestSession();
+
+    let capturedMessages: unknown[] = [];
+    let capturedTools: unknown[] = [];
+
+    createFn = (opts: unknown) => {
+      const o = opts as { messages: unknown[]; tools: unknown[] };
+      capturedMessages = o.messages;
+      capturedTools = o.tools;
+      return mockStream([
+        makeTextChunk({
+          content: "Here is my plan.",
+          model: "gpt-4o",
+          finishReason: "stop",
+        }),
+      ]);
+    };
+
+    const events = await collectEvents(
+      runAgentLoop({
+        messages: [
+          { role: "user", content: "Plan a refactor", tool_calls: null },
+        ],
+        model: "gpt-4o",
+        ghToken: "gho_fake",
+        workDir,
+        db: getDb(),
+        sessionId,
+        planMode: true,
+      }),
+    );
+
+    // Should complete normally
+    expect(events.map((e) => e.event)).toContain("done");
+
+    // System message should be prepended
+    expect(capturedMessages.length).toBeGreaterThanOrEqual(2);
+    const systemMsg = capturedMessages[0] as { role: string; content: string };
+    expect(systemMsg.role).toBe("system");
+    expect(systemMsg.content).toContain("PLAN MODE");
+
+    // copilot_agent should not appear in the tools list
+    const toolNames = (
+      capturedTools as Array<{ function: { name: string } }>
+    ).map((t) => t.function.name);
+    expect(toolNames).not.toContain("copilot_agent");
+    // But read-only tools should still be available
+    expect(toolNames).toContain("read_file");
+    expect(toolNames).toContain("list_directory");
+  });
+
+  it("plan mode is disabled by default", async () => {
+    const sessionId = await createTestSession();
+
+    let capturedMessages: unknown[] = [];
+    let capturedTools: unknown[] = [];
+
+    createFn = (opts: unknown) => {
+      const o = opts as { messages: unknown[]; tools: unknown[] };
+      capturedMessages = o.messages;
+      capturedTools = o.tools;
+      return mockStream([
+        makeTextChunk({ content: "OK", model: "gpt-4o", finishReason: "stop" }),
+      ]);
+    };
+
+    await collectEvents(
+      runAgentLoop({
+        messages: [{ role: "user", content: "Hello", tool_calls: null }],
+        model: "gpt-4o",
+        ghToken: "gho_fake",
+        workDir,
+        db: getDb(),
+        sessionId,
+      }),
+    );
+
+    // No system message injected
+    const systemMsgs = (capturedMessages as Array<{ role: string }>).filter(
+      (m) => m.role === "system",
+    );
+    expect(systemMsgs).toHaveLength(0);
+
+    // copilot_agent should be in the tools list
+    const toolNames = (
+      capturedTools as Array<{ function: { name: string } }>
+    ).map((t) => t.function.name);
+    expect(toolNames).toContain("copilot_agent");
   });
 });

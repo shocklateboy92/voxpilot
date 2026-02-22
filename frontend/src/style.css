@@ -364,6 +364,27 @@ h1 {
   gap: 0.5rem;
 }
 
+.btn-mode {
+  padding: 0.6rem 0.7rem;
+  font-size: 0.8rem;
+  background: var(--color-bg);
+  border: 1px solid #2a2d37;
+  color: var(--color-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.btn-mode:hover:not(:disabled) {
+  background: #1e293b;
+  color: var(--color-text);
+}
+
+.btn-mode.btn-mode-active {
+  background: #0f2340;
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
 #chat-input {
   flex: 1;
   padding: 0.6rem 0.8rem;

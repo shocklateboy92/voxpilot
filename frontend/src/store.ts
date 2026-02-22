@@ -85,6 +85,9 @@ export const [streamingToolCalls, setStreamingToolCalls] = createSignal<Streamin
 /** Whether we're waiting for an assistant response. */
 export const [isStreaming, setIsStreaming] = createSignal(false);
 
+/** Whether plan mode is active (AI plans only, does not execute changes). */
+export const [planMode, setPlanMode] = createSignal(false);
+
 /** Error message to display (null = no error). */
 export const [errorMessage, setErrorMessage] = createSignal<string | null>(null);
 

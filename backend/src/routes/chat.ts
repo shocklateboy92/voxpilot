@@ -42,7 +42,7 @@ const KEEPALIVE_TIMEOUT_MS = 30_000; // 30 seconds
 function makeMessageHandler(sessionId: string) {
   return async (payload: MessagePayload, broadcaster: SessionBroadcaster) => {
     const db = getDb();
-    const { content, model, gh_token: ghToken } = payload;
+    const { content, model, gh_token: ghToken, plan_mode: planMode } = payload;
 
     // Persist user message and auto-title
     await addMessage(db, sessionId, "user", content);
@@ -82,6 +82,7 @@ function makeMessageHandler(sessionId: string) {
       db,
       sessionId,
       maxIterations: config.maxAgentIterations,
+      planMode,
       isDisconnected: () => broadcaster.listenerCount === 0,
       requestConfirmation,
     })) {
@@ -207,6 +208,7 @@ export const chatRouter = new Hono<AuthEnv>()
     content: body.content,
     model: body.model ?? "gpt-4o",
     gh_token: ghToken,
+    plan_mode: body.plan_mode ?? false,
   });
 
   if (!sent) {

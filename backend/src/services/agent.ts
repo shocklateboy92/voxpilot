@@ -117,6 +117,7 @@ export interface AgentLoopOptions {
   db: Db;
   sessionId: string;
   maxIterations?: number;
+  planMode?: boolean;
   isDisconnected?: () => boolean;
   requestConfirmation?: (
     toolCallId: string,
@@ -138,13 +139,42 @@ export async function* runAgentLoop(
     db,
     sessionId,
     maxIterations = 25,
+    planMode = false,
     isDisconnected,
     requestConfirmation,
   } = opts;
 
   const openaiMessages: ChatCompletionMessageParam[] =
     messages.map(toMessageParam);
-  const toolsSpec = defaultRegistry.toOpenAiTools();
+
+  // In plan mode, prepend a system instruction to explore and plan only
+  if (planMode) {
+    openaiMessages.unshift({
+      role: "system",
+      content:
+        "You are in PLAN MODE. Do NOT call the copilot_agent tool or perform any actions that modify files.\n\n" +
+        "Your task is to:\n" +
+        "1. Use read-only tools to explore and understand the codebase.\n" +
+        "2. Analyse the user's request thoroughly.\n" +
+        "3. Produce a detailed, step-by-step implementation plan in Markdown format.\n\n" +
+        "Your plan must include:\n" +
+        "- A high-level summary of the approach\n" +
+        "- The specific files to be changed, and why\n" +
+        "- The exact changes required for each file\n" +
+        "- Any new tests that need to be added\n" +
+        "- Verification steps\n\n" +
+        "Once you have gathered enough context, write your plan and stop — do not execute any changes.",
+    } satisfies ChatCompletionSystemMessageParam);
+  }
+
+  // In plan mode, exclude tools that make changes (copilot_agent)
+  const toolsSpec = planMode
+    ? defaultRegistry
+        .toOpenAiTools()
+        .filter(
+          (t) => !("function" in t && t.function.name === "copilot_agent"),
+        )
+    : defaultRegistry.toOpenAiTools();
 
   for (let iteration = 0; iteration < maxIterations; iteration++) {
     const client = new OpenAI({

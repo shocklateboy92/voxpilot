@@ -163,10 +163,11 @@ export async function sendMessage(
   sessionId: string,
   content: string,
   model: string = "gpt-4.1-mini",
+  planMode = false,
 ): Promise<Response> {
   return rpc.api.sessions[":id"].messages.$post({
     param: { id: sessionId },
-    json: { content, model },
+    json: { content, model, plan_mode: planMode },
   });
 }
 

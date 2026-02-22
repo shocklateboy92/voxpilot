@@ -38,6 +38,7 @@ export type ChatMessage = z.infer<typeof ChatMessage>;
 export const SendMessageRequest = z.object({
   content: z.string(),
   model: z.string().default("gpt-4o"),
+  plan_mode: z.boolean().default(false),
 });
 export type SendMessageRequest = z.infer<typeof SendMessageRequest>;
 
