@@ -23,19 +23,23 @@ const configSchema = z.object({
 
 export type Config = z.infer<typeof configSchema>;
 
-function loadConfig(): Config {
-  const env = Bun.env;
-  return configSchema.parse({
-    appName: env["VOXPILOT_APP_NAME"],
-    debug: env["VOXPILOT_DEBUG"],
-    corsOrigins: env["VOXPILOT_CORS_ORIGINS"],
-    githubClientId: env["VOXPILOT_GITHUB_CLIENT_ID"],
-    githubClientSecret: env["VOXPILOT_GITHUB_CLIENT_SECRET"],
-    dbPath: env["VOXPILOT_DB_PATH"],
-    workDir: env["VOXPILOT_WORK_DIR"],
-    maxAgentIterations: env["VOXPILOT_MAX_AGENT_ITERATIONS"],
-    copilotCliPath: env["VOXPILOT_COPILOT_CLI_PATH"],
-  });
+/** Convert camelCase to SCREAMING_SNAKE_CASE (e.g. "corsOrigins" → "CORS_ORIGINS") */
+export function toScreamingSnake(key: string): string {
+  return key.replace(/[A-Z]/g, (ch) => `_${ch}`).toUpperCase();
 }
 
-export const config = loadConfig();
+/** Read env vars matching `{PREFIX}_{SCREAMING_SNAKE_KEY}` for each key in the schema */
+function loadFromEnv(
+  schema: z.ZodObject<z.ZodRawShape>,
+  prefix: string,
+): Record<string, string | undefined> {
+  const result: Record<string, string | undefined> = {};
+  for (const key of Object.keys(schema.shape)) {
+    result[key] = Bun.env[`${prefix}_${toScreamingSnake(key)}`];
+  }
+  return result;
+}
+
+export const config: Config = configSchema.parse(
+  loadFromEnv(configSchema, "VOXPILOT"),
+);
