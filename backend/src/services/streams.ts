@@ -73,7 +73,6 @@ interface PendingConfirm {
 export interface MessagePayload {
   content: string;
   model: string;
-  gh_token: string;
 }
 
 // ── MessageHandler callback ─────────────────────────────────────────────────
@@ -111,7 +110,10 @@ export class SessionBroadcaster {
   // ── Listener management ───────────────────────────────────────────────
 
   /** Subscribe a new listener. Returns a unique ID and a personal channel. */
-  subscribe(): { listenerId: string; events: AsyncChannel<BroadcastEvent | null> } {
+  subscribe(): {
+    listenerId: string;
+    events: AsyncChannel<BroadcastEvent | null>;
+  } {
     const listenerId = crypto.randomUUID();
     const events = new AsyncChannel<BroadcastEvent | null>();
     this.listeners.set(listenerId, events);
@@ -223,7 +225,10 @@ export class SessionStreamRegistry {
    * Get or create the broadcaster for a session.
    * Returns the broadcaster and whether it was freshly created.
    */
-  getOrCreate(sessionId: string): { broadcaster: SessionBroadcaster; created: boolean } {
+  getOrCreate(sessionId: string): {
+    broadcaster: SessionBroadcaster;
+    created: boolean;
+  } {
     const existing = this.sessions.get(sessionId);
     if (existing) return { broadcaster: existing, created: false };
 

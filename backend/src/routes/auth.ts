@@ -1,66 +1,74 @@
 import { Hono } from "hono";
-import { setCookie, getCookie, deleteCookie } from "hono/cookie";
-import { config } from "../config";
-import { authMiddleware, type AuthEnv } from "../middleware/auth";
 import {
-  generateState,
-  buildAuthorizationUrl,
-  exchangeCodeForToken,
-  getGithubUser,
-} from "../services/github";
+  pollDeviceFlow,
+  startDeviceFlow,
+  tokenManager,
+} from "../services/copilot-auth";
 
-const COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
-const STATE_COOKIE_MAX_AGE = 60 * 10; // 10 minutes
+// Single-user: one pending device flow at a time
+let pendingDeviceCode: string | null = null;
+let pendingInterval = 5;
 
-export const authRouter = new Hono<AuthEnv>()
-  .get("/api/auth/login", (c) => {
-    const state = generateState();
-    setCookie(c, "oauth_state", state, {
-      httpOnly: true,
-      sameSite: "Lax",
-      maxAge: STATE_COOKIE_MAX_AGE,
-    });
-    const url = buildAuthorizationUrl(config.githubClientId, state);
-    return c.redirect(url, 302);
-  })
-  .get("/api/auth/callback", async (c) => {
-    const code = c.req.query("code");
-    const state = c.req.query("state");
-    const storedState = getCookie(c, "oauth_state");
-
-    if (!code || !state) {
-      return c.json({ detail: "Missing code or state" }, 400);
-    }
-
-    if (storedState && state !== storedState) {
-      return c.json({ detail: "State mismatch" }, 400);
-    }
-
-    const token = await exchangeCodeForToken(
-      config.githubClientId,
-      config.githubClientSecret,
-      code,
-    );
-
-    setCookie(c, "gh_token", token, {
-      httpOnly: true,
-      sameSite: "Lax",
-      maxAge: COOKIE_MAX_AGE,
-    });
-    deleteCookie(c, "oauth_state");
-
-    return c.redirect("/", 302);
-  })
-  .post("/api/auth/logout", (c) => {
-    deleteCookie(c, "gh_token");
-    return c.json({ status: "ok" });
-  })
-  .get("/api/auth/me", authMiddleware, async (c) => {
-    const token = c.get("ghToken");
+export const authRouter = new Hono()
+  .post("/api/auth/device", async (c) => {
     try {
-      const user = await getGithubUser(token);
-      return c.json(user);
-    } catch {
-      return c.json({ detail: "Invalid or expired token" }, 401);
+      const flow = await startDeviceFlow();
+      pendingDeviceCode = flow.device_code;
+      pendingInterval = flow.interval;
+      return c.json({
+        user_code: flow.user_code,
+        verification_uri: flow.verification_uri,
+        interval: flow.interval,
+      });
+    } catch (err) {
+      const detail =
+        err instanceof Error ? err.message : "Failed to start device flow";
+      return c.json({ detail }, 400);
     }
+  })
+  .get("/api/auth/device/poll", async (c) => {
+    if (!pendingDeviceCode) {
+      return c.json({ status: "error", detail: "No pending device flow" }, 400);
+    }
+
+    const result = await pollDeviceFlow(pendingDeviceCode, pendingInterval);
+
+    if (result.status === "success") {
+      pendingDeviceCode = null;
+      try {
+        await tokenManager.authenticate(result.access_token);
+        return c.json({ status: "ok" });
+      } catch (err) {
+        const detail =
+          err instanceof Error ? err.message : "Authentication failed";
+        return c.json({ status: "error", detail }, 500);
+      }
+    }
+
+    if (result.status === "slow_down") {
+      pendingInterval = result.interval;
+      return c.json({ status: "pending" });
+    }
+
+    if (result.status === "pending") {
+      return c.json({ status: "pending" });
+    }
+
+    if (result.status === "expired") {
+      pendingDeviceCode = null;
+      return c.json({ status: "error", detail: "Device code expired" });
+    }
+
+    return c.json({ status: "error", detail: result.detail });
+  })
+  .get("/api/auth/me", (c) => {
+    if (!tokenManager.isAuthenticated()) {
+      return c.json({ detail: "Not authenticated" }, 401);
+    }
+    const user = tokenManager.getUser();
+    return c.json(user);
+  })
+  .post("/api/auth/logout", async (c) => {
+    await tokenManager.logout();
+    return c.json({ status: "ok" });
   });

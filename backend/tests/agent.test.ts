@@ -3,13 +3,39 @@
  * the OpenAI constructor via bun's mock.module().
  */
 
-import { describe, expect, it, beforeEach, afterEach, mock } from "bun:test";
-import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { getDb, closeDb } from "../src/db";
-import { createSession, getMessages } from "../src/services/sessions";
+import { join } from "node:path";
 import type { ChatMessage } from "../schemas/api";
+import { closeDb, getDb } from "../src/db";
+import { createSession, getMessages } from "../src/services/sessions";
+
+// ── Mock copilot-auth ────────────────────────────────────────────────────────
+
+mock.module("../src/services/copilot-auth", () => ({
+  tokenManager: {
+    isAuthenticated: () => true,
+    getUser: () => null,
+    authenticate: async () => {},
+    logout: async () => {},
+    init: async () => {},
+    getJwt: () => ({
+      jwt: "mock_jwt",
+      baseUrl: "https://api.githubcopilot.com",
+    }),
+  },
+  CopilotTokenManager: class {},
+  loadPersistedToken: async () => null,
+  persistToken: async () => {},
+  startDeviceFlow: async () => ({}),
+  pollDeviceFlow: async () => ({ status: "pending" }),
+  getGithubUser: async () => ({
+    login: "testuser",
+    name: null,
+    avatar_url: "",
+  }),
+}));
 
 // ── Mock helpers ────────────────────────────────────────────────────────────
 
@@ -142,16 +168,18 @@ describe("runAgentLoop", () => {
     const sessionId = await createTestSession();
 
     const chunks = [
-      makeTextChunk({ content: "Just a plain answer.", model: "gpt-4o" }),
-      makeTextChunk({ finishReason: "stop", model: "gpt-4o" }),
+      makeTextChunk({
+        content: "Just a plain answer.",
+        model: "claude-sonnet-4",
+      }),
+      makeTextChunk({ finishReason: "stop", model: "claude-sonnet-4" }),
     ];
     createFn = () => mockStream(chunks);
 
     const events = await collectEvents(
       runAgentLoop({
         messages: [{ role: "user", content: "What is 2+2?", tool_calls: null }],
-        model: "gpt-4o",
-        ghToken: "gho_fake",
+        model: "claude-sonnet-4",
         workDir,
         db: getDb(),
         sessionId,
@@ -167,7 +195,7 @@ describe("runAgentLoop", () => {
     // Check done payload has model
     const done = events.find((e) => e.event === "done");
     const doneData = JSON.parse(done?.data ?? "{}");
-    expect(doneData.model).toBe("gpt-4o");
+    expect(doneData.model).toBe("claude-sonnet-4");
   });
 
   it("handles tool call and loops back", async () => {
@@ -184,8 +212,11 @@ describe("runAgentLoop", () => {
     ];
 
     const textChunks = [
-      makeTextChunk({ content: "Here are the files.", model: "gpt-4o" }),
-      makeTextChunk({ finishReason: "stop", model: "gpt-4o" }),
+      makeTextChunk({
+        content: "Here are the files.",
+        model: "claude-sonnet-4",
+      }),
+      makeTextChunk({ finishReason: "stop", model: "claude-sonnet-4" }),
     ];
 
     let callCount = 0;
@@ -198,8 +229,7 @@ describe("runAgentLoop", () => {
     const events = await collectEvents(
       runAgentLoop({
         messages: [{ role: "user", content: "What files?", tool_calls: null }],
-        model: "gpt-4o",
-        ghToken: "gho_fake",
+        model: "claude-sonnet-4",
         workDir,
         db: getDb(),
         sessionId,
@@ -242,7 +272,7 @@ describe("runAgentLoop", () => {
     const textChunks = [
       makeTextChunk({
         content: "The file doesn't exist.",
-        model: "gpt-4o",
+        model: "claude-sonnet-4",
         finishReason: "stop",
       }),
     ];
@@ -258,8 +288,7 @@ describe("runAgentLoop", () => {
     await collectEvents(
       runAgentLoop({
         messages: [{ role: "user", content: "Read a file", tool_calls: null }],
-        model: "gpt-4o",
-        ghToken: "gho_fake",
+        model: "claude-sonnet-4",
         workDir,
         db: getDb(),
         sessionId,
@@ -296,8 +325,7 @@ describe("runAgentLoop", () => {
     const events = await collectEvents(
       runAgentLoop({
         messages: [{ role: "user", content: "Loop", tool_calls: null }],
-        model: "gpt-4o",
-        ghToken: "gho_fake",
+        model: "claude-sonnet-4",
         workDir,
         db: getDb(),
         sessionId,
@@ -327,7 +355,7 @@ describe("runAgentLoop", () => {
     const textChunks = [
       makeTextChunk({
         content: "Sorry, that tool doesn't exist.",
-        model: "gpt-4o",
+        model: "claude-sonnet-4",
         finishReason: "stop",
       }),
     ];
@@ -345,8 +373,7 @@ describe("runAgentLoop", () => {
         messages: [
           { role: "user", content: "Use a weird tool", tool_calls: null },
         ],
-        model: "gpt-4o",
-        ghToken: "gho_fake",
+        model: "claude-sonnet-4",
         workDir,
         db: getDb(),
         sessionId,
@@ -379,7 +406,7 @@ describe("runAgentLoop", () => {
     const textChunks = [
       makeTextChunk({
         content: "Done.",
-        model: "gpt-4o",
+        model: "claude-sonnet-4",
         finishReason: "stop",
       }),
     ];
@@ -397,8 +424,7 @@ describe("runAgentLoop", () => {
         messages: [
           { role: "user", content: "Read /etc/hostname", tool_calls: null },
         ],
-        model: "gpt-4o",
-        ghToken: "gho_fake",
+        model: "claude-sonnet-4",
         workDir,
         db: getDb(),
         sessionId,
@@ -433,7 +459,7 @@ describe("runAgentLoop", () => {
     const textChunks = [
       makeTextChunk({
         content: "I can't read that file.",
-        model: "gpt-4o",
+        model: "claude-sonnet-4",
         finishReason: "stop",
       }),
     ];
@@ -451,8 +477,7 @@ describe("runAgentLoop", () => {
         messages: [
           { role: "user", content: "Read /etc/shadow", tool_calls: null },
         ],
-        model: "gpt-4o",
-        ghToken: "gho_fake",
+        model: "claude-sonnet-4",
         workDir,
         db: getDb(),
         sessionId,
@@ -491,7 +516,7 @@ describe("runAgentLoop", () => {
     const textChunks = [
       makeTextChunk({
         content: "Files listed.",
-        model: "gpt-4o",
+        model: "claude-sonnet-4",
         finishReason: "stop",
       }),
     ];
@@ -507,8 +532,7 @@ describe("runAgentLoop", () => {
     const events = await collectEvents(
       runAgentLoop({
         messages: [{ role: "user", content: "List files", tool_calls: null }],
-        model: "gpt-4o",
-        ghToken: "gho_fake",
+        model: "claude-sonnet-4",
         workDir,
         db: getDb(),
         sessionId,
@@ -531,8 +555,7 @@ describe("runAgentLoop", () => {
     const events = await collectEvents(
       runAgentLoop({
         messages: [{ role: "user", content: "Hello", tool_calls: null }],
-        model: "gpt-4o",
-        ghToken: "gho_fake",
+        model: "claude-sonnet-4",
         workDir,
         db: getDb(),
         sessionId,
@@ -559,9 +582,10 @@ describe("runAgentLoop", () => {
     let disconnected = false;
     const events = await collectEvents(
       runAgentLoop({
-        messages: [{ role: "user", content: "Long response", tool_calls: null }],
-        model: "gpt-4o",
-        ghToken: "gho_fake",
+        messages: [
+          { role: "user", content: "Long response", tool_calls: null },
+        ],
+        model: "claude-sonnet-4",
         workDir,
         db: getDb(),
         sessionId,

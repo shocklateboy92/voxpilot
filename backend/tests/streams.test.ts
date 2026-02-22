@@ -1,9 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import {
   AsyncChannel,
+  type MessagePayload,
   SessionBroadcaster,
   SessionStreamRegistry,
-  type MessagePayload,
 } from "../src/services/streams";
 
 // ── AsyncChannel ────────────────────────────────────────────────────────────
@@ -144,11 +144,14 @@ describe("SessionBroadcaster", () => {
     const handled: string[] = [];
     const processorDone = bc.runProcessor(async (payload, broadcaster) => {
       handled.push(payload.content);
-      broadcaster.broadcast("echo", JSON.stringify({ content: payload.content }));
+      broadcaster.broadcast(
+        "echo",
+        JSON.stringify({ content: payload.content }),
+      );
     });
 
-    bc.messageQueue.send({ content: "one", model: "m", gh_token: "t" });
-    bc.messageQueue.send({ content: "two", model: "m", gh_token: "t" });
+    bc.messageQueue.send({ content: "one", model: "m" });
+    bc.messageQueue.send({ content: "two", model: "m" });
 
     // Wait for events to arrive
     const e1 = await l1.events.receive(AbortSignal.timeout(1000));
@@ -171,7 +174,7 @@ describe("SessionBroadcaster", () => {
       throw new Error("boom");
     });
 
-    bc.messageQueue.send({ content: "x", model: "m", gh_token: "t" });
+    bc.messageQueue.send({ content: "x", model: "m" });
 
     const event = await l1.events.receive(AbortSignal.timeout(1000));
     expect(event?.event).toBe("error");
@@ -195,7 +198,7 @@ describe("SessionBroadcaster", () => {
       callCount += 100;
     });
 
-    bc.messageQueue.send({ content: "hi", model: "m", gh_token: "t" });
+    bc.messageQueue.send({ content: "hi", model: "m" });
     await sleep(50);
 
     // Only the first processor should have run
@@ -229,7 +232,7 @@ describe("SessionStreamRegistry", () => {
   it("send returns true when broadcaster exists", () => {
     const reg = new SessionStreamRegistry();
     reg.subscribe("s1");
-    const payload: MessagePayload = { content: "hi", model: "gpt-4o", gh_token: "tok" };
+    const payload: MessagePayload = { content: "hi", model: "gpt-4o" };
     expect(reg.send("s1", payload)).toBe(true);
   });
 
@@ -274,9 +277,11 @@ describe("SessionStreamRegistry", () => {
   it("send enqueues on broadcaster message queue", async () => {
     const reg = new SessionStreamRegistry();
     const { broadcaster } = reg.subscribe("s1");
-    const payload: MessagePayload = { content: "hi", model: "gpt-4o", gh_token: "tok" };
+    const payload: MessagePayload = { content: "hi", model: "gpt-4o" };
     reg.send("s1", payload);
-    const received = await broadcaster.messageQueue.receive(AbortSignal.timeout(100));
+    const received = await broadcaster.messageQueue.receive(
+      AbortSignal.timeout(100),
+    );
     expect(received).toEqual(payload);
   });
 });

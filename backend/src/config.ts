@@ -10,8 +10,10 @@ const configSchema = z.object({
     .string()
     .default("http://localhost:3000")
     .transform((v) => v.split(",")),
-  githubClientId: z.string().default(""),
-  githubClientSecret: z.string().default(""),
+  copilotClientId: z.string().default(""),
+  copilotEditorVersion: z.string().default(""),
+  copilotIntegrationId: z.string().default(""),
+  copilotDataDir: z.string().default(""),
   dbPath: z.string().default("voxpilot.db"),
   workDir: z.string().default(process.cwd()),
   maxAgentIterations: z
@@ -29,8 +31,10 @@ function loadConfig(): Config {
     appName: env["VOXPILOT_APP_NAME"],
     debug: env["VOXPILOT_DEBUG"],
     corsOrigins: env["VOXPILOT_CORS_ORIGINS"],
-    githubClientId: env["VOXPILOT_GITHUB_CLIENT_ID"],
-    githubClientSecret: env["VOXPILOT_GITHUB_CLIENT_SECRET"],
+    copilotClientId: env["VOXPILOT_COPILOT_CLIENT_ID"],
+    copilotEditorVersion: env["VOXPILOT_COPILOT_EDITOR_VERSION"],
+    copilotIntegrationId: env["VOXPILOT_COPILOT_INTEGRATION_ID"],
+    copilotDataDir: env["VOXPILOT_COPILOT_DATA_DIR"],
     dbPath: env["VOXPILOT_DB_PATH"],
     workDir: env["VOXPILOT_WORK_DIR"],
     maxAgentIterations: env["VOXPILOT_MAX_AGENT_ITERATIONS"],

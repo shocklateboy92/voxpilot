@@ -19,6 +19,7 @@ import type {
   ChatCompletionToolMessageParam,
   ChatCompletionUserMessageParam,
 } from "openai/resources/chat/completions";
+import { config } from "../config";
 import type { getDb } from "../db";
 import type { ChatMessage, ToolCallInfo } from "../schemas/api";
 import type {
@@ -42,13 +43,12 @@ import {
 } from "../tools";
 import { createReviewArtifact } from "./artifact-pipeline";
 import { getConnection } from "./copilot-acp";
+import { tokenManager } from "./copilot-auth";
 import { renderMarkdown } from "./markdown";
 import { addMessage } from "./sessions";
 import { AsyncChannel } from "./streams";
 
 type Db = ReturnType<typeof getDb>;
-
-const GITHUB_MODELS_BASE_URL = "https://models.inference.ai.azure.com";
 
 // ── SSE event types ─────────────────────────────────────────────────────────
 
@@ -112,7 +112,6 @@ class StreamedToolCall {
 export interface AgentLoopOptions {
   messages: ChatMessage[];
   model: string;
-  ghToken: string;
   workDir: string;
   db: Db;
   sessionId: string;
@@ -133,7 +132,6 @@ export async function* runAgentLoop(
   const {
     messages,
     model,
-    ghToken,
     workDir,
     db,
     sessionId,
@@ -146,12 +144,17 @@ export async function* runAgentLoop(
     messages.map(toMessageParam);
   const toolsSpec = defaultRegistry.toOpenAiTools();
 
-  for (let iteration = 0; iteration < maxIterations; iteration++) {
-    const client = new OpenAI({
-      baseURL: GITHUB_MODELS_BASE_URL,
-      apiKey: ghToken,
-    });
+  const { jwt, baseUrl } = tokenManager.getJwt();
+  const client = new OpenAI({
+    baseURL: baseUrl,
+    apiKey: jwt,
+    defaultHeaders: {
+      "Editor-Version": config.copilotEditorVersion,
+      "Copilot-Integration-Id": config.copilotIntegrationId,
+    },
+  });
 
+  for (let iteration = 0; iteration < maxIterations; iteration++) {
     let modelName = model;
     let accumulatedText = "";
     const toolCalls: StreamedToolCall[] = [];

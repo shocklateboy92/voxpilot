@@ -1,10 +1,35 @@
-import { describe, expect, it } from "bun:test";
-import { app } from "../src/index";
-import { setupTestDb } from "./helpers";
-import { addMessage, getMessages } from "../src/services/sessions";
-import { getDb } from "../src/db";
+import { describe, expect, it, mock } from "bun:test";
 
-const AUTH = { headers: { Cookie: "gh_token=gho_fake" } };
+mock.module("../src/services/copilot-auth", () => ({
+  tokenManager: {
+    isAuthenticated: () => true,
+    getUser: () => null,
+    authenticate: async () => {},
+    logout: async () => {},
+    init: async () => {},
+    getJwt: () => ({
+      jwt: "mock_jwt",
+      baseUrl: "https://api.githubcopilot.com",
+    }),
+  },
+  CopilotTokenManager: class {},
+  loadPersistedToken: async () => null,
+  persistToken: async () => {},
+  startDeviceFlow: async () => ({}),
+  pollDeviceFlow: async () => ({ status: "pending" }),
+  getGithubUser: async () => ({
+    login: "testuser",
+    name: null,
+    avatar_url: "",
+  }),
+}));
+
+import { getDb } from "../src/db";
+import { app } from "../src/index";
+import { addMessage, getMessages } from "../src/services/sessions";
+import { setupTestDb } from "./helpers";
+
+const AUTH = { headers: {} };
 
 describe("sessions", () => {
   setupTestDb();
@@ -119,28 +144,12 @@ describe("sessions", () => {
     expect(res.status).toBe(404);
   });
 
-  it("session endpoints return 401 without cookie", async () => {
-    expect(
-      (await app.request("/api/sessions")).status,
-    ).toBe(401);
+  it("session endpoints return 200/201 when authenticated", async () => {
+    // Auth is controlled by tokenManager.isAuthenticated() (mocked to true)
+    expect((await app.request("/api/sessions")).status).toBe(200);
     expect(
       (await app.request("/api/sessions", { method: "POST" })).status,
-    ).toBe(401);
-    expect(
-      (await app.request("/api/sessions/some-id")).status,
-    ).toBe(401);
-    expect(
-      (await app.request("/api/sessions/some-id", { method: "DELETE" })).status,
-    ).toBe(401);
-    expect(
-      (
-        await app.request("/api/sessions/some-id", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: "x" }),
-        })
-      ).status,
-    ).toBe(401);
+    ).toBe(201);
   });
 
   it("cascade delete removes messages", async () => {

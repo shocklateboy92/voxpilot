@@ -162,7 +162,7 @@ export function connectSession(
 export async function sendMessage(
   sessionId: string,
   content: string,
-  model: string = "gpt-4.1-mini",
+  model: string = "claude-sonnet-4",
 ): Promise<Response> {
   return rpc.api.sessions[":id"].messages.$post({
     param: { id: sessionId },

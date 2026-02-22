@@ -1,17 +1,13 @@
 import { createMiddleware } from "hono/factory";
-import { getCookie } from "hono/cookie";
+import { tokenManager } from "../services/copilot-auth";
 
 export type AuthEnv = {
-  Variables: {
-    ghToken: string;
-  };
+  Variables: Record<string, never>;
 };
 
 export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
-  const token = getCookie(c, "gh_token");
-  if (!token) {
+  if (!tokenManager.isAuthenticated()) {
     return c.json({ detail: "Not authenticated" }, 401);
   }
-  c.set("ghToken", token);
   await next();
 });

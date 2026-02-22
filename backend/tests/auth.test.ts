@@ -1,10 +1,48 @@
-import { mock, describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it, mock } from "bun:test";
 
-mock.module("../src/services/github", () => ({
-  generateState: () => "mock_state_abc123",
-  buildAuthorizationUrl: (clientId: string, state: string) =>
-    `https://github.com/login/oauth/authorize?client_id=${clientId}&state=${state}`,
-  exchangeCodeForToken: async () => "gho_fake_token_123",
+// ── Mock copilot-auth service ────────────────────────────────────────────────
+
+let _isAuthenticated = false;
+let _user: { login: string; name: string | null; avatar_url: string } | null =
+  null;
+
+mock.module("../src/services/copilot-auth", () => ({
+  startDeviceFlow: async () => ({
+    device_code: "mock_device_code",
+    user_code: "ABCD-1234",
+    verification_uri: "https://github.com/login/device",
+    interval: 5,
+  }),
+  pollDeviceFlow: async (deviceCode: string) => {
+    if (deviceCode === "mock_device_code") {
+      return { status: "success", access_token: "gho_fake_token_123" };
+    }
+    return { status: "pending" };
+  },
+  tokenManager: {
+    isAuthenticated: () => _isAuthenticated,
+    getUser: () => _user,
+    authenticate: async (_token: string) => {
+      _isAuthenticated = true;
+      _user = {
+        login: "testuser",
+        name: "Test User",
+        avatar_url: "https://example.com/avatar.png",
+      };
+    },
+    logout: async () => {
+      _isAuthenticated = false;
+      _user = null;
+    },
+    init: async () => {},
+    getJwt: () => ({
+      jwt: "mock_jwt",
+      baseUrl: "https://api.githubcopilot.com",
+    }),
+  },
+  CopilotTokenManager: class {},
+  loadPersistedToken: async () => null,
+  persistToken: async () => {},
   getGithubUser: async () => ({
     login: "testuser",
     name: "Test User",
@@ -18,61 +56,59 @@ import { setupTestDb } from "./helpers";
 describe("auth", () => {
   setupTestDb();
 
-  it("GET /api/auth/login redirects to GitHub", async () => {
-    const res = await app.request("/api/auth/login", { redirect: "manual" });
-    expect(res.status).toBe(302);
-    const location = res.headers.get("Location") ?? "";
-    expect(location).toContain("github.com/login/oauth/authorize");
+  beforeEach(() => {
+    _isAuthenticated = false;
+    _user = null;
   });
 
-  it("GET /api/auth/callback sets cookie and redirects", async () => {
-    const res = await app.request(
-      "/api/auth/callback?code=test_code&state=mock_state_abc123",
-      {
-        headers: { Cookie: "oauth_state=mock_state_abc123" },
-        redirect: "manual",
-      },
-    );
-    expect(res.status).toBe(302);
-    const location = res.headers.get("Location") ?? "";
-    expect(location).toBe("/");
-    const setCookies = res.headers.getAll("Set-Cookie");
-    const ghTokenCookie = setCookies.find((c: string) =>
-      c.startsWith("gh_token="),
-    );
-    expect(ghTokenCookie).toBeDefined();
-    expect(ghTokenCookie).toContain("gho_fake_token_123");
+  it("POST /api/auth/device returns user_code and verification_uri", async () => {
+    const res = await app.request("/api/auth/device", { method: "POST" });
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as Record<string, unknown>;
+    expect(data.user_code).toBe("ABCD-1234");
+    expect(data.verification_uri).toBe("https://github.com/login/device");
+    expect(data.interval).toBe(5);
   });
 
-  it("GET /api/auth/me returns 401 without cookie", async () => {
+  it("GET /api/auth/device/poll authenticates and returns ok", async () => {
+    // First start the flow so pendingDeviceCode is set
+    await app.request("/api/auth/device", { method: "POST" });
+
+    const res = await app.request("/api/auth/device/poll");
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as Record<string, unknown>;
+    expect(data.status).toBe("ok");
+  });
+
+  it("GET /api/auth/me returns 401 when not authenticated", async () => {
     const res = await app.request("/api/auth/me");
     expect(res.status).toBe(401);
   });
 
-  it("GET /api/auth/me returns user with valid cookie", async () => {
-    const res = await app.request("/api/auth/me", {
-      headers: { Cookie: "gh_token=fake_token" },
-    });
+  it("GET /api/auth/me returns user when authenticated", async () => {
+    _isAuthenticated = true;
+    _user = {
+      login: "testuser",
+      name: "Test User",
+      avatar_url: "https://example.com/avatar.png",
+    };
+
+    const res = await app.request("/api/auth/me");
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data = (await res.json()) as Record<string, unknown>;
     expect(data.login).toBe("testuser");
     expect(data.name).toBe("Test User");
     expect(data.avatar_url).toBe("https://example.com/avatar.png");
   });
 
-  it("POST /api/auth/logout clears cookie", async () => {
-    const res = await app.request("/api/auth/logout", {
-      method: "POST",
-    });
+  it("POST /api/auth/logout clears authentication", async () => {
+    _isAuthenticated = true;
+    _user = { login: "testuser", name: null, avatar_url: "" };
+
+    const res = await app.request("/api/auth/logout", { method: "POST" });
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data = (await res.json()) as Record<string, unknown>;
     expect(data.status).toBe("ok");
-    const setCookies = res.headers.getAll("Set-Cookie");
-    const ghTokenCookie = setCookies.find((c: string) =>
-      c.startsWith("gh_token="),
-    );
-    expect(ghTokenCookie).toBeDefined();
-    // Cookie deletion sets Max-Age=0
-    expect(ghTokenCookie).toContain("Max-Age=0");
+    expect(_isAuthenticated).toBe(false);
   });
 });

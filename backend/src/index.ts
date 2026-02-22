@@ -8,6 +8,7 @@ import { authRouter } from "./routes/auth";
 import { sessionsRouter } from "./routes/sessions";
 import { chatRouter } from "./routes/chat";
 import { artifactRouter } from "./routes/artifacts";
+import { tokenManager } from "./services/copilot-auth";
 
 // Protected routes — authMiddleware is applied once here so individual
 // routers don't need to add it themselves.
@@ -38,6 +39,9 @@ export type AppType = typeof app;
 // Initialize the db so any errors happen
 // before we start accepting requests.
 getDb();
+
+// Initialize Copilot token manager — loads persisted gho_ token if present.
+await tokenManager.init();
 
 process.on("SIGINT", () => {
   closeDb();

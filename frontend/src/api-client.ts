@@ -81,11 +81,29 @@ async function authedVoid(req: Promise<Response>): Promise<void> {
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 export async function fetchCurrentUser(): Promise<GitHubUser | null> {
-  try {
-    return await authedJson(rpc.api.auth.me.$get());
-  } catch {
+  const res = await rpc.api.auth.me.$get();
+  if (res.status === 401) {
     return null;
   }
+  if (!res.ok) {
+    return null;
+  }
+  return res.json() as Promise<GitHubUser>;
+}
+
+export async function startDeviceFlow(): Promise<{
+  user_code: string;
+  verification_uri: string;
+  interval: number;
+}> {
+  return authedJson(rpc.api.auth.device.$post());
+}
+
+export async function pollDeviceFlow(): Promise<{
+  status: string;
+  detail?: string;
+}> {
+  return authedJson(rpc.api.auth.device.poll.$get());
 }
 
 export async function logout(): Promise<void> {
