@@ -31,7 +31,7 @@ export const config: Config = loadConfigSync({
   schema: configSchema,
   keyMatching: "lenient",
   adapters: envAdapter({
-    regex: new RegExp(`^${ENV_PREFIX}`),
+    regex: /^VOXPILOT_/,
     transform: ({ key, value }) => ({
       key: key.slice(ENV_PREFIX.length),
       value,
