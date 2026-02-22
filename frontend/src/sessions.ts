@@ -16,7 +16,7 @@ import {
   setErrorMessage,
   setPickerOpen,
   showToast,
-  errorMessage$fromError,
+  extractErrorMessage,
 } from "./store";
 import { fetchSessions, createSession, deleteSession } from "./api-client";
 import { openStream } from "./streaming";
@@ -76,7 +76,7 @@ export async function handleNewSession(): Promise<void> {
     const index = list.findIndex((s) => s.id === session.id);
     switchToIndex(index >= 0 ? index : 0);
   } catch (err: unknown) {
-    showToast(`Failed to create session: ${errorMessage$fromError(err)}`);
+    showToast(`Failed to create session: ${extractErrorMessage(err)}`);
   }
 }
 
@@ -103,7 +103,7 @@ export async function handleDeleteSession(sessionId: string): Promise<void> {
 
     setPickerOpen(false);
   } catch (err: unknown) {
-    showToast(`Failed to delete session: ${errorMessage$fromError(err)}`);
+    showToast(`Failed to delete session: ${extractErrorMessage(err)}`);
   }
 }
 
@@ -121,6 +121,6 @@ export async function initSessions(): Promise<void> {
     setSessions(list);
     switchToIndex(0);
   } catch (err: unknown) {
-    showToast(`Failed to load sessions: ${errorMessage$fromError(err)}`);
+    showToast(`Failed to load sessions: ${extractErrorMessage(err)}`);
   }
 }

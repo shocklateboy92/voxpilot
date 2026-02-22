@@ -139,7 +139,7 @@ export function showToast(message: string): void {
 }
 
 /** Extract a user-friendly message from an error. */
-export function errorMessage$fromError(err: unknown): string {
+export function extractErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   return "An unexpected error occurred";
 }
