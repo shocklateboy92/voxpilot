@@ -135,7 +135,7 @@ export type PollResult =
 
 export async function pollDeviceFlow(
   deviceCode: string,
-  _interval: number,
+  currentInterval: number,
 ): Promise<PollResult> {
   const res = await fetch(GITHUB_TOKEN_URL, {
     method: "POST",
@@ -174,7 +174,7 @@ export async function pollDeviceFlow(
     return {
       status: "slow_down",
       interval:
-        typeof obj["interval"] === "number" ? obj["interval"] : _interval + 5,
+        typeof obj["interval"] === "number" ? obj["interval"] : currentInterval + 5,
     };
   }
   if (error === "expired_token") return { status: "expired" };

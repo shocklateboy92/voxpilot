@@ -5,7 +5,9 @@ import {
   tokenManager,
 } from "../services/copilot-auth";
 
-// Single-user: one pending device flow at a time
+// Single-user: one pending device flow at a time.
+// Concurrent device flow requests will overwrite each other — this is intentional
+// for a single-user server where only one person is authenticating at a time.
 let pendingDeviceCode: string | null = null;
 let pendingInterval = 5;
 
