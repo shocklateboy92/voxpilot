@@ -1,0 +1,33 @@
+/**
+ * Toast notification container — auto-dismissing error messages.
+ *
+ * Renders active toasts from the store signal as a fixed overlay.
+ */
+
+import { For } from "solid-js";
+import { toasts, setToasts } from "../store";
+
+export function ToastContainer() {
+  function dismiss(id: number) {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }
+
+  return (
+    <div class="toast-container" aria-live="polite">
+      <For each={toasts()}>
+        {(toast) => (
+          <div class="toast toast-error" role="alert">
+            <span class="toast-message">{toast.message}</span>
+            <button
+              class="toast-dismiss"
+              onClick={() => dismiss(toast.id)}
+              aria-label="Dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+      </For>
+    </div>
+  );
+}

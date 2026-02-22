@@ -20,6 +20,8 @@ import {
   reviewDetail,
   setReviewDetail,
   setArtifacts,
+  showToast,
+  errorMessage$fromError,
   type ArtifactDetail,
   type ReviewCommentData,
 } from "../store";
@@ -62,17 +64,18 @@ export function ReviewOverlay() {
     }
 
     void fetchArtifact(target.artifactId).then((detail) => {
-      if (detail) {
-        setReviewDetail(detail);
-        if (target.fileId) {
-          const idx = detail.files.findIndex((f) => f.id === target.fileId);
-          setCurrentFileIndex(idx >= 0 ? idx : 0);
-        } else {
-          // Start at first unviewed file, or 0
-          const idx = detail.files.findIndex((f) => !f.viewed);
-          setCurrentFileIndex(idx >= 0 ? idx : 0);
-        }
+      setReviewDetail(detail);
+      if (target.fileId) {
+        const idx = detail.files.findIndex((f) => f.id === target.fileId);
+        setCurrentFileIndex(idx >= 0 ? idx : 0);
+      } else {
+        // Start at first unviewed file, or 0
+        const idx = detail.files.findIndex((f) => !f.viewed);
+        setCurrentFileIndex(idx >= 0 ? idx : 0);
       }
+    }).catch((err: unknown) => {
+      showToast(`Failed to load review: ${errorMessage$fromError(err)}`);
+      setReviewOverlayArtifactId(null);
     });
   });
 
@@ -145,13 +148,15 @@ export function ReviewOverlay() {
     const file = currentFile();
     if (!detail || !file) return;
 
-    const comment = await postFileComment(detail.artifact.id, file.id, text);
-    if (comment) {
+    try {
+      const comment = await postFileComment(detail.artifact.id, file.id, text);
       setReviewDetail((prev) => {
         if (!prev) return prev;
         return { ...prev, comments: [...prev.comments, comment] };
       });
       setCommentText("");
+    } catch (err: unknown) {
+      showToast(`Failed to add comment: ${errorMessage$fromError(err)}`);
     }
   }
 
@@ -160,8 +165,8 @@ export function ReviewOverlay() {
     if (!detail) return;
     setSubmitting(true);
 
-    const result = await submitReview(detail.artifact.id);
-    if (result) {
+    try {
+      const result = await submitReview(detail.artifact.id);
       // Update artifact summary status
       setArtifacts((prev) => {
         const next = new Map(prev);
@@ -171,9 +176,12 @@ export function ReviewOverlay() {
         }
         return next;
       });
+      close();
+    } catch (err: unknown) {
+      showToast(`Failed to submit review: ${errorMessage$fromError(err)}`);
+    } finally {
+      setSubmitting(false);
     }
-    setSubmitting(false);
-    close();
   }
 
   const fileCommentsForCurrent = () => {

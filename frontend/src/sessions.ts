@@ -15,6 +15,8 @@ import {
   setIsStreaming,
   setErrorMessage,
   setPickerOpen,
+  showToast,
+  errorMessage$fromError,
 } from "./store";
 import { fetchSessions, createSession, deleteSession } from "./api-client";
 import { openStream } from "./streaming";
@@ -67,34 +69,42 @@ export function navigatePrev(): void {
 
 /** Create a new session and switch to it. */
 export async function handleNewSession(): Promise<void> {
-  const session = await createSession();
-  const list = await fetchSessions();
-  setSessions(list);
-  const index = list.findIndex((s) => s.id === session.id);
-  switchToIndex(index >= 0 ? index : 0);
+  try {
+    const session = await createSession();
+    const list = await fetchSessions();
+    setSessions(list);
+    const index = list.findIndex((s) => s.id === session.id);
+    switchToIndex(index >= 0 ? index : 0);
+  } catch (err: unknown) {
+    showToast(`Failed to create session: ${errorMessage$fromError(err)}`);
+  }
 }
 
 /** Delete a session and adjust navigation. */
 export async function handleDeleteSession(sessionId: string): Promise<void> {
-  await deleteSession(sessionId);
-  let list = await fetchSessions();
+  try {
+    await deleteSession(sessionId);
+    let list = await fetchSessions();
 
-  if (list.length === 0) {
-    // Create a fresh session if all were deleted
-    const fresh = await createSession();
-    list = [fresh];
+    if (list.length === 0) {
+      // Create a fresh session if all were deleted
+      const fresh = await createSession();
+      list = [fresh];
+    }
+
+    setSessions(list);
+
+    // If we deleted the active session, switch to the nearest one
+    const currentId = sessions()[activeIndex()]?.id;
+    if (currentId === sessionId || !currentId) {
+      const newIndex = Math.min(activeIndex(), list.length - 1);
+      switchToIndex(Math.max(newIndex, 0));
+    }
+
+    setPickerOpen(false);
+  } catch (err: unknown) {
+    showToast(`Failed to delete session: ${errorMessage$fromError(err)}`);
   }
-
-  setSessions(list);
-
-  // If we deleted the active session, switch to the nearest one
-  const currentId = sessions()[activeIndex()]?.id;
-  if (currentId === sessionId || !currentId) {
-    const newIndex = Math.min(activeIndex(), list.length - 1);
-    switchToIndex(Math.max(newIndex, 0));
-  }
-
-  setPickerOpen(false);
 }
 
 /**
@@ -102,11 +112,15 @@ export async function handleDeleteSession(sessionId: string): Promise<void> {
  * Fetches the session list, creates one if empty, and switches to the first.
  */
 export async function initSessions(): Promise<void> {
-  let list = await fetchSessions();
-  if (list.length === 0) {
-    const fresh = await createSession();
-    list = [fresh];
+  try {
+    let list = await fetchSessions();
+    if (list.length === 0) {
+      const fresh = await createSession();
+      list = [fresh];
+    }
+    setSessions(list);
+    switchToIndex(0);
+  } catch (err: unknown) {
+    showToast(`Failed to load sessions: ${errorMessage$fromError(err)}`);
   }
-  setSessions(list);
-  switchToIndex(0);
 }
