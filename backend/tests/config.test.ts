@@ -27,4 +27,8 @@ describe("toScreamingSnake", () => {
   it("handles already uppercase single char words", () => {
     expect(toScreamingSnake("dbPath")).toBe("DB_PATH");
   });
+
+  it("handles uppercase-starting keys without leading underscore", () => {
+    expect(toScreamingSnake("AppName")).toBe("APP_NAME");
+  });
 });
