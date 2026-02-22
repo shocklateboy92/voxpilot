@@ -161,6 +161,23 @@ export async function* runAgentLoop(
     let finishReason: string | null = null;
 
     try {
+      console.log(
+        `[agent] iteration=${iteration} sending ${openaiMessages.length} messages to model=${model}`,
+      );
+      for (const msg of openaiMessages) {
+        const preview =
+          typeof msg.content === "string"
+            ? msg.content.slice(0, 120)
+            : "(structured)";
+        const extra =
+          msg.role === "assistant" && "tool_calls" in msg && msg.tool_calls
+            ? ` tool_calls=${msg.tool_calls.length}`
+            : msg.role === "tool" && "tool_call_id" in msg
+              ? ` tool_call_id=${msg.tool_call_id}`
+              : "";
+        console.log(`[agent]   role=${msg.role}${extra} content=${preview}`);
+      }
+
       const llmStream = await client.chat.completions.create({
         model,
         messages: openaiMessages,
@@ -214,6 +231,25 @@ export async function* runAgentLoop(
         await addMessage(db, sessionId, "assistant", accumulatedText);
       }
       const errorMsg = exc instanceof Error ? exc.message : String(exc);
+
+      // Log detailed error info for API errors (e.g. 400 Bad Request)
+      if (exc instanceof OpenAI.APIError) {
+        console.error(
+          `[agent] API error: status=${exc.status} type=${exc.type ?? "unknown"} code=${exc.code ?? "unknown"}`,
+        );
+        console.error("[agent] API error body:", JSON.stringify(exc.error, null, 2));
+        console.error(
+          "[agent] Request had",
+          openaiMessages.length,
+          "messages. Last 3:",
+        );
+        for (const msg of openaiMessages.slice(-3)) {
+          console.error("[agent]  ", JSON.stringify(msg).slice(0, 500));
+        }
+      } else {
+        console.error("[agent] Non-API error:", exc);
+      }
+
       const payload: ErrorEvent = { message: errorMsg };
       yield { event: "error", data: JSON.stringify(payload) };
       return;
@@ -221,6 +257,22 @@ export async function* runAgentLoop(
 
     // ── Handle finish reason ──────────────────────────────────────
     if (finishReason === "tool_calls" && toolCalls.length > 0) {
+      // Abort if any streamed tool call has an empty id or name — this
+      // indicates a streaming gap and we must not persist bad data.
+      const malformed = toolCalls.filter((tc) => !tc.id || !tc.name);
+      if (malformed.length > 0) {
+        for (const tc of malformed) {
+          console.error(
+            `[agent] Malformed streamed tool call: id=${JSON.stringify(tc.id)} name=${JSON.stringify(tc.name)} args=${tc.arguments.slice(0, 80)}`,
+          );
+        }
+        const payload: ErrorEvent = {
+          message: `LLM returned ${malformed.length} tool call(s) with missing id/name. This is a streaming error — please retry.`,
+        };
+        yield { event: "error", data: JSON.stringify(payload) };
+        return;
+      }
+
       // Persist the assistant message with tool calls
       const toolCallInfos: ToolCallInfo[] = toolCalls.map((tc) => ({
         id: tc.id,
