@@ -21,7 +21,7 @@ import {
   setReviewDetail,
   setArtifacts,
   showToast,
-  errorMessage$fromError,
+  extractErrorMessage,
   type ArtifactDetail,
   type ReviewCommentData,
 } from "../store";
@@ -74,7 +74,7 @@ export function ReviewOverlay() {
         setCurrentFileIndex(idx >= 0 ? idx : 0);
       }
     }).catch((err: unknown) => {
-      showToast(`Failed to load review: ${errorMessage$fromError(err)}`);
+      showToast(`Failed to load review: ${extractErrorMessage(err)}`);
       setReviewOverlayArtifactId(null);
     });
   });
@@ -156,7 +156,7 @@ export function ReviewOverlay() {
       });
       setCommentText("");
     } catch (err: unknown) {
-      showToast(`Failed to add comment: ${errorMessage$fromError(err)}`);
+      showToast(`Failed to add comment: ${extractErrorMessage(err)}`);
     }
   }
 
@@ -178,7 +178,7 @@ export function ReviewOverlay() {
       });
       close();
     } catch (err: unknown) {
-      showToast(`Failed to submit review: ${errorMessage$fromError(err)}`);
+      showToast(`Failed to submit review: ${extractErrorMessage(err)}`);
     } finally {
       setSubmitting(false);
     }
