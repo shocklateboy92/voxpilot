@@ -5,6 +5,7 @@
  * When the tool result includes an artifact_id, renders a ChangesetCard.
  */
 
+import { Show } from "solid-js";
 import type { StreamingToolCall } from "../store";
 import { artifacts } from "../store";
 import { ChangesetCard } from "./ChangesetCard";
