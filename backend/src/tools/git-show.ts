@@ -22,6 +22,9 @@ export class GitShowTool implements Tool {
     name: "git_show",
     description:
       "Show the details of a git commit: author, date, message, and the full diff. " +
+      "The full commit diff (with actual code changes) is automatically displayed to the user when this tool is called, " +
+      "so you do NOT need to repeat the code or offer to show file contents. " +
+      "You only receive metadata and a stat summary; use it to discuss the changes at a high level. " +
       "Defaults to the most recent commit (HEAD). " +
       "Accepts a commit SHA, branch name, tag, or other git ref.",
     parameters: {
