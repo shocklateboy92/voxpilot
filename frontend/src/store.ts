@@ -49,7 +49,9 @@ export interface StreamingToolCall {
 
 // ── Review artifact types ────────────────────────────────────────────────────
 //
-// Derived from the backend event and schema types.
+// Derived from the backend event and schema types.  The backend SSE event
+// marks `viewed` as optional; the store normalises it to required boolean
+// (streaming.ts defaults missing values to false), so we override it here.
 
 export type ArtifactFileSummary = Omit<ReviewArtifactFileEvent, "viewed"> & {
   viewed: boolean;
