@@ -20,7 +20,7 @@ export const gitShowParameters = z
   .object({
     commit: z
       .string()
-      .optional()
+      .default("HEAD")
       .describe(
         "Commit reference (SHA, branch, tag, HEAD~2, etc.). Defaults to HEAD.",
       ),
@@ -47,7 +47,7 @@ export class GitShowTool implements Tool<typeof gitShowParameters> {
       return simpleResult(`Error: ${repoCheck.error}`);
     }
 
-    const commit = args.commit && args.commit !== "" ? args.commit : "HEAD";
+    const commit = args.commit;
 
     // Validate the ref to prevent flag injection or shell metacharacters
     if (commit.startsWith("-") || !SAFE_REF_PATTERN.test(commit)) {

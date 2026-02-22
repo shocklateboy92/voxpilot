@@ -1,5 +1,6 @@
 import { realpath } from "node:fs/promises";
 import { relative, resolve } from "node:path";
+import type { z } from "zod/v4";
 
 /**
  * Result returned by a tool's `execute()` method.
@@ -19,20 +20,36 @@ export function simpleResult(text: string): ToolResult {
   return { llmResult: text, displayResult: text };
 }
 
-/** Extracts the parsed output type from a schema that has a `parse` method. */
-type SchemaOutput<T> = T extends { parse: (input: unknown) => infer O }
-  ? O
-  : never;
+/**
+ * JSON-parse `json` (treating empty/missing as `{}`) then validate through a Zod schema.
+ * Throws a `ZodError` if validation fails.
+ */
+export function parseJsonArgs<T extends z.ZodType>(
+  schema: T,
+  json: string,
+): z.infer<T> {
+  const raw: unknown = json ? JSON.parse(json) : {};
+  return schema.parse(raw) as z.infer<T>;
+}
 
-/** Structural constraint: anything with a `parse` method (Zod schemas satisfy this). */
-type Schema = { parse: (input: unknown) => unknown };
+/**
+ * JSON-parse `json` (treating empty/missing as `{}`) then safely validate through a Zod schema.
+ * Never throws; returns `{ success: true, data }` or `{ success: false, error }`.
+ */
+export function safeParseJsonArgs<T extends z.ZodType>(
+  schema: T,
+  json: string,
+): ReturnType<T["safeParse"]> {
+  const raw: unknown = json ? JSON.parse(json) : {};
+  return schema.safeParse(raw) as ReturnType<T["safeParse"]>;
+}
 
-export interface Tool<T extends Schema = Schema> {
+export interface Tool<T extends z.ZodType = z.ZodType> {
   readonly name: string;
   readonly description: string;
   readonly parameters: T;
   readonly requiresConfirmation: boolean;
-  execute(args: SchemaOutput<T>, workDir: string): Promise<ToolResult>;
+  execute(args: z.infer<T>, workDir: string): Promise<ToolResult>;
 }
 
 /**

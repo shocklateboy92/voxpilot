@@ -1,4 +1,11 @@
-export { resolvePath, simpleResult, type Tool, type ToolResult } from "./base";
+export {
+  parseJsonArgs,
+  resolvePath,
+  safeParseJsonArgs,
+  simpleResult,
+  type Tool,
+  type ToolResult,
+} from "./base";
 export { CopilotAgentTool, copilotAgentParameters } from "./copilot-agent";
 export { GitDiffTool, gitDiffParameters } from "./git-diff";
 export { GitShowTool, gitShowParameters } from "./git-show";

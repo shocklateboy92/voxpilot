@@ -28,7 +28,7 @@ export const gitDiffParameters = z
   .object({
     from: z
       .string()
-      .optional()
+      .default("INDEX")
       .describe(
         "The base state to compare from. " +
           "A git ref (HEAD, branch, tag, SHA, HEAD~2), INDEX (staging area), or WORKTREE (working directory). " +
@@ -36,7 +36,7 @@ export const gitDiffParameters = z
       ),
     to: z
       .string()
-      .optional()
+      .default("WORKTREE")
       .describe(
         "The target state to compare to. " +
           "A git ref, INDEX, or WORKTREE. " +
@@ -78,8 +78,8 @@ export class GitDiffTool implements Tool<typeof gitDiffParameters> {
       return simpleResult(`Error: ${repoCheck.error}`);
     }
 
-    const from = args.from && args.from !== "" ? args.from : "INDEX";
-    const to = args.to && args.to !== "" ? args.to : "WORKTREE";
+    const from = args.from;
+    const to = args.to;
     const path = args.path && args.path !== "" ? args.path : undefined;
 
     // Validate refs
