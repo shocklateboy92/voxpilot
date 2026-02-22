@@ -163,18 +163,7 @@ export function openStream(sessionId: string): void {
     },
 
     onReviewArtifact(payload: ReviewArtifactEvent) {
-      const summary: ArtifactSummary = {
-        artifactId: payload.artifactId,
-        title: payload.title,
-        status: payload.status,
-        totalFiles: payload.totalFiles,
-        totalAdditions: payload.totalAdditions,
-        totalDeletions: payload.totalDeletions,
-        files: payload.files.map((f) => ({
-          ...f,
-          viewed: f.viewed ?? false,
-        })),
-      };
+      const summary: ArtifactSummary = payload;
       setArtifacts((prev) => {
         const next = new Map(prev);
         next.set(payload.artifactId, summary);
