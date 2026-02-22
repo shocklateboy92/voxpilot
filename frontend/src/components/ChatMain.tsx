@@ -187,7 +187,7 @@ export function ChatMain() {
           type="button"
           class={`btn btn-mode${planMode() ? " btn-mode-active" : ""}`}
           onClick={() => setPlanMode(!planMode())}
-          title={planMode() ? "Plan mode: AI will analyse and plan only. Click to switch to act mode." : "Act mode: AI will plan and execute changes. Click to switch to plan mode."}
+          title={planMode() ? "Plan mode: AI will analyze and plan only. Click to switch to act mode." : "Act mode: AI will plan and execute changes. Click to switch to plan mode."}
           disabled={isStreaming()}
           aria-pressed={planMode()}
         >

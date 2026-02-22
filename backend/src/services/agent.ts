@@ -155,7 +155,7 @@ export async function* runAgentLoop(
         "You are in PLAN MODE. Do NOT call the copilot_agent tool or perform any actions that modify files.\n\n" +
         "Your task is to:\n" +
         "1. Use read-only tools to explore and understand the codebase.\n" +
-        "2. Analyse the user's request thoroughly.\n" +
+        "2. Analyze the user's request thoroughly.\n" +
         "3. Produce a detailed, step-by-step implementation plan in Markdown format.\n\n" +
         "Your plan must include:\n" +
         "- A high-level summary of the approach\n" +
