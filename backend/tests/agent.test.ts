@@ -3,13 +3,12 @@
  * the OpenAI constructor via bun's mock.module().
  */
 
-import { describe, expect, it, beforeEach, afterEach, mock } from "bun:test";
-import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { getDb, closeDb } from "../src/db";
+import { join } from "node:path";
+import { closeDb, getDb } from "../src/db";
 import { createSession, getMessages } from "../src/services/sessions";
-import type { ChatMessage } from "../schemas/api";
 
 // ── Mock helpers ────────────────────────────────────────────────────────────
 
@@ -90,7 +89,7 @@ let createFn: (...args: unknown[]) => unknown;
 
 mock.module("openai", () => ({
   default: class MockOpenAI {
-    constructor() {}
+    static APIError = class extends Error {};
     chat = {
       completions: {
         create: (...args: unknown[]) => createFn(...args),
@@ -107,7 +106,7 @@ const { runAgentLoop } = await import("../src/services/agent");
 let workDir: string;
 
 beforeEach(async () => {
-  process.env["VOXPILOT_DB_PATH"] = ":memory:";
+  process.env.VOXPILOT_DB_PATH = ":memory:";
   workDir = await mkdtemp(join(tmpdir(), "voxpilot-agent-test-"));
   await mkdir(join(workDir, "src"));
   await writeFile(join(workDir, "src", "main.py"), "# main\nprint('hello')\n");
@@ -559,7 +558,9 @@ describe("runAgentLoop", () => {
     let disconnected = false;
     const events = await collectEvents(
       runAgentLoop({
-        messages: [{ role: "user", content: "Long response", tool_calls: null }],
+        messages: [
+          { role: "user", content: "Long response", tool_calls: null },
+        ],
         model: "gpt-4o",
         ghToken: "gho_fake",
         workDir,
