@@ -5,7 +5,7 @@
  * Expanded while running, auto-collapses on completion.
  */
 
-import { Show, createEffect } from "solid-js";
+import { createEffect } from "solid-js";
 import type { StreamingToolCall } from "../store";
 
 interface Props {
@@ -31,12 +31,8 @@ export function CopilotStreamBlock(props: Props) {
     <details class="copilot-block" open={!isDone()}>
       <summary class="copilot-summary">
         🤖 Copilot [{sessionLabel()}]
-        <Show when={!isDone()}>
-          <span class="copilot-spinner"> ⏳</span>
-        </Show>
-        <Show when={isDone()}>
-          <span class="copilot-done-label"> — done</span>
-        </Show>
+        {!isDone() && <span class="copilot-spinner"> ⏳</span>}
+        {isDone() && <span class="copilot-done-label"> — done</span>}
       </summary>
       <pre class="copilot-stream" ref={preRef}>
         {props.call.copilotStream ?? ""}

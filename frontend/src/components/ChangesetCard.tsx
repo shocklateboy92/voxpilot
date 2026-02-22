@@ -97,20 +97,22 @@ export function ChangesetCard(props: Props) {
 
       <div class="changeset-status-line">
         {viewedCount()}/{props.artifact.files.length} viewed
-        <Show when={props.artifact.status !== "pending"}>
-          {" — "}
-          <span
-            class={
-              props.artifact.status === "approved"
-                ? "changeset-approved"
-                : "changeset-changes-requested"
-            }
-          >
-            {props.artifact.status === "approved"
-              ? "Approved"
-              : "Changes requested"}
-          </span>
-        </Show>
+        {props.artifact.status !== "pending" && (
+          <>
+            {" — "}
+            <span
+              class={
+                props.artifact.status === "approved"
+                  ? "changeset-approved"
+                  : "changeset-changes-requested"
+              }
+            >
+              {props.artifact.status === "approved"
+                ? "Approved"
+                : "Changes requested"}
+            </span>
+          </>
+        )}
       </div>
     </div>
   );

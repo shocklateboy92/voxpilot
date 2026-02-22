@@ -30,24 +30,18 @@ export function MessageBubble(props: Props) {
       </Show>
 
       {/* For tool result messages, render inside matching block or standalone */}
-      <Show when={props.message.role === "tool"}>
-        <HistoryToolResult message={props.message} />
-      </Show>
+      {props.message.role === "tool" && <HistoryToolResult message={props.message} />}
 
       {/* For regular user/assistant/system messages */}
-      <Show
-        when={
-          !(props.message.role === "assistant" && props.message.tool_calls?.length) &&
-          props.message.role !== "tool"
-        }
-      >
+      {!(props.message.role === "assistant" && props.message.tool_calls?.length) &&
+        props.message.role !== "tool" && (
         <Show
           when={props.message.role === "assistant" && props.message.html}
           fallback={<div class={`message ${props.message.role}`}>{props.message.content}</div>}
         >
           {(html) => <div class="message assistant markdown-body" innerHTML={html()} />}
         </Show>
-      </Show>
+      )}
     </>
   );
 }
@@ -102,13 +96,13 @@ function HistoryToolResult(props: { message: MessageRead }) {
 
   return (
     <>
-      <Show when={!artifact()}>
+      {!artifact() && (
         <div class="tool-result-standalone">
           <div class={`tool-result${isError() ? " tool-error" : ""}`}>
             <pre>{props.message.content}</pre>
           </div>
         </div>
-      </Show>
+      )}
       <Show when={artifact()}>
         {(a) => <ChangesetCard artifact={a()} />}
       </Show>
