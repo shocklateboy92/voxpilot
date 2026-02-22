@@ -126,6 +126,7 @@ export async function createReviewArtifact(
       changeType: skeleton.changeType,
       additions: skeleton.additions,
       deletions: skeleton.deletions,
+      viewed: false,
     });
   }
 

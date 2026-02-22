@@ -61,7 +61,7 @@ export const ReviewArtifactFileEvent = z.object({
   changeType: z.string(),
   additions: z.number(),
   deletions: z.number(),
-  viewed: z.boolean().optional(),
+  viewed: z.boolean().default(false),
 });
 export type ReviewArtifactFileEvent = z.infer<typeof ReviewArtifactFileEvent>;
 
