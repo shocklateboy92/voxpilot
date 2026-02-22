@@ -534,7 +534,10 @@ describe("GitDiffTool", () => {
 
   it("shows unstaged changes (default from=INDEX to=WORKTREE)", async () => {
     await writeFile(join(gitDir, "file.txt"), "line one\nline two\n");
-    const result = await tool.execute({}, gitDir);
+    const result = await tool.execute(
+      { from: "INDEX", to: "WORKTREE" },
+      gitDir,
+    );
     expect(result.displayResult).toContain("line two");
     expect(result.displayResult).toContain("diff --git");
     // llmResult should have stat summary but not the full diff hunk
@@ -580,7 +583,10 @@ describe("GitDiffTool", () => {
   });
 
   it("reports no changes", async () => {
-    const result = await tool.execute({}, gitDir);
+    const result = await tool.execute(
+      { from: "INDEX", to: "WORKTREE" },
+      gitDir,
+    );
     expect(result.displayResult).toContain("No changes found");
     expect(result.llmResult).toContain("No changes found");
   });
@@ -592,7 +598,10 @@ describe("GitDiffTool", () => {
   });
 
   it("rejects invalid refs", async () => {
-    const result = await tool.execute({ from: "--flag" }, gitDir);
+    const result = await tool.execute(
+      { from: "--flag", to: "WORKTREE" },
+      gitDir,
+    );
     expect(result.displayResult).toContain("Error");
     expect(result.displayResult).toContain("invalid ref");
   });
@@ -600,7 +609,10 @@ describe("GitDiffTool", () => {
   it("errors on non-git directory", async () => {
     const nonGit = await mkdtemp(join(tmpdir(), "voxpilot-nogit-"));
     try {
-      const result = await tool.execute({}, nonGit);
+      const result = await tool.execute(
+        { from: "INDEX", to: "WORKTREE" },
+        nonGit,
+      );
       expect(result.displayResult.startsWith("Error:")).toBe(true);
       expect(result.displayResult).toContain("not inside a git repository");
     } finally {
@@ -628,7 +640,7 @@ describe("GitShowTool", () => {
   });
 
   it("shows HEAD commit", async () => {
-    const result = await tool.execute({}, gitDir);
+    const result = await tool.execute({ commit: "HEAD" }, gitDir);
     expect(result.displayResult).toContain("initial commit");
     expect(result.displayResult).toContain("diff --git");
     expect(result.displayResult).toContain("hello");
@@ -661,7 +673,7 @@ describe("GitShowTool", () => {
   it("errors on non-git directory", async () => {
     const nonGit = await mkdtemp(join(tmpdir(), "voxpilot-nogit-"));
     try {
-      const result = await tool.execute({}, nonGit);
+      const result = await tool.execute({ commit: "HEAD" }, nonGit);
       expect(result.displayResult.startsWith("Error:")).toBe(true);
       expect(result.displayResult).toContain("not inside a git repository");
     } finally {
@@ -675,7 +687,7 @@ describe("GitShowTool", () => {
   });
 
   it("llmResult is shorter than displayResult", async () => {
-    const result = await tool.execute({}, gitDir);
+    const result = await tool.execute({ commit: "HEAD" }, gitDir);
     expect(result.llmResult.length).toBeLessThan(result.displayResult.length);
   });
 });

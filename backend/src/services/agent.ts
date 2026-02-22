@@ -37,6 +37,8 @@ import {
   defaultRegistry,
   gitDiffParameters,
   gitShowParameters,
+  parseJsonArgs,
+  safeParseJsonArgs,
 } from "../tools";
 import { createReviewArtifact } from "./artifact-pipeline";
 import { getConnection } from "./copilot-acp";
@@ -307,10 +309,7 @@ export async function* runAgentLoop(
         if (tc.name === "copilot_agent") {
           let copilotResult: ToolResult;
           try {
-            const rawArgs: unknown = tc.arguments
-              ? JSON.parse(tc.arguments)
-              : {};
-            const args = copilotAgentParameters.parse(rawArgs);
+            const args = parseJsonArgs(copilotAgentParameters, tc.arguments);
             const promptText = args.prompt;
             const sessionName = args.session_name;
 
@@ -419,24 +418,14 @@ export async function* runAgentLoop(
         const isDiffTool = tc.name === "git_diff" || tc.name === "git_show";
         if (isDiffTool && !isError && result.displayResult) {
           try {
-            const rawArgs: unknown = tc.arguments
-              ? JSON.parse(tc.arguments)
-              : {};
-
             // Determine the "to" ref for full-text resolution
             let toRef: string;
             if (tc.name === "git_show") {
-              const parsed = gitShowParameters.safeParse(rawArgs);
-              toRef =
-                parsed.success && parsed.data.commit
-                  ? parsed.data.commit
-                  : "HEAD";
+              const parsed = safeParseJsonArgs(gitShowParameters, tc.arguments);
+              toRef = parsed.success ? parsed.data.commit : "HEAD";
             } else {
-              const parsed = gitDiffParameters.safeParse(rawArgs);
-              toRef =
-                parsed.success && parsed.data.to && parsed.data.to !== ""
-                  ? parsed.data.to
-                  : "WORKTREE";
+              const parsed = safeParseJsonArgs(gitDiffParameters, tc.arguments);
+              toRef = parsed.success ? parsed.data.to : "WORKTREE";
             }
 
             const artifact = await createReviewArtifact({

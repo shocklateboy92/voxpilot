@@ -1,6 +1,6 @@
 import type { ChatCompletionTool } from "openai/resources";
 import { z } from "zod/v4";
-import type { Tool, ToolResult } from "./base";
+import { parseJsonArgs, type Tool, type ToolResult } from "./base";
 
 export class ToolRegistry {
   private tools = new Map<string, Tool>();
@@ -23,10 +23,7 @@ export class ToolRegistry {
       function: {
         name: t.name,
         description: t.description,
-        // All registered tools use Zod schemas for parameters; cast for JSON Schema conversion
-        parameters: z.toJSONSchema(
-          t.parameters as unknown as Parameters<typeof z.toJSONSchema>[0],
-        ) as Record<string, unknown>,
+        parameters: z.toJSONSchema(t.parameters) as Record<string, unknown>,
       },
     }));
   }
@@ -40,8 +37,7 @@ export class ToolRegistry {
     if (!tool) {
       throw new Error(`Unknown tool: '${name}'`);
     }
-    const raw: unknown = rawArgs ? JSON.parse(rawArgs) : {};
-    const parsed = tool.parameters.parse(raw);
+    const parsed = parseJsonArgs(tool.parameters, rawArgs);
     return tool.execute(parsed, workDir);
   }
 }
