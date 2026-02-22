@@ -157,7 +157,7 @@ export async function* runAgentLoop(
   for (let iteration = 0; iteration < maxIterations; iteration++) {
     let modelName = model;
     let accumulatedText = "";
-    const toolCalls: StreamedToolCall[] = [];
+    const toolCallMap = new Map<number, StreamedToolCall>();
     let finishReason: string | null = null;
 
     try {
@@ -204,13 +204,15 @@ export async function* runAgentLoop(
         }
 
         // Accumulate tool calls (streamed incrementally)
+        // The API may use non-zero-based indices (e.g. Copilot/Claude
+        // sends index=1 for the first tool call), so we use a Map.
         if (delta.tool_calls) {
           for (const tcDelta of delta.tool_calls) {
             const idx = tcDelta.index;
-            while (toolCalls.length <= idx) {
-              toolCalls.push(new StreamedToolCall());
+            if (!toolCallMap.has(idx)) {
+              toolCallMap.set(idx, new StreamedToolCall());
             }
-            const tc = toolCalls[idx];
+            const tc = toolCallMap.get(idx);
             if (tc) {
               if (tcDelta.id) tc.id = tcDelta.id;
               if (tcDelta.function) {
@@ -256,6 +258,7 @@ export async function* runAgentLoop(
     }
 
     // ── Handle finish reason ──────────────────────────────────────
+    const toolCalls = Array.from(toolCallMap.values());
     if (finishReason === "tool_calls" && toolCalls.length > 0) {
       // Abort if any streamed tool call has an empty id or name — this
       // indicates a streaming gap and we must not persist bad data.
