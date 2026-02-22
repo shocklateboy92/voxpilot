@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { app } from "../src/index";
-import { setupTestDb } from "./helpers";
-import { addMessage, getMessages } from "../src/services/sessions";
 import { getDb } from "../src/db";
+import { app } from "../src/index";
+import { addMessage, getMessages } from "../src/services/sessions";
+import { setupTestDb } from "./helpers";
 
 const AUTH = { headers: { Cookie: "gh_token=gho_fake" } };
 
@@ -120,15 +120,11 @@ describe("sessions", () => {
   });
 
   it("session endpoints return 401 without cookie", async () => {
-    expect(
-      (await app.request("/api/sessions")).status,
-    ).toBe(401);
+    expect((await app.request("/api/sessions")).status).toBe(401);
     expect(
       (await app.request("/api/sessions", { method: "POST" })).status,
     ).toBe(401);
-    expect(
-      (await app.request("/api/sessions/some-id")).status,
-    ).toBe(401);
+    expect((await app.request("/api/sessions/some-id")).status).toBe(401);
     expect(
       (await app.request("/api/sessions/some-id", { method: "DELETE" })).status,
     ).toBe(401);

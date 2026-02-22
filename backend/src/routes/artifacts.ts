@@ -9,26 +9,26 @@
  * POST   /api/artifacts/:id/submit                — Submit review
  */
 
-import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import type { AuthEnv } from "../middleware/auth";
+import { Hono } from "hono";
 import { getDb } from "../db";
+import type { AuthEnv } from "../middleware/auth";
+import { AddCommentRequest, ViewedRequest } from "../schemas/api";
 import {
-  getArtifact,
-  setFileViewed,
   addComment,
   deleteComment,
-  updateArtifactStatus,
-  getFileFullText,
+  getArtifact,
   getArtifactComments,
+  getFileFullText,
+  setFileViewed,
+  updateArtifactStatus,
 } from "../services/artifacts";
 import { addMessage } from "../services/sessions";
 import { registry } from "../services/streams";
-import { ViewedRequest, AddCommentRequest } from "../schemas/api";
 
 export const artifactRouter = new Hono<AuthEnv>()
 
-// ── GET /api/artifacts/:id ──────────────────────────────────────────────────
+  // ── GET /api/artifacts/:id ──────────────────────────────────────────────────
 
   .get("/api/artifacts/:id", async (c) => {
     const db = getDb();
@@ -40,22 +40,19 @@ export const artifactRouter = new Hono<AuthEnv>()
     return c.json(detail, 200);
   })
 
-// ── GET /api/artifacts/:id/files/:fileId/full-text ──────────────────────────
+  // ── GET /api/artifacts/:id/files/:fileId/full-text ──────────────────────────
 
-  .get(
-    "/api/artifacts/:id/files/:fileId/full-text",
-    async (c) => {
-      const db = getDb();
-      const fileId = c.req.param("fileId");
-      const result = await getFileFullText(db, fileId);
-      if (!result) {
-        return c.json({ detail: "Full text not available" }, 404);
-      }
-      return c.json(result, 200);
-    },
-  )
+  .get("/api/artifacts/:id/files/:fileId/full-text", async (c) => {
+    const db = getDb();
+    const fileId = c.req.param("fileId");
+    const result = await getFileFullText(db, fileId);
+    if (!result) {
+      return c.json({ detail: "Full text not available" }, 404);
+    }
+    return c.json(result, 200);
+  })
 
-// ── PATCH /api/artifacts/:id/files/:fileId/viewed ───────────────────────────
+  // ── PATCH /api/artifacts/:id/files/:fileId/viewed ───────────────────────────
 
   .patch(
     "/api/artifacts/:id/files/:fileId/viewed",
@@ -72,7 +69,7 @@ export const artifactRouter = new Hono<AuthEnv>()
     },
   )
 
-// ── POST /api/artifacts/:id/files/:fileId/comments ──────────────────────────
+  // ── POST /api/artifacts/:id/files/:fileId/comments ──────────────────────────
 
   .post(
     "/api/artifacts/:id/files/:fileId/comments",
@@ -94,22 +91,19 @@ export const artifactRouter = new Hono<AuthEnv>()
     },
   )
 
-// ── DELETE /api/artifacts/:id/comments/:commentId ───────────────────────────
+  // ── DELETE /api/artifacts/:id/comments/:commentId ───────────────────────────
 
-  .delete(
-    "/api/artifacts/:id/comments/:commentId",
-    async (c) => {
-      const db = getDb();
-      const commentId = c.req.param("commentId");
-      const ok = await deleteComment(db, commentId);
-      if (!ok) {
-        return c.json({ detail: "Comment not found" }, 404);
-      }
-      return c.body(null, 204);
-    },
-  )
+  .delete("/api/artifacts/:id/comments/:commentId", async (c) => {
+    const db = getDb();
+    const commentId = c.req.param("commentId");
+    const ok = await deleteComment(db, commentId);
+    if (!ok) {
+      return c.json({ detail: "Comment not found" }, 404);
+    }
+    return c.body(null, 204);
+  })
 
-// ── POST /api/artifacts/:id/submit ──────────────────────────────────────────
+  // ── POST /api/artifacts/:id/submit ──────────────────────────────────────────
 
   .post("/api/artifacts/:id/submit", async (c) => {
     const db = getDb();
@@ -124,7 +118,11 @@ export const artifactRouter = new Hono<AuthEnv>()
     const hasComments = comments.length > 0;
     const newStatus = hasComments ? "changes_requested" : "approved";
 
-    await updateArtifactStatus(db, artifactId, newStatus as "approved" | "changes_requested");
+    await updateArtifactStatus(
+      db,
+      artifactId,
+      newStatus as "approved" | "changes_requested",
+    );
 
     // Build a structured review digest message to send to the agent
     const digestParts: string[] = [];

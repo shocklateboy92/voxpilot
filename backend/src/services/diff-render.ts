@@ -127,9 +127,10 @@ export function renderFullFileHtml(
         }
       }
       // If no non-del line in the hunk, use the hunk's newStart position
-      const key = lastFullTextLine > 0
-        ? lastFullTextLine + 1
-        : Math.max(1, hunk.newStart + 1);
+      const key =
+        lastFullTextLine > 0
+          ? lastFullTextLine + 1
+          : Math.max(1, hunk.newStart + 1);
       const existing = deletionsBefore.get(key) ?? [];
       deletionsBefore.set(key, [...existing, ...pendingDels]);
     }
@@ -138,7 +139,9 @@ export function renderFullFileHtml(
   const lines = fullTextContent.split("\n");
   const parts: string[] = [];
 
-  parts.push(`<div class="fulltext-file" data-file-id="${escapeHtml(fileId)}">`);
+  parts.push(
+    `<div class="fulltext-file" data-file-id="${escapeHtml(fileId)}">`,
+  );
   parts.push('<table class="fulltext-table">');
 
   for (let i = 0; i < lines.length; i++) {
@@ -150,21 +153,23 @@ export function renderFullFileHtml(
       for (const del of dels) {
         parts.push(
           `<tr class="fulltext-line fulltext-line-del">` +
-          `<td class="fulltext-line-num"></td>` +
-          `<td class="fulltext-line-content"><code>${escapeHtml(del.content)}</code></td>` +
-          `</tr>`,
+            `<td class="fulltext-line-num"></td>` +
+            `<td class="fulltext-line-content"><code>${escapeHtml(del.content)}</code></td>` +
+            `</tr>`,
         );
       }
     }
 
     const isAdded = addedLines.has(lineNum);
-    const rowClass = isAdded ? "fulltext-line fulltext-line-add" : "fulltext-line";
+    const rowClass = isAdded
+      ? "fulltext-line fulltext-line-add"
+      : "fulltext-line";
 
     parts.push(
       `<tr class="${rowClass}">` +
-      `<td class="fulltext-line-num">${lineNum}</td>` +
-      `<td class="fulltext-line-content"><code>${escapeHtml(lines[i] ?? "")}</code></td>` +
-      `</tr>`,
+        `<td class="fulltext-line-num">${lineNum}</td>` +
+        `<td class="fulltext-line-content"><code>${escapeHtml(lines[i] ?? "")}</code></td>` +
+        `</tr>`,
     );
   }
 
@@ -175,9 +180,9 @@ export function renderFullFileHtml(
     for (const del of trailingDels) {
       parts.push(
         `<tr class="fulltext-line fulltext-line-del">` +
-        `<td class="fulltext-line-num"></td>` +
-        `<td class="fulltext-line-content"><code>${escapeHtml(del.content)}</code></td>` +
-        `</tr>`,
+          `<td class="fulltext-line-num"></td>` +
+          `<td class="fulltext-line-content"><code>${escapeHtml(del.content)}</code></td>` +
+          `</tr>`,
       );
     }
   }

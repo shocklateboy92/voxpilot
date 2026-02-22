@@ -1,6 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { renderDiffFileHtml, renderFullFileHtml } from "../src/services/diff-render";
 import type { DiffHunk } from "../src/schemas/diff-document";
+import {
+  renderDiffFileHtml,
+  renderFullFileHtml,
+} from "../src/services/diff-render";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -186,7 +189,9 @@ describe("renderFullFileHtml", () => {
   });
 
   it("does not include a file header (rendered by frontend)", () => {
-    const html = renderFullFileHtml("f-1", "src/<special>.ts", fullText, [makeHunk()]);
+    const html = renderFullFileHtml("f-1", "src/<special>.ts", fullText, [
+      makeHunk(),
+    ]);
     expect(html).not.toContain('class="diff-file-header"');
   });
 
@@ -258,15 +263,29 @@ describe("renderFullFileHtml", () => {
     // Del rows have an empty line-num cell
     expect(html).toContain(
       '<tr class="fulltext-line fulltext-line-del">' +
-      '<td class="fulltext-line-num"></td>',
+        '<td class="fulltext-line-num"></td>',
     );
   });
 
   it("interleaves trailing deletions after last context line", () => {
     const hunk = makeHunk({
       lines: [
-        { id: "L0", kind: "context", oldLine: 1, newLine: 1, content: "first", fullTextLine: 1 },
-        { id: "L1", kind: "del", oldLine: 2, newLine: null, content: "removed at end", fullTextLine: null },
+        {
+          id: "L0",
+          kind: "context",
+          oldLine: 1,
+          newLine: 1,
+          content: "first",
+          fullTextLine: 1,
+        },
+        {
+          id: "L1",
+          kind: "del",
+          oldLine: 2,
+          newLine: null,
+          content: "removed at end",
+          fullTextLine: null,
+        },
       ],
     });
     const html = renderFullFileHtml("f-1", "a.ts", "first\nsecond", [hunk]);
@@ -280,10 +299,38 @@ describe("renderFullFileHtml", () => {
   it("handles multiple deletions in sequence", () => {
     const hunk = makeHunk({
       lines: [
-        { id: "L0", kind: "context", oldLine: 1, newLine: 1, content: "keep", fullTextLine: 1 },
-        { id: "L1", kind: "del", oldLine: 2, newLine: null, content: "del-A", fullTextLine: null },
-        { id: "L2", kind: "del", oldLine: 3, newLine: null, content: "del-B", fullTextLine: null },
-        { id: "L3", kind: "add", oldLine: null, newLine: 2, content: "added", fullTextLine: 2 },
+        {
+          id: "L0",
+          kind: "context",
+          oldLine: 1,
+          newLine: 1,
+          content: "keep",
+          fullTextLine: 1,
+        },
+        {
+          id: "L1",
+          kind: "del",
+          oldLine: 2,
+          newLine: null,
+          content: "del-A",
+          fullTextLine: null,
+        },
+        {
+          id: "L2",
+          kind: "del",
+          oldLine: 3,
+          newLine: null,
+          content: "del-B",
+          fullTextLine: null,
+        },
+        {
+          id: "L3",
+          kind: "add",
+          oldLine: null,
+          newLine: 2,
+          content: "added",
+          fullTextLine: 2,
+        },
       ],
     });
     const html = renderFullFileHtml("f-1", "a.ts", "keep\nadded", [hunk]);
