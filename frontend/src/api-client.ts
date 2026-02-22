@@ -46,7 +46,7 @@ type SuccessOf<T extends ClientResponse<unknown>> =
   T extends ClientResponse<infer D, SuccessStatusCode, "json"> ? D : never;
 
 /**
- * Awaits a response, reloads on 401, throws ApiError on non-OK responses.
+ * Awaits a response, throws ApiError on non-OK responses (including 401).
  * T is inferred from the success variant of the Hono ClientResponse union.
  */
 async function authedJson<T extends ClientResponse<unknown>>(
@@ -54,7 +54,6 @@ async function authedJson<T extends ClientResponse<unknown>>(
 ): Promise<SuccessOf<T>> {
   const res = await req;
   if (res.status === 401) {
-    window.location.reload();
     throw new ApiError(401, res.statusText, "Unauthorized");
   }
   if (!res.ok) {
@@ -67,11 +66,10 @@ async function authedJson<T extends ClientResponse<unknown>>(
   return res.json() as SuccessOf<T>;
 }
 
-/** Awaits a response, reloads on 401, throws ApiError on non-OK responses. */
+/** Awaits a response, throws ApiError on non-OK responses (including 401). */
 async function authedVoid(req: Promise<Response>): Promise<void> {
   const res = await req;
   if (res.status === 401) {
-    window.location.reload();
     throw new ApiError(401, res.statusText, "Unauthorized");
   }
   if (!res.ok) {
