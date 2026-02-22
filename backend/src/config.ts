@@ -1,4 +1,6 @@
 import { z } from "zod/v4";
+import { loadConfigSync } from "zod-config";
+import { envAdapter } from "zod-config/env-adapter";
 
 const configSchema = z.object({
   appName: z.string().default("VoxPilot"),
@@ -23,26 +25,16 @@ const configSchema = z.object({
 
 export type Config = z.infer<typeof configSchema>;
 
-/** Convert camelCase to SCREAMING_SNAKE_CASE (e.g. "corsOrigins" → "CORS_ORIGINS") */
-export function toScreamingSnake(key: string): string {
-  return key
-    .replace(/[A-Z]/g, (ch) => `_${ch}`)
-    .toUpperCase()
-    .replace(/^_/, "");
-}
+const ENV_PREFIX = "VOXPILOT_";
 
-/** Read env vars matching `{PREFIX}_{SCREAMING_SNAKE_KEY}` for each key in the schema */
-function loadFromEnv(
-  schema: z.ZodObject<z.ZodRawShape>,
-  prefix: string,
-): Record<string, string | undefined> {
-  const result: Record<string, string | undefined> = {};
-  for (const key of Object.keys(schema.shape)) {
-    result[key] = Bun.env[`${prefix}_${toScreamingSnake(key)}`];
-  }
-  return result;
-}
-
-export const config: Config = configSchema.parse(
-  loadFromEnv(configSchema, "VOXPILOT"),
-);
+export const config: Config = loadConfigSync({
+  schema: configSchema,
+  keyMatching: "lenient",
+  adapters: envAdapter({
+    regex: new RegExp(`^${ENV_PREFIX}`),
+    transform: ({ key, value }) => ({
+      key: key.slice(ENV_PREFIX.length),
+      value,
+    }),
+  }),
+});
