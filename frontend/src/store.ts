@@ -8,7 +8,6 @@
 
 import { createSignal } from "solid-js";
 import type {
-  GitHubUser,
   ToolCallInfo,
   SessionSummary,
   MessageRead as BackendMessageRead,
@@ -26,7 +25,7 @@ import type { ArtifactDetail } from "@backend/services/artifacts";
 // service interfaces, eliminating the duplication that previously existed here.
 // Only frontend-specific types and extensions are defined below.
 
-export type { GitHubUser, ToolCallInfo, SessionSummary, ArtifactDetail };
+export type { ToolCallInfo, SessionSummary, ArtifactDetail };
 
 // MessageRead extends the backend schema with frontend-only fields added
 // during SSE streaming (pre-rendered HTML and linked artifact IDs).
@@ -60,12 +59,6 @@ export type ArtifactFileDetail = DiffFile;
 export type ReviewCommentData = ReviewComment;
 
 // ── Signals ──────────────────────────────────────────────────────────────────
-
-/** Authenticated user (null = not logged in / unknown). */
-export const [user, setUser] = createSignal<GitHubUser | null>(null);
-
-/** Auth check complete — prevents flash of login view. */
-export const [authChecked, setAuthChecked] = createSignal(false);
 
 /** All sessions, most-recently-updated first. */
 export const [sessions, setSessions] = createSignal<SessionSummary[]>([]);

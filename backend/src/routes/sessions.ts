@@ -5,7 +5,6 @@
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { getDb } from "../db";
-import type { AuthEnv } from "../middleware/auth";
 import { SessionUpdate } from "../schemas/api";
 import {
   createSession,
@@ -15,7 +14,7 @@ import {
   updateSessionTitle,
 } from "../services/sessions";
 
-export const sessionsRouter = new Hono<AuthEnv>()
+export const sessionsRouter = new Hono()
   .get("/api/sessions", async (c) => {
     const db = getDb();
     const result = await listSessions(db);

@@ -119,26 +119,6 @@ describe("sessions", () => {
     expect(res.status).toBe(404);
   });
 
-  it("session endpoints return 401 without cookie", async () => {
-    expect((await app.request("/api/sessions")).status).toBe(401);
-    expect(
-      (await app.request("/api/sessions", { method: "POST" })).status,
-    ).toBe(401);
-    expect((await app.request("/api/sessions/some-id")).status).toBe(401);
-    expect(
-      (await app.request("/api/sessions/some-id", { method: "DELETE" })).status,
-    ).toBe(401);
-    expect(
-      (
-        await app.request("/api/sessions/some-id", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: "x" }),
-        })
-      ).status,
-    ).toBe(401);
-  });
-
   it("cascade delete removes messages", async () => {
     const db = getDb();
 

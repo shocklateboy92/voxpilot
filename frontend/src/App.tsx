@@ -1,43 +1,21 @@
 /**
  * Root application component.
  *
- * Checks auth on mount, then shows either LoginView or ChatView.
+ * Goes directly to ChatView — no auth required for self-hosted mode.
  * Wraps the tree in an ErrorBoundary to catch unhandled render errors.
  */
 
-import { Show, ErrorBoundary, onMount } from "solid-js";
-import { user, authChecked, setUser, setAuthChecked } from "./store";
-import { fetchCurrentUser } from "./api-client";
-import { LoginView } from "./components/LoginView";
+import { ErrorBoundary } from "solid-js";
 import { ChatView } from "./components/ChatView";
 import { ToastContainer } from "./components/ToastContainer";
 import "./style.css";
 
 export function App() {
-  onMount(async () => {
-    const u = await fetchCurrentUser();
-    setUser(u ?? null);
-    setAuthChecked(true);
-  });
-
   return (
     <ErrorBoundary fallback={(err) => <AppError error={err} />}>
-      <Show when={authChecked()} fallback={<Loading />}>
-        <Show when={user()} fallback={<LoginView />}>
-          {(u) => <ChatView user={u()} />}
-        </Show>
-      </Show>
+      <ChatView />
       <ToastContainer />
     </ErrorBoundary>
-  );
-}
-
-function Loading() {
-  return (
-    <main id="app">
-      <h1>VoxPilot</h1>
-      <p class="status-text">Loading…</p>
-    </main>
   );
 }
 

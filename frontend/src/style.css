@@ -139,6 +139,22 @@ h1 {
   border-radius: 50%;
 }
 
+.health-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.health-dot-green {
+  background: #22c55e;
+}
+
+.health-dot-red {
+  background: #ef4444;
+}
+
 #user-name {
   font-weight: 600;
   font-size: 0.85rem;

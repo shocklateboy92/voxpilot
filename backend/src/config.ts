@@ -12,8 +12,9 @@ const configSchema = z.object({
     .string()
     .default("http://localhost:3000")
     .transform((v) => v.split(",")),
-  githubClientId: z.string().default(""),
-  githubClientSecret: z.string().default(""),
+  llmBaseUrl: z.string().default("http://localhost:11434/v1"),
+  llmApiKey: z.string().default("ollama"),
+  llmDefaultModel: z.string().default("qwen3-coder:32b"),
   dbPath: z.string().default("voxpilot.db"),
   workDir: z.string().default(process.cwd()),
   maxAgentIterations: z
