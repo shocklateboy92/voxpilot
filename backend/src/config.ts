@@ -25,7 +25,10 @@ export type Config = z.infer<typeof configSchema>;
 
 /** Convert camelCase to SCREAMING_SNAKE_CASE (e.g. "corsOrigins" → "CORS_ORIGINS") */
 export function toScreamingSnake(key: string): string {
-  return key.replace(/[A-Z]/g, (ch) => `_${ch}`).toUpperCase();
+  return key
+    .replace(/[A-Z]/g, (ch) => `_${ch}`)
+    .toUpperCase()
+    .replace(/^_/, "");
 }
 
 /** Read env vars matching `{PREFIX}_{SCREAMING_SNAKE_KEY}` for each key in the schema */
