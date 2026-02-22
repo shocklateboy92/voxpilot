@@ -20,8 +20,6 @@ import {
   reviewDetail,
   setReviewDetail,
   setArtifacts,
-  showToast,
-  extractErrorMessage,
   type ArtifactDetail,
   type ReviewCommentData,
 } from "../store";
@@ -74,8 +72,9 @@ export function ReviewOverlay() {
         setCurrentFileIndex(idx >= 0 ? idx : 0);
       }
     }).catch((err: unknown) => {
-      showToast(`Failed to load review: ${extractErrorMessage(err)}`);
+      // Close the overlay so it doesn't stay in a loading state
       setReviewOverlayArtifactId(null);
+      throw err;
     });
   });
 
@@ -148,16 +147,12 @@ export function ReviewOverlay() {
     const file = currentFile();
     if (!detail || !file) return;
 
-    try {
-      const comment = await postFileComment(detail.artifact.id, file.id, text);
-      setReviewDetail((prev) => {
-        if (!prev) return prev;
-        return { ...prev, comments: [...prev.comments, comment] };
-      });
-      setCommentText("");
-    } catch (err: unknown) {
-      showToast(`Failed to add comment: ${extractErrorMessage(err)}`);
-    }
+    const comment = await postFileComment(detail.artifact.id, file.id, text);
+    setReviewDetail((prev) => {
+      if (!prev) return prev;
+      return { ...prev, comments: [...prev.comments, comment] };
+    });
+    setCommentText("");
   }
 
   async function handleSubmit() {
@@ -177,8 +172,6 @@ export function ReviewOverlay() {
         return next;
       });
       close();
-    } catch (err: unknown) {
-      showToast(`Failed to submit review: ${extractErrorMessage(err)}`);
     } finally {
       setSubmitting(false);
     }
