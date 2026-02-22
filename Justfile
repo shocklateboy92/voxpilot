@@ -21,10 +21,6 @@ dev-frontend:
 db-generate:
     cd backend && bunx drizzle-kit generate
 
-# Generate a new Drizzle migration after schema changes
-db-generate:
-    cd backend && bunx drizzle-kit generate
-
 # Run backend tests
 test:
     cd backend && bun test

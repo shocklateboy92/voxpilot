@@ -7,43 +7,30 @@
  */
 
 import { createSignal } from "solid-js";
+import type {
+  GitHubUser,
+  ToolCallInfo,
+  SessionSummary,
+  MessageRead as BackendMessageRead,
+} from "@backend/schemas/api";
+import type { ReviewComment, DiffFile } from "@backend/schemas/diff-document";
+import type {
+  ReviewArtifactEvent,
+  ReviewArtifactFileEvent,
+} from "@backend/schemas/events";
+import type { ArtifactDetail } from "@backend/services/artifacts";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 //
-// These types annotate the SolidJS signals below.  Several of them (GitHubUser,
-// ToolCallInfo, SessionSummary) mirror the Zod-inferred types exported from
-// backend/src/schemas/api.ts; they are redefined here to avoid pulling in Zod
-// and to allow frontend-specific extensions where needed (e.g. MessageRead adds
-// `html` and `artifactId` for pre-rendered content the backend never sends).
-// The review-artifact types (ArtifactDetail, ArtifactFileDetail, etc.) mirror
-// the interfaces in backend/src/services/artifacts.ts, projected to the subset
-// of fields the UI needs.
+// Most types are imported directly from the backend schemas (Zod-inferred) and
+// service interfaces, eliminating the duplication that previously existed here.
+// Only frontend-specific types and extensions are defined below.
 
-export interface GitHubUser {
-  login: string;
-  name?: string | null | undefined;
-  avatar_url: string;
-}
+export type { GitHubUser, ToolCallInfo, SessionSummary, ArtifactDetail };
 
-export interface ToolCallInfo {
-  id: string;
-  name: string;
-  arguments: string;
-}
-
-export interface SessionSummary {
-  id: string;
-  title: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface MessageRead {
-  role: "user" | "assistant" | "system" | "tool";
-  content: string;
-  created_at: string;
-  tool_calls?: ToolCallInfo[] | null;
-  tool_call_id?: string | null;
+// MessageRead extends the backend schema with frontend-only fields added
+// during SSE streaming (pre-rendered HTML and linked artifact IDs).
+export interface MessageRead extends BackendMessageRead {
   html?: string | null;
   artifactId?: string;
 }
@@ -61,63 +48,16 @@ export interface StreamingToolCall {
 }
 
 // ── Review artifact types ────────────────────────────────────────────────────
+//
+// Derived from the backend event and schema types.
 
-export interface ArtifactFileSummary {
-  id: string;
-  path: string;
-  changeType: string;
-  additions: number;
-  deletions: number;
-  viewed: boolean;
-}
+export type ArtifactFileSummary = ReviewArtifactFileEvent;
 
-export interface ArtifactSummary {
-  artifactId: string;
-  title: string;
-  status: string;
-  totalFiles: number;
-  totalAdditions: number;
-  totalDeletions: number;
-  files: ArtifactFileSummary[];
-}
+export type ArtifactSummary = ReviewArtifactEvent;
 
-export interface ArtifactFileDetail {
-  id: string;
-  artifactId: string;
-  path: string;
-  changeType: string;
-  oldPath: string | null;
-  additions: number;
-  deletions: number;
-  viewed: boolean;
-  html: string;
-  fullTextAvailable: boolean;
-  fullTextHtml: string | null;
-}
+export type ArtifactFileDetail = DiffFile;
 
-export interface ReviewCommentData {
-  id: string;
-  artifactId: string;
-  fileId: string;
-  lineId: string | null;
-  lineNumber: number | null;
-  content: string;
-  createdAt: string;
-}
-
-export interface ArtifactDetail {
-  artifact: {
-    id: string;
-    title: string;
-    status: string;
-    totalFiles: number;
-    totalAdditions: number;
-    totalDeletions: number;
-    sessionId: string;
-  };
-  files: ArtifactFileDetail[];
-  comments: ReviewCommentData[];
-}
+export type ReviewCommentData = ReviewComment;
 
 // ── Signals ──────────────────────────────────────────────────────────────────
 
