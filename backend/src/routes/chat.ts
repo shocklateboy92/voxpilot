@@ -15,7 +15,6 @@ import type { SSEStreamingApi } from "hono/streaming";
 import { streamSSE } from "hono/streaming";
 import { config } from "../config";
 import { getDb } from "../db";
-import type { AuthEnv } from "../middleware/auth";
 import { SendMessageRequest, ToolConfirmRequest } from "../schemas/api";
 import { runAgentLoop } from "../services/agent";
 import { getSessionArtifactSummaries } from "../services/artifacts";
@@ -42,7 +41,7 @@ const KEEPALIVE_TIMEOUT_MS = 30_000; // 30 seconds
 function makeMessageHandler(sessionId: string) {
   return async (payload: MessagePayload, broadcaster: SessionBroadcaster) => {
     const db = getDb();
-    const { content, model, gh_token: ghToken } = payload;
+    const { content, model } = payload;
 
     // Persist user message and auto-title
     await addMessage(db, sessionId, "user", content);
@@ -76,8 +75,7 @@ function makeMessageHandler(sessionId: string) {
 
     for await (const event of runAgentLoop({
       messages,
-      model,
-      ghToken,
+      ...(model !== undefined ? { model } : {}),
       workDir: config.workDir,
       db,
       sessionId,
@@ -90,7 +88,7 @@ function makeMessageHandler(sessionId: string) {
   };
 }
 
-export const chatRouter = new Hono<AuthEnv>()
+export const chatRouter = new Hono()
 
   // ── GET /api/sessions/:id/stream ────────────────────────────────────────────
 
@@ -201,7 +199,6 @@ export const chatRouter = new Hono<AuthEnv>()
     zValidator("json", SendMessageRequest),
     async (c) => {
       const sessionId = c.req.param("id");
-      const ghToken = c.get("ghToken");
       const db = getDb();
 
       if (!(await sessionExists(db, sessionId))) {
@@ -212,8 +209,7 @@ export const chatRouter = new Hono<AuthEnv>()
 
       const sent = registry.send(sessionId, {
         content: body.content,
-        model: body.model ?? "gpt-4o",
-        gh_token: ghToken,
+        ...(body.model !== undefined ? { model: body.model } : {}),
       });
 
       if (!sent) {
