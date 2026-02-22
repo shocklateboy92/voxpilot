@@ -11,7 +11,7 @@ install:
 
 # Run backend dev server
 dev-backend:
-    cd backend && bun run --hot src/index.ts
+    VOXPILOT_DB_PATH=${VOXPILOT_DB_PATH:-backend/voxpilot.db} bun run --hot backend/src/index.ts
 
 # Run frontend dev server
 dev-frontend:
