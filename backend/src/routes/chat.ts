@@ -75,7 +75,7 @@ function makeMessageHandler(sessionId: string) {
 
     for await (const event of runAgentLoop({
       messages,
-      ...(model !== undefined ? { model } : {}),
+      model,
       workDir: config.workDir,
       db,
       sessionId,
@@ -209,7 +209,7 @@ export const chatRouter = new Hono()
 
       const sent = registry.send(sessionId, {
         content: body.content,
-        ...(body.model !== undefined ? { model: body.model } : {}),
+        model: body.model,
       });
 
       if (!sent) {
