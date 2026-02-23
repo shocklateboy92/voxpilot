@@ -28,7 +28,7 @@ describe("health", () => {
   setupTestDb();
 
   it("GET /api/health returns status ok with base fields", async () => {
-    listFn = () => Promise.resolve({ data: [{ id: "qwen3-coder:32b" }] });
+    listFn = () => Promise.resolve({ data: [{ id: "qwen3-coder:30b" }] });
 
     const res = await app.request("/api/health");
     expect(res.status).toBe(200);
@@ -40,7 +40,7 @@ describe("health", () => {
   it("GET /api/health reports llm connected when LLM server responds", async () => {
     listFn = () =>
       Promise.resolve({
-        data: [{ id: "qwen3-coder:32b" }, { id: "tinyllama" }],
+        data: [{ id: "qwen3-coder:30b" }, { id: "tinyllama" }],
       });
 
     const res = await app.request("/api/health");
