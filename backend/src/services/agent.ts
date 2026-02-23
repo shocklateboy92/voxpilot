@@ -31,6 +31,7 @@ import type {
   ToolCallEvent,
   ToolConfirmEvent,
   ToolResultEvent,
+  UsageEvent,
 } from "../schemas/events";
 import type { ToolResult } from "../tools";
 import {
@@ -106,6 +107,27 @@ class StreamedToolCall {
   name = "";
   arguments = "";
 }
+
+// ── Known model context windows ─────────────────────────────────────────────
+
+const DEFAULT_CONTEXT_WINDOW = 128_000;
+
+const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
+  "gpt-4o": 128_000,
+  "gpt-4o-mini": 128_000,
+  "gpt-4-turbo": 128_000,
+  "gpt-4": 8_192,
+  "gpt-3.5-turbo": 16_385,
+  "claude-3-opus": 200_000,
+  "claude-3-sonnet": 200_000,
+  "claude-3-haiku": 200_000,
+  "claude-3.5-sonnet": 200_000,
+  "claude-3.5-haiku": 200_000,
+  "claude-4-sonnet": 200_000,
+  "o1": 200_000,
+  "o1-mini": 128_000,
+  "o3-mini": 200_000,
+};
 
 // ── Agent loop options ──────────────────────────────────────────────────────
 
@@ -190,10 +212,22 @@ export async function* runAgentLoop(
         messages: openaiMessages,
         tools: toolsSpec,
         stream: true,
+        stream_options: { include_usage: true },
       });
 
       for await (const chunk of llmStream as AsyncIterable<ChatCompletionChunk>) {
         if (isDisconnected?.()) return;
+
+        // Capture usage from the final chunk (has usage but empty choices)
+        if (chunk.usage) {
+          const usagePayload: UsageEvent = {
+            prompt_tokens: chunk.usage.prompt_tokens,
+            completion_tokens: chunk.usage.completion_tokens,
+            total_tokens: chunk.usage.total_tokens,
+            context_window: MODEL_CONTEXT_WINDOWS[resolvedModel] ?? DEFAULT_CONTEXT_WINDOW,
+          };
+          yield { event: "usage", data: JSON.stringify(usagePayload) };
+        }
 
         const choice = chunk.choices[0];
         if (!choice) {

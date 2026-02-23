@@ -15,6 +15,7 @@ import type {
   ReviewArtifactEvent,
   CopilotDeltaEvent,
   CopilotDoneEvent,
+  UsageEvent,
 } from "@backend/schemas/events";
 import {
   setMessages,
@@ -26,6 +27,7 @@ import {
   setSessions,
   setPendingConfirm,
   setArtifacts,
+  setContextUsage,
   type MessageRead,
   type StreamingToolCall,
   type ArtifactSummary,
@@ -81,6 +83,7 @@ export function openStream(sessionId: string): void {
   setErrorMessage(null);
   setPendingConfirm(null);
   setArtifacts(new Map());
+  setContextUsage(null);
   pendingText = "";
 
   activeStream = connectSession(sessionId, {
@@ -199,6 +202,15 @@ export function openStream(sessionId: string): void {
           return updated;
         }),
       );
+    },
+
+    onUsage(payload: UsageEvent) {
+      setContextUsage({
+        promptTokens: payload.prompt_tokens,
+        completionTokens: payload.completion_tokens,
+        totalTokens: payload.total_tokens,
+        contextWindow: payload.context_window,
+      });
     },
 
     onDone(_model, html) {

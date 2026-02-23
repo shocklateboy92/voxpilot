@@ -98,6 +98,15 @@ export const [pendingConfirm, setPendingConfirm] = createSignal<PendingConfirm |
 /** Map of artifactId → ArtifactSummary for inline changeset cards. */
 export const [artifacts, setArtifacts] = createSignal<Map<string, ArtifactSummary>>(new Map());
 
+/** Context window usage from the most recent LLM call. */
+export interface ContextUsage {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  contextWindow: number;
+}
+export const [contextUsage, setContextUsage] = createSignal<ContextUsage | null>(null);
+
 /** Currently open review overlay target (null = closed). */
 export interface ReviewOverlayTarget {
   artifactId: string;

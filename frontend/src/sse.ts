@@ -26,6 +26,7 @@ import type {
   ReviewArtifactEvent,
   CopilotDeltaEvent,
   CopilotDoneEvent,
+  UsageEvent,
 } from "@backend/schemas/events";
 import { hc } from "hono/client";
 import { ApiError } from "./api-client";
@@ -42,6 +43,7 @@ export type {
   ReviewArtifactEvent,
   CopilotDeltaEvent,
   CopilotDoneEvent,
+  UsageEvent,
 };
 
 // ── RPC client for URL building and POST calls ──────────────────────────────
@@ -70,6 +72,7 @@ export interface SessionStreamCallbacks {
   onReviewArtifact: (payload: ReviewArtifactEvent) => void;
   onCopilotDelta: (payload: CopilotDeltaEvent) => void;
   onCopilotDone: (payload: CopilotDoneEvent) => void;
+  onUsage: (payload: UsageEvent) => void;
   onDone: (model: string, html: string | null) => void;
   onError: (message: string) => void;
 }
@@ -132,6 +135,7 @@ export function connectSession(
   addJsonEventListener<ReviewArtifactEvent>(es, "review-artifact", onError, callbacks.onReviewArtifact);
   addJsonEventListener<CopilotDeltaEvent>(es, "copilot-delta", onError, callbacks.onCopilotDelta);
   addJsonEventListener<CopilotDoneEvent>(es, "copilot-done", onError, callbacks.onCopilotDone);
+  addJsonEventListener<UsageEvent>(es, "usage", onError, callbacks.onUsage);
 
   addJsonEventListener<DoneEvent>(es, "done", onError, (p) =>
     callbacks.onDone(p.model, p.html ?? null),

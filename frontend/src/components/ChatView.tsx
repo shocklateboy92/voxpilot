@@ -8,6 +8,7 @@ import { ChatMain } from "./ChatMain";
 import { BottomNav } from "./BottomNav";
 import { SessionPicker } from "./SessionPicker";
 import { ReviewOverlay } from "./ReviewOverlay";
+import { ContextUsageBar } from "./ContextUsageBar";
 
 interface LlmHealth {
   llm?: string;
@@ -47,6 +48,7 @@ function LlmHealthIndicator() {
           ? (health()?.defaultModel ?? "Connected")
           : "LLM offline"}
       </span>
+      <ContextUsageBar />
     </div>
   );
 }

@@ -92,3 +92,13 @@ export const CopilotDoneEvent = z.object({
   session_name: z.string(),
 });
 export type CopilotDoneEvent = z.infer<typeof CopilotDoneEvent>;
+
+// ── Token usage SSE event ────────────────────────────────────────────────────
+
+export const UsageEvent = z.object({
+  prompt_tokens: z.number(),
+  completion_tokens: z.number(),
+  total_tokens: z.number(),
+  context_window: z.number(),
+});
+export type UsageEvent = z.infer<typeof UsageEvent>;
