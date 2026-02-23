@@ -35,6 +35,9 @@ export function CopilotStreamBlock(props: Props) {
           ? <span class="copilot-done-label"> — done</span>
           : <span class="copilot-spinner"> ⏳</span>
         }
+        {isDone() && props.call.copilotSummary && (
+          <span class="copilot-done-label"> — {props.call.copilotSummary}</span>
+        )}
       </summary>
       <pre class="copilot-stream" ref={preRef}>
         {props.call.copilotStream ?? ""}

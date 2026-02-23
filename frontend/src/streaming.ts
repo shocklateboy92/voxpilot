@@ -197,6 +197,7 @@ export function openStream(sessionId: string): void {
           const updated: StreamingToolCall = {
             ...tc,
             copilotDone: true,
+            copilotSummary: payload.summary,
           };
           if (sessionName) updated.copilotSessionName = sessionName;
           return updated;

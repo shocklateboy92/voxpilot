@@ -43,6 +43,7 @@ export interface StreamingToolCall {
   artifactId?: string;
   copilotStream?: string;
   copilotDone?: boolean;
+  copilotSummary?: string;
   copilotSessionName?: string;
 }
 
