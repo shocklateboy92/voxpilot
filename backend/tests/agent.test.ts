@@ -730,4 +730,53 @@ describe("runAgentLoop", () => {
     // Empty args should default to "{}"
     expect(tc.arguments).toBe("{}");
   });
+
+  it("ignores tool call patterns inside <think> blocks (Qwen3 reasoning)", async () => {
+    const sessionId = await createTestSession();
+
+    // Qwen3 thinking mode: deliberation mentions a function call in <think> block,
+    // but the actual call appears after it.  Only the one outside <think> should fire.
+    const qwenTextChunks = [
+      makeTextChunk({
+        content:
+          "<think>I should call list_directory with path .</think>" +
+          '<function=list_directory>{"path": "."}</function>',
+        model: "qwen3-coder:30b",
+      }),
+      makeTextChunk({ finishReason: "stop", model: "qwen3-coder:30b" }),
+    ];
+
+    const textChunks = [
+      makeTextChunk({
+        content: "Done.",
+        model: "qwen3-coder:30b",
+        finishReason: "stop",
+      }),
+    ];
+
+    let callCount = 0;
+    createFn = () => {
+      callCount++;
+      return callCount === 1
+        ? mockStream(qwenTextChunks)
+        : mockStream(textChunks);
+    };
+
+    const events = await collectEvents(
+      runAgentLoop({
+        messages: [{ role: "user", content: "List files", tool_calls: null }],
+        model: "qwen3-coder:30b",
+        ghToken: "gho_fake",
+        workDir,
+        db: getDb(),
+        sessionId,
+      }),
+    );
+
+    const tcEvents = events.filter((e) => e.event === "tool-call");
+    // Exactly one tool call should be detected (not two)
+    expect(tcEvents).toHaveLength(1);
+    const tc = JSON.parse(tcEvents[0]?.data ?? "{}");
+    expect(tc.name).toBe("list_directory");
+  });
 });

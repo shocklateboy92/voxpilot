@@ -110,20 +110,31 @@ class StreamedToolCall {
 // ── Parse Qwen-style text-embedded tool calls ───────────────────────────────
 
 /**
- * Some models (e.g. Qwen) occasionally emit tool calls as plain text instead
- * of using the native function-calling API.  Two formats are handled:
+ * Qwen3 is a "thinking" model that emits <think>...</think> reasoning blocks
+ * followed by the actual response.  Ollama's OpenAI-compatible streaming
+ * endpoint (/v1/chat/completions) has a known parser bug where it fails to
+ * extract Qwen3's tool-call syntax from the model output and convert it to the
+ * standard `tool_calls` field, so the raw model text leaks through instead.
  *
- *   1. `<function=NAME>JSON_ARGS</function>`  (possibly wrapped in <tool_call>)
- *   2. `<tool_call>{"name":"NAME","arguments":{...}}</tool_call>`
+ * This function parses that leaked text as a fallback.  Two formats are handled:
+ *
+ *   1. `<function=NAME>JSON_ARGS</function>`  (older Qwen / template mismatch)
+ *   2. `<tool_call>{"name":"NAME","arguments":{...}}</tool_call>` (Qwen3 format)
+ *
+ * `<think>` blocks are stripped first so reasoning content never matches.
  */
 function parseTextToolCalls(text: string): StreamedToolCall[] {
+  // Strip <think>...</think> blocks — these are internal reasoning tokens that
+  // Qwen3 emits before its actual response.  They must not be parsed as tool calls.
+  const strippedText = text.replace(/<think>[\s\S]*?<\/think>/g, "");
+
   const results: StreamedToolCall[] = [];
 
   // Pattern 1: <function=NAME>ARGS</function>
   const funcPattern = /<function=([\w-]+)>([\s\S]*?)<\/function>/g;
   let match: RegExpExecArray | null;
   // biome-ignore lint/suspicious/noAssignInExpressions: idiomatic regex loop
-  while ((match = funcPattern.exec(text)) !== null) {
+  while ((match = funcPattern.exec(strippedText)) !== null) {
     const tc = new StreamedToolCall();
     tc.id = `text-tc-${crypto.randomUUID()}`;
     tc.name = match[1] ?? "";
@@ -136,7 +147,7 @@ function parseTextToolCalls(text: string): StreamedToolCall[] {
   if (results.length === 0) {
     const callPattern = /<tool_call>([\s\S]*?)<\/tool_call>/g;
     // biome-ignore lint/suspicious/noAssignInExpressions: idiomatic regex loop
-    while ((match = callPattern.exec(text)) !== null) {
+    while ((match = callPattern.exec(strippedText)) !== null) {
       const raw = (match[1] ?? "").trim();
       try {
         const parsed = JSON.parse(raw) as unknown;
