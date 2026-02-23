@@ -1,20 +1,19 @@
+import OpenAI from "openai";
 import { Hono } from "hono";
 import { config } from "../config";
 
 export const healthRouter = new Hono().get("/api/health", async (c) => {
   const base = { status: "ok", app_name: config.appName };
   try {
-    const res = await fetch(`${config.llmBaseUrl}/models`, {
-      headers: { Authorization: `Bearer ${config.llmApiKey}` },
+    const openai = new OpenAI({
+      baseURL: config.llmBaseUrl,
+      apiKey: config.llmApiKey,
     });
-    if (!res.ok) {
-      return c.json({ ...base, llm: "error", detail: `HTTP ${res.status}` });
-    }
-    const json = (await res.json()) as { data: { id: string }[] };
+    const modelsPage = await openai.models.list();
     return c.json({
       ...base,
       llm: "connected",
-      models: json.data.length,
+      models: modelsPage.data.length,
       defaultModel: config.llmDefaultModel,
     });
   } catch (err) {

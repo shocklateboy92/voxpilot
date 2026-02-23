@@ -1,39 +1,34 @@
-import { afterEach, describe, expect, it } from "bun:test";
-import { app } from "../src/index";
+import { describe, expect, it, mock } from "bun:test";
 import { setupTestDb } from "./helpers";
 
-// ── Mock global fetch for LLM model probes ───────────────────────────────────
+// ── Mock OpenAI ─────────────────────────────────────────────────────────────
 
-const originalFetch = globalThis.fetch;
+let listFn: () => unknown;
 
-function makeMockFetch(models: string[], fail = false) {
-  return (url: string | URL | Request) => {
-    const urlStr = url instanceof Request ? url.url : String(url);
-    if (urlStr.includes("/models")) {
-      if (fail) return Promise.reject(new Error("connection refused"));
-      return Promise.resolve(
-        new Response(
-          JSON.stringify({
-            object: "list",
-            data: models.map((id) => ({ id, object: "model" })),
-          }),
-          { status: 200 },
-        ),
-      );
-    }
-    return originalFetch(url as Parameters<typeof originalFetch>[0]);
-  };
-}
+mock.module("openai", () => ({
+  default: class MockOpenAI {
+    static APIError = class extends Error {};
+    chat = {
+      completions: {
+        create: () => {
+          throw new Error("not used in health tests");
+        },
+      },
+    };
+    models = {
+      list: () => listFn(),
+    };
+  },
+}));
+
+// Re-import app after mock is installed
+const { app } = await import("../src/index");
 
 describe("health", () => {
   setupTestDb();
 
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-  });
-
   it("GET /api/health returns status ok with base fields", async () => {
-    globalThis.fetch = makeMockFetch(["qwen3-coder:32b"]);
+    listFn = () => Promise.resolve({ data: [{ id: "qwen3-coder:32b" }] });
 
     const res = await app.request("/api/health");
     expect(res.status).toBe(200);
@@ -43,7 +38,10 @@ describe("health", () => {
   });
 
   it("GET /api/health reports llm connected when LLM server responds", async () => {
-    globalThis.fetch = makeMockFetch(["qwen3-coder:32b", "tinyllama"]);
+    listFn = () =>
+      Promise.resolve({
+        data: [{ id: "qwen3-coder:32b" }, { id: "tinyllama" }],
+      });
 
     const res = await app.request("/api/health");
     expect(res.status).toBe(200);
@@ -54,7 +52,7 @@ describe("health", () => {
   });
 
   it("GET /api/health reports llm unreachable when LLM server is down", async () => {
-    globalThis.fetch = makeMockFetch([], true);
+    listFn = () => Promise.reject(new Error("connection refused"));
 
     const res = await app.request("/api/health");
     expect(res.status).toBe(200);
