@@ -76,6 +76,7 @@ function makeMessageHandler(sessionId: string) {
     for await (const event of runAgentLoop({
       messages,
       model,
+      systemPrompt: config.systemPrompt || undefined,
       workDir: config.workDir,
       db,
       sessionId,

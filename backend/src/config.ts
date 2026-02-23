@@ -22,6 +22,7 @@ const configSchema = z.object({
     .default("25")
     .transform((v) => Number.parseInt(v, 10)),
   copilotCliPath: z.string().default("copilot"),
+  systemPrompt: z.string().default(""),
 });
 
 export type Config = z.infer<typeof configSchema>;

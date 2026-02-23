@@ -46,6 +46,7 @@ import { getConnection } from "./copilot-acp";
 import { renderMarkdown } from "./markdown";
 import { addMessage } from "./sessions";
 import { AsyncChannel } from "./streams";
+import { buildSystemPrompt } from "./system-prompt";
 
 type Db = ReturnType<typeof getDb>;
 
@@ -111,6 +112,7 @@ class StreamedToolCall {
 export interface AgentLoopOptions {
   messages: ChatMessage[];
   model?: string;
+  systemPrompt?: string;
   workDir: string;
   db: Db;
   sessionId: string;
@@ -131,6 +133,7 @@ export async function* runAgentLoop(
   const {
     messages,
     model,
+    systemPrompt,
     workDir,
     db,
     sessionId,
@@ -141,6 +144,15 @@ export async function* runAgentLoop(
 
   const openaiMessages: ChatCompletionMessageParam[] =
     messages.map(toMessageParam);
+
+  // Prepend system prompt if not already present in conversation
+  if (openaiMessages[0]?.role !== "system") {
+    const prompt = systemPrompt || buildSystemPrompt();
+    openaiMessages.unshift({
+      role: "system",
+      content: prompt,
+    });
+  }
   const toolsSpec = defaultRegistry.toOpenAiTools();
 
   const client = new OpenAI({
