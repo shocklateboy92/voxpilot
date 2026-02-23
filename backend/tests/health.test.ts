@@ -2,9 +2,28 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { app } from "../src/index";
 import { setupTestDb } from "./helpers";
 
-// ── Mock global fetch for Ollama probes ─────────────────────────────────────
+// ── Mock global fetch for LLM model probes ───────────────────────────────────
 
 const originalFetch = globalThis.fetch;
+
+function makeMockFetch(models: string[], fail = false) {
+  return (url: string | URL | Request) => {
+    const urlStr = url instanceof Request ? url.url : String(url);
+    if (urlStr.includes("/models")) {
+      if (fail) return Promise.reject(new Error("connection refused"));
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            object: "list",
+            data: models.map((id) => ({ id, object: "model" })),
+          }),
+          { status: 200 },
+        ),
+      );
+    }
+    return originalFetch(url as Parameters<typeof originalFetch>[0]);
+  };
+}
 
 describe("health", () => {
   setupTestDb();
@@ -14,21 +33,7 @@ describe("health", () => {
   });
 
   it("GET /api/health returns status ok with base fields", async () => {
-    // Mock fetch to simulate Ollama connected
-    globalThis.fetch = (url: string | URL | Request) => {
-      const urlStr = String(url);
-      if (urlStr.includes("/api/tags")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({ models: [{ name: "qwen3-coder:32b" }] }),
-            {
-              status: 200,
-            },
-          ),
-        );
-      }
-      return originalFetch(url as Parameters<typeof originalFetch>[0]);
-    };
+    globalThis.fetch = makeMockFetch(["qwen3-coder:32b"]);
 
     const res = await app.request("/api/health");
     expect(res.status).toBe(200);
@@ -37,21 +42,8 @@ describe("health", () => {
     expect(data.app_name).toBe("VoxPilot");
   });
 
-  it("GET /api/health reports llm connected when Ollama responds", async () => {
-    globalThis.fetch = (url: string | URL | Request) => {
-      const urlStr = String(url);
-      if (urlStr.includes("/api/tags")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              models: [{ name: "qwen3-coder:32b" }, { name: "tinyllama" }],
-            }),
-            { status: 200 },
-          ),
-        );
-      }
-      return originalFetch(url as Parameters<typeof originalFetch>[0]);
-    };
+  it("GET /api/health reports llm connected when LLM server responds", async () => {
+    globalThis.fetch = makeMockFetch(["qwen3-coder:32b", "tinyllama"]);
 
     const res = await app.request("/api/health");
     expect(res.status).toBe(200);
@@ -61,14 +53,8 @@ describe("health", () => {
     expect(typeof data.defaultModel).toBe("string");
   });
 
-  it("GET /api/health reports llm unreachable when Ollama is down", async () => {
-    globalThis.fetch = (url: string | URL | Request) => {
-      const urlStr = String(url);
-      if (urlStr.includes("/api/tags")) {
-        return Promise.reject(new Error("connection refused"));
-      }
-      return originalFetch(url as Parameters<typeof originalFetch>[0]);
-    };
+  it("GET /api/health reports llm unreachable when LLM server is down", async () => {
+    globalThis.fetch = makeMockFetch([], true);
 
     const res = await app.request("/api/health");
     expect(res.status).toBe(200);
