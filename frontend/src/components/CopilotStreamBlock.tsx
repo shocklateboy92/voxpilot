@@ -31,12 +31,13 @@ export function CopilotStreamBlock(props: Props) {
     <details class="copilot-block" open={!isDone()}>
       <summary class="copilot-summary">
         🤖 Copilot [{sessionLabel()}]
-        {!isDone() && <span class="copilot-spinner"> ⏳</span>}
-        {isDone() && (
+        {isDone() ? (
           <span class="copilot-done-label">
             {" "}
             — {props.call.copilotSummary ?? "done"}
           </span>
+        ) : (
+          <span class="copilot-spinner"> ⏳</span>
         )}
       </summary>
       <pre class="copilot-stream" ref={preRef}>
