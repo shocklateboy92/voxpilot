@@ -579,4 +579,155 @@ describe("runAgentLoop", () => {
     expect(events.length).toBeLessThan(10);
     expect(events.map((e) => e.event)).not.toContain("done");
   });
+
+  it("handles Qwen-style text-embedded tool calls (<function=NAME>ARGS</function>)", async () => {
+    const sessionId = await createTestSession();
+
+    // Qwen emits the tool call as plain text instead of native function calling
+    const qwenTextChunks = [
+      makeTextChunk({
+        content: '<function=list_directory>{"path": "."}</function>',
+        model: "qwen3-coder:30b",
+      }),
+      makeTextChunk({ finishReason: "stop", model: "qwen3-coder:30b" }),
+    ];
+
+    const textChunks = [
+      makeTextChunk({
+        content: "Here are the files.",
+        model: "qwen3-coder:30b",
+        finishReason: "stop",
+      }),
+    ];
+
+    let callCount = 0;
+    createFn = () => {
+      callCount++;
+      return callCount === 1
+        ? mockStream(qwenTextChunks)
+        : mockStream(textChunks);
+    };
+
+    const events = await collectEvents(
+      runAgentLoop({
+        messages: [{ role: "user", content: "List files", tool_calls: null }],
+        model: "qwen3-coder:30b",
+        ghToken: "gho_fake",
+        workDir,
+        db: getDb(),
+        sessionId,
+      }),
+    );
+
+    const types = events.map((e) => e.event);
+    expect(types).toContain("tool-call");
+    expect(types).toContain("tool-result");
+    expect(types).toContain("done");
+    expect(callCount).toBe(2);
+
+    const tcEvent = events.find((e) => e.event === "tool-call");
+    const tc = JSON.parse(tcEvent?.data ?? "{}");
+    expect(tc.name).toBe("list_directory");
+    expect(tc.arguments).toBe('{"path": "."}');
+  });
+
+  it("handles Qwen-style <tool_call> JSON format", async () => {
+    const sessionId = await createTestSession();
+
+    const qwenTextChunks = [
+      makeTextChunk({
+        content:
+          '<tool_call>{"name":"list_directory","arguments":{"path":"."}}</tool_call>',
+        model: "qwen3-coder:30b",
+      }),
+      makeTextChunk({ finishReason: "stop", model: "qwen3-coder:30b" }),
+    ];
+
+    const textChunks = [
+      makeTextChunk({
+        content: "Done.",
+        model: "qwen3-coder:30b",
+        finishReason: "stop",
+      }),
+    ];
+
+    let callCount = 0;
+    createFn = () => {
+      callCount++;
+      return callCount === 1
+        ? mockStream(qwenTextChunks)
+        : mockStream(textChunks);
+    };
+
+    const events = await collectEvents(
+      runAgentLoop({
+        messages: [{ role: "user", content: "List files", tool_calls: null }],
+        model: "qwen3-coder:30b",
+        ghToken: "gho_fake",
+        workDir,
+        db: getDb(),
+        sessionId,
+      }),
+    );
+
+    const types = events.map((e) => e.event);
+    expect(types).toContain("tool-call");
+    expect(types).toContain("tool-result");
+    expect(types).toContain("done");
+
+    const tcEvent = events.find((e) => e.event === "tool-call");
+    const tc = JSON.parse(tcEvent?.data ?? "{}");
+    expect(tc.name).toBe("list_directory");
+  });
+
+  it("handles Qwen-style text-embedded tool call with empty arguments", async () => {
+    const sessionId = await createTestSession();
+
+    // Qwen sometimes emits empty arguments: <function=list_directory> </function>
+    const qwenTextChunks = [
+      makeTextChunk({
+        content: "<function=list_directory> </function>",
+        model: "qwen3-coder:30b",
+      }),
+      makeTextChunk({ finishReason: "stop", model: "qwen3-coder:30b" }),
+    ];
+
+    const textChunks = [
+      makeTextChunk({
+        content: "Done.",
+        model: "qwen3-coder:30b",
+        finishReason: "stop",
+      }),
+    ];
+
+    let callCount = 0;
+    createFn = () => {
+      callCount++;
+      return callCount === 1
+        ? mockStream(qwenTextChunks)
+        : mockStream(textChunks);
+    };
+
+    const events = await collectEvents(
+      runAgentLoop({
+        messages: [{ role: "user", content: "List files", tool_calls: null }],
+        model: "qwen3-coder:30b",
+        ghToken: "gho_fake",
+        workDir,
+        db: getDb(),
+        sessionId,
+      }),
+    );
+
+    const types = events.map((e) => e.event);
+    expect(types).toContain("tool-call");
+    expect(types).toContain("tool-result");
+    expect(types).toContain("done");
+
+    const tcEvent = events.find((e) => e.event === "tool-call");
+    const tc = JSON.parse(tcEvent?.data ?? "{}");
+    expect(tc.name).toBe("list_directory");
+    // Empty args should default to "{}"
+    expect(tc.arguments).toBe("{}");
+  });
 });

@@ -107,6 +107,61 @@ class StreamedToolCall {
   arguments = "";
 }
 
+// ── Parse Qwen-style text-embedded tool calls ───────────────────────────────
+
+/**
+ * Some models (e.g. Qwen) occasionally emit tool calls as plain text instead
+ * of using the native function-calling API.  Two formats are handled:
+ *
+ *   1. `<function=NAME>JSON_ARGS</function>`  (possibly wrapped in <tool_call>)
+ *   2. `<tool_call>{"name":"NAME","arguments":{...}}</tool_call>`
+ */
+function parseTextToolCalls(text: string): StreamedToolCall[] {
+  const results: StreamedToolCall[] = [];
+
+  // Pattern 1: <function=NAME>ARGS</function>
+  const funcPattern = /<function=([\w-]+)>([\s\S]*?)<\/function>/g;
+  let match: RegExpExecArray | null;
+  // biome-ignore lint/suspicious/noAssignInExpressions: idiomatic regex loop
+  while ((match = funcPattern.exec(text)) !== null) {
+    const tc = new StreamedToolCall();
+    tc.id = `text-tc-${crypto.randomUUID()}`;
+    tc.name = match[1] ?? "";
+    tc.arguments = (match[2] ?? "").trim() || "{}";
+    results.push(tc);
+  }
+
+  // Pattern 2: <tool_call>{"name":"NAME","arguments":{...}}</tool_call>
+  // Only if no pattern-1 calls were found (avoid double-counting wrappers)
+  if (results.length === 0) {
+    const callPattern = /<tool_call>([\s\S]*?)<\/tool_call>/g;
+    // biome-ignore lint/suspicious/noAssignInExpressions: idiomatic regex loop
+    while ((match = callPattern.exec(text)) !== null) {
+      const raw = (match[1] ?? "").trim();
+      try {
+        const parsed = JSON.parse(raw) as unknown;
+        if (
+          typeof parsed === "object" &&
+          parsed !== null &&
+          "name" in parsed &&
+          typeof (parsed as Record<string, unknown>).name === "string"
+        ) {
+          const p = parsed as Record<string, unknown>;
+          const tc = new StreamedToolCall();
+          tc.id = `text-tc-${crypto.randomUUID()}`;
+          tc.name = p.name as string;
+          tc.arguments = "arguments" in p ? JSON.stringify(p.arguments) : "{}";
+          results.push(tc);
+        }
+      } catch {
+        // Malformed JSON inside <tool_call> — skip
+      }
+    }
+  }
+
+  return results;
+}
+
 // ── Agent loop options ──────────────────────────────────────────────────────
 
 export interface AgentLoopOptions {
@@ -265,6 +320,23 @@ export async function* runAgentLoop(
       const payload: ErrorEvent = { message: errorMsg };
       yield { event: "error", data: JSON.stringify(payload) };
       return;
+    }
+
+    // ── Fallback: parse Qwen-style text-embedded tool calls ──────────────────
+    // Some models emit tool calls as plain text (e.g. <function=NAME>ARGS</function>)
+    // instead of the native function-calling API.  Detect and handle them here.
+    if (toolCallMap.size === 0 && accumulatedText) {
+      const textCalls = parseTextToolCalls(accumulatedText);
+      if (textCalls.length > 0) {
+        console.log(
+          `[agent] Detected ${textCalls.length} text-embedded tool call(s) in LLM output`,
+        );
+        for (let i = 0; i < textCalls.length; i++) {
+          const tc = textCalls[i];
+          if (tc) toolCallMap.set(i, tc);
+        }
+        finishReason = "tool_calls";
+      }
     }
 
     // ── Handle finish reason ──────────────────────────────────────
