@@ -2,7 +2,10 @@
  * Reactive store using SolidJS signals.
  */
 
-import type { Permission } from "@opencode-ai/sdk/client";
+import type {
+  PermissionRequest,
+  QuestionRequest,
+} from "@opencode-ai/sdk/v2/client";
 import { createSignal } from "solid-js";
 import type { Message, MessageWithParts, Part, Session } from "./api-client";
 
@@ -10,7 +13,7 @@ export type { Session, Message, Part, MessageWithParts };
 
 // ── Streaming state types ──────────────────────────────────────
 
-export type PendingPermission = Permission;
+export type PendingPermission = PermissionRequest;
 
 export type ContextUsage = {
   inputTokens: number;
@@ -65,6 +68,10 @@ export const [swipeOffset, setSwipeOffset] = createSignal(0);
 /** Pending permission request (null = none pending). */
 export const [pendingPermission, setPendingPermission] =
   createSignal<PendingPermission | null>(null);
+
+/** Pending question request (null = none pending). */
+export const [pendingQuestion, setPendingQuestion] =
+  createSignal<QuestionRequest | null>(null);
 
 /** Token usage from the latest step-finish event. */
 export const [contextUsage, setContextUsage] =

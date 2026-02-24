@@ -2,7 +2,7 @@
  * Main chat area — messages + input form.
  */
 
-import type { ToolPart } from "@opencode-ai/sdk/client";
+import type { ToolPart } from "@opencode-ai/sdk/v2/client";
 import {
   createEffect,
   createSignal,
@@ -19,6 +19,7 @@ import {
   isStreaming,
   messages,
   pendingPermission,
+  pendingQuestion,
   sessions,
   setSwipeOffset,
   streamingParts,
@@ -27,6 +28,7 @@ import {
 } from "../store";
 import { sendUserMessage } from "../streaming";
 import { MessageBubble } from "./MessageBubble";
+import { QuestionBlock } from "./QuestionBlock";
 import { StreamingBubble } from "./StreamingBubble";
 import { ToolCallBlock } from "./ToolCallBlock";
 import { ToolConfirmBlock } from "./ToolConfirmBlock";
@@ -59,6 +61,7 @@ export function ChatMain() {
     streamingParts();
     errorMessage();
     pendingPermission();
+    pendingQuestion();
     scrollSentinel?.scrollIntoView({ block: "end", behavior: "instant" });
   });
 
@@ -163,6 +166,11 @@ export function ChatMain() {
         {/* Permission prompt */}
         <Show when={pendingPermission()}>
           {(perm) => <ToolConfirmBlock permission={perm()} />}
+        </Show>
+
+        {/* Question prompt */}
+        <Show when={pendingQuestion()}>
+          {(req) => <QuestionBlock request={req()} />}
         </Show>
 
         {/* Live streaming text */}

@@ -1,4 +1,4 @@
-import { createOpencode } from "@opencode-ai/sdk";
+import { createOpencode } from "@opencode-ai/sdk/v2";
 import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import { cors } from "hono/cors";
