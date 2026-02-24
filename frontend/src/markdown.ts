@@ -1,8 +1,8 @@
-import MarkdownIt from "markdown-it"
+import MarkdownIt from "markdown-it";
 
-const md = new MarkdownIt({ html: false, typographer: true })
+const md = new MarkdownIt({ html: false, typographer: true });
 
 export function renderMarkdown(text: string): string {
-  if (!text) return ""
-  return md.render(text)
+  if (!text) return "";
+  return md.render(text);
 }

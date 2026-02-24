@@ -2,17 +2,17 @@
  * Main chat view — chat area + bottom nav with session picker.
  */
 
-import { onMount } from "solid-js"
-import { initSessions } from "../sessions"
-import { ChatMain } from "./ChatMain"
-import { BottomNav } from "./BottomNav"
-import { SessionPicker } from "./SessionPicker"
-import { ReviewOverlay } from "./ReviewOverlay"
+import { onMount } from "solid-js";
+import { initSessions } from "../sessions";
+import { BottomNav } from "./BottomNav";
+import { ChatMain } from "./ChatMain";
+import { ReviewOverlay } from "./ReviewOverlay";
+import { SessionPicker } from "./SessionPicker";
 
 export function ChatView() {
   onMount(() => {
-    void initSessions()
-  })
+    void initSessions();
+  });
 
   return (
     <main id="app">
@@ -21,5 +21,5 @@ export function ChatView() {
       <SessionPicker />
       <ReviewOverlay />
     </main>
-  )
+  );
 }

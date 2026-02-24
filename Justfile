@@ -23,7 +23,7 @@ test:
 
 # Lint everything
 lint:
-    cd backend && bunx @biomejs/biome check src tests
+    cd backend && bunx @biomejs/biome check src tests ../frontend/src
     cd frontend && npx tsc --noEmit
 
 # Type check everything
@@ -31,9 +31,9 @@ typecheck:
     cd backend && bunx tsc --noEmit
     cd frontend && npx tsc --noEmit
 
-# Format backend code
+# Format all code
 format:
-    cd backend && bunx @biomejs/biome check --write src tests
+    cd backend && bunx @biomejs/biome check --write src tests ../frontend/src
 
 # Build frontend for production
 build:

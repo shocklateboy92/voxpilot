@@ -2,42 +2,39 @@
  * Changeset card — shows file diffs summary for a session.
  */
 
-import { For, Show, createSignal, createResource } from "solid-js"
-import type { FileDiff } from "@opencode-ai/sdk/client"
-import { activeSessionId } from "../store"
-import { fetchSessionDiff } from "../api-client"
-import { getFileState } from "../review-state"
-import { setReviewFile } from "./ReviewOverlay"
+import type { FileDiff } from "@opencode-ai/sdk/client";
+import { createResource, createSignal, For, Show } from "solid-js";
+import { fetchSessionDiff } from "../api-client";
+import { getFileState } from "../review-state";
+import { activeSessionId } from "../store";
+import { setReviewFile } from "./ReviewOverlay";
 
 export function ChangesetCard() {
-  const [expanded, setExpanded] = createSignal(false)
+  const [expanded, setExpanded] = createSignal(false);
 
   const [diffs] = createResource(
-    () => expanded() ? activeSessionId() : undefined,
+    () => (expanded() ? activeSessionId() : undefined),
     async (sessionId) => {
-      if (!sessionId) return []
-      return fetchSessionDiff(sessionId)
+      if (!sessionId) return [];
+      return fetchSessionDiff(sessionId);
     },
-  )
+  );
 
-  const sessionId = () => activeSessionId() ?? ""
+  const sessionId = () => activeSessionId() ?? "";
 
   const totalStats = () => {
-    const d = diffs()
-    if (!d) return { additions: 0, deletions: 0, files: 0 }
+    const d = diffs();
+    if (!d) return { additions: 0, deletions: 0, files: 0 };
     return {
       additions: d.reduce((sum, f) => sum + f.additions, 0),
       deletions: d.reduce((sum, f) => sum + f.deletions, 0),
       files: d.length,
-    }
-  }
+    };
+  };
 
   return (
     <div class="changeset-card">
-      <button
-        class="changeset-toggle"
-        onClick={() => setExpanded(!expanded())}
-      >
+      <button class="changeset-toggle" onClick={() => setExpanded(!expanded())}>
         <span class="changeset-icon">{"\u{1F4DD}"}</span>
         <Show when={diffs()}>
           <span class="changeset-stats">
@@ -49,13 +46,16 @@ export function ChangesetCard() {
         <Show when={!diffs() && expanded()}>
           <span>Loading...</span>
         </Show>
-        <span class="changeset-chevron">{expanded() ? "\u25BC" : "\u25B6"}</span>
+        <span class="changeset-chevron">
+          {expanded() ? "\u25BC" : "\u25B6"}
+        </span>
       </button>
       <Show when={expanded() && diffs()}>
         <div class="changeset-files">
           <For each={diffs()}>
             {(diff: FileDiff) => {
-              const reviewed = () => getFileState(sessionId(), diff.file).viewed
+              const reviewed = () =>
+                getFileState(sessionId(), diff.file).viewed;
               return (
                 <div
                   class={`changeset-file ${reviewed() ? "viewed" : ""}`}
@@ -67,12 +67,11 @@ export function ChangesetCard() {
                     <span class="stat-del">-{diff.deletions}</span>
                   </span>
                 </div>
-              )
+              );
             }}
           </For>
         </div>
       </Show>
     </div>
-  )
+  );
 }
-
