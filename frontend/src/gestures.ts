@@ -44,7 +44,10 @@ export function attachSwipeHandler(
     if (!touch) return;
 
     // Ignore touches near screen edges (Safari back/forward zone)
-    if (touch.clientX < EDGE_ZONE || touch.clientX > window.innerWidth - EDGE_ZONE) {
+    if (
+      touch.clientX < EDGE_ZONE ||
+      touch.clientX > window.innerWidth - EDGE_ZONE
+    ) {
       return;
     }
 
@@ -106,7 +109,10 @@ export function attachSwipeHandler(
 
     tracking = false;
 
-    if (absDx >= COMMIT_THRESHOLD || (absDx > 30 && velocity > VELOCITY_THRESHOLD)) {
+    if (
+      absDx >= COMMIT_THRESHOLD ||
+      (absDx > 30 && velocity > VELOCITY_THRESHOLD)
+    ) {
       if (dx < 0) {
         callbacks.onSwipeLeft();
       } else {

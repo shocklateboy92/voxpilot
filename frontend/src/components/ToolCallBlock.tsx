@@ -2,31 +2,33 @@
  * Tool call block for streaming tool parts.
  */
 
-import { Show } from "solid-js"
-import type { ToolPart } from "@opencode-ai/sdk/client"
+import type { ToolPart } from "@opencode-ai/sdk/client";
+import { Show } from "solid-js";
 
 interface Props {
-  part: ToolPart
+  part: ToolPart;
 }
 
 export function ToolCallBlock(props: Props) {
   const inputText = () => {
     try {
-      return JSON.stringify(props.part.state.input, null, 2)
+      return JSON.stringify(props.part.state.input, null, 2);
     } catch {
-      return String(props.part.state.input)
+      return String(props.part.state.input);
     }
-  }
+  };
 
-  const isRunning = () => props.part.state.status === "running" || props.part.state.status === "pending"
-  const isError = () => props.part.state.status === "error"
+  const isRunning = () =>
+    props.part.state.status === "running" ||
+    props.part.state.status === "pending";
+  const isError = () => props.part.state.status === "error";
 
   const output = () => {
-    const s = props.part.state
-    if (s.status === "completed") return s.output
-    if (s.status === "error") return s.error
-    return undefined
-  }
+    const s = props.part.state;
+    if (s.status === "completed") return s.output;
+    if (s.status === "error") return s.error;
+    return undefined;
+  };
 
   return (
     <details class="tool-block" open={isRunning()}>
@@ -43,5 +45,5 @@ export function ToolCallBlock(props: Props) {
         )}
       </Show>
     </details>
-  )
+  );
 }

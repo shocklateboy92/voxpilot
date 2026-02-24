@@ -285,9 +285,15 @@ h1 {
   line-height: 1.3;
 }
 
-.message.markdown-body h1 { font-size: 1.25em; }
-.message.markdown-body h2 { font-size: 1.15em; }
-.message.markdown-body h3 { font-size: 1.05em; }
+.message.markdown-body h1 {
+  font-size: 1.25em;
+}
+.message.markdown-body h2 {
+  font-size: 1.15em;
+}
+.message.markdown-body h3 {
+  font-size: 1.05em;
+}
 
 .message.markdown-body ul,
 .message.markdown-body ol {
@@ -1416,5 +1422,3 @@ h1 {
   text-align: left;
   font-size: 0.85rem;
 }
-
-

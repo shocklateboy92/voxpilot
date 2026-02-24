@@ -9,26 +9,26 @@
  * 5. Viewed state stored in localStorage
  */
 
-import { Show, createSignal, createEffect, onCleanup } from "solid-js"
-import { activeSessionId } from "../store"
-import { markViewed } from "../review-state"
-import type { FileDiff } from "@opencode-ai/sdk/client"
+import type { FileDiff } from "@opencode-ai/sdk/client";
+import { createEffect, createSignal, onCleanup, Show } from "solid-js";
+import { markViewed } from "../review-state";
+import { activeSessionId } from "../store";
 
 // Shared state for what file is being reviewed
-export const [reviewFile, setReviewFile] = createSignal<FileDiff | null>(null)
+export const [reviewFile, setReviewFile] = createSignal<FileDiff | null>(null);
 
 export function ReviewOverlay() {
-  const [diffHtml, setDiffHtml] = createSignal<string | null>(null)
-  const [loading, setLoading] = createSignal(false)
-  let containerRef: HTMLDivElement | undefined
+  const [diffHtml, setDiffHtml] = createSignal<string | null>(null);
+  const [loading, setLoading] = createSignal(false);
+  let containerRef: HTMLDivElement | undefined;
 
-  const CHAR_WIDTH = 7.2 // approximate monospace char width in px
+  const CHAR_WIDTH = 7.2; // approximate monospace char width in px
 
   async function loadDiff(file: FileDiff, width: number): Promise<void> {
-    setLoading(true)
-    setDiffHtml(null)
+    setLoading(true);
+    setDiffHtml(null);
 
-    const printWidth = Math.max(40, Math.floor(width / CHAR_WIDTH))
+    const printWidth = Math.max(40, Math.floor(width / CHAR_WIDTH));
 
     try {
       const res = await fetch("/api/review/format-diff", {
@@ -40,58 +40,60 @@ export function ReviewOverlay() {
           filePath: file.file,
           printWidth,
         }),
-      })
+      });
 
       if (!res.ok) {
-        setDiffHtml(`<div class="error">Failed to load diff: ${String(res.status)}</div>`)
-        return
+        setDiffHtml(
+          `<div class="error">Failed to load diff: ${String(res.status)}</div>`,
+        );
+        return;
       }
 
-      const data = await res.json() as { html: string }
-      setDiffHtml(data.html)
+      const data = (await res.json()) as { html: string };
+      setDiffHtml(data.html);
 
       // Mark as viewed
-      const sessionId = activeSessionId()
+      const sessionId = activeSessionId();
       if (sessionId) {
-        markViewed(sessionId, file.file)
+        markViewed(sessionId, file.file);
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Unknown error"
-      setDiffHtml(`<div class="error">Error: ${msg}</div>`)
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      setDiffHtml(`<div class="error">Error: ${msg}</div>`);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   // Load diff when file changes
   createEffect(() => {
-    const file = reviewFile()
-    if (!file || !containerRef) return
-    void loadDiff(file, containerRef.clientWidth)
-  })
+    const file = reviewFile();
+    if (!file || !containerRef) return;
+    void loadDiff(file, containerRef.clientWidth);
+  });
 
   // Handle resize
   createEffect(() => {
-    const file = reviewFile()
-    if (!file || !containerRef) return
+    const file = reviewFile();
+    if (!file || !containerRef) return;
 
-    let resizeTimer: ReturnType<typeof setTimeout> | undefined
+    let resizeTimer: ReturnType<typeof setTimeout> | undefined;
     const observer = new ResizeObserver(() => {
-      clearTimeout(resizeTimer)
+      clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => {
         if (containerRef && file) {
-          void loadDiff(file, containerRef.clientWidth)
+          void loadDiff(file, containerRef.clientWidth);
         }
-      }, 500)
-    })
+      }, 500);
+    });
 
-    observer.observe(containerRef)
-    onCleanup(() => observer.disconnect())
-  })
+    observer.observe(containerRef);
+    onCleanup(() => observer.disconnect());
+  });
 
   function close(): void {
-    setReviewFile(null)
-    setDiffHtml(null)
+    setReviewFile(null);
+    setDiffHtml(null);
   }
 
   return (
@@ -105,19 +107,19 @@ export function ReviewOverlay() {
           >
             <div class="review-header">
               <span class="review-file-path">{file().file}</span>
-              <button class="review-close" onClick={close}>{"\u2715"}</button>
+              <button class="review-close" onClick={close}>
+                {"\u2715"}
+              </button>
             </div>
             <Show when={loading()}>
               <div class="review-loading">Formatting...</div>
             </Show>
             <Show when={diffHtml()}>
-              {(html) => (
-                <div class="review-diff" innerHTML={html()} />
-              )}
+              {(html) => <div class="review-diff" innerHTML={html()} />}
             </Show>
           </div>
         </div>
       )}
     </Show>
-  )
+  );
 }

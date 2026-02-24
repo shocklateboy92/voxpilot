@@ -2,121 +2,131 @@
  * Main chat area — messages + input form.
  */
 
-import { For, Show, createEffect, createSignal, onMount, onCleanup } from "solid-js"
-import type { ToolPart } from "@opencode-ai/sdk/client"
+import type { ToolPart } from "@opencode-ai/sdk/client";
 import {
-  messages,
-  streamingText,
-  streamingParts,
-  isStreaming,
-  errorMessage,
-  swipeOffset,
-  setSwipeOffset,
-  sessions,
+  createEffect,
+  createSignal,
+  For,
+  onCleanup,
+  onMount,
+  Show,
+} from "solid-js";
+import { attachSwipeHandler } from "../gestures";
+import { navigateNext, navigatePrev } from "../sessions";
+import {
   activeIndex,
+  errorMessage,
+  isStreaming,
+  messages,
   pendingPermission,
-} from "../store"
-import { sendUserMessage } from "../streaming"
-import { navigateNext, navigatePrev } from "../sessions"
-import { attachSwipeHandler } from "../gestures"
-import { MessageBubble } from "./MessageBubble"
-import { StreamingBubble } from "./StreamingBubble"
-import { ToolCallBlock } from "./ToolCallBlock"
-import { ToolConfirmBlock } from "./ToolConfirmBlock"
+  sessions,
+  setSwipeOffset,
+  streamingParts,
+  streamingText,
+  swipeOffset,
+} from "../store";
+import { sendUserMessage } from "../streaming";
+import { MessageBubble } from "./MessageBubble";
+import { StreamingBubble } from "./StreamingBubble";
+import { ToolCallBlock } from "./ToolCallBlock";
+import { ToolConfirmBlock } from "./ToolConfirmBlock";
 
 export function ChatMain() {
-  let messagesRef: HTMLDivElement | undefined
-  let scrollSentinel: HTMLDivElement | undefined
-  let inputRef: HTMLInputElement | undefined
+  let messagesRef: HTMLDivElement | undefined;
+  let scrollSentinel: HTMLDivElement | undefined;
+  let inputRef: HTMLInputElement | undefined;
 
-  const [animateSnap, setAnimateSnap] = createSignal(false)
-  let pendingNav: (() => void) | null = null
+  const [animateSnap, setAnimateSnap] = createSignal(false);
+  let pendingNav: (() => void) | null = null;
 
   function handleTransitionEnd(): void {
-    setAnimateSnap(false)
+    setAnimateSnap(false);
     if (pendingNav) {
-      const nav = pendingNav
-      pendingNav = null
-      nav()
+      const nav = pendingNav;
+      pendingNav = null;
+      nav();
     }
   }
 
   // Derived: filter streaming parts to just tool parts
   const streamingToolParts = () =>
-    streamingParts().filter((p): p is ToolPart => p.type === "tool")
+    streamingParts().filter((p): p is ToolPart => p.type === "tool");
 
   // Auto-scroll when messages change or streaming text updates
   createEffect(() => {
-    messages()
-    streamingText()
-    streamingParts()
-    errorMessage()
-    pendingPermission()
-    scrollSentinel?.scrollIntoView({ block: "end", behavior: "instant" })
-  })
+    messages();
+    streamingText();
+    streamingParts();
+    errorMessage();
+    pendingPermission();
+    scrollSentinel?.scrollIntoView({ block: "end", behavior: "instant" });
+  });
 
   // Focus input when streaming finishes
   createEffect(() => {
     if (!isStreaming()) {
-      inputRef?.focus()
+      inputRef?.focus();
     }
-  })
+  });
 
   // Swipe gesture handling
   onMount(() => {
     if (!messagesRef) {
-      throw new Error("Component mounted without messagesRef reference being set")
+      throw new Error(
+        "Component mounted without messagesRef reference being set",
+      );
     }
 
     const cleanup = attachSwipeHandler(messagesRef, {
       onSwipeMove(deltaX) {
-        setAnimateSnap(false)
-        pendingNav = null
-        const damped = Math.sign(deltaX) * Math.min(Math.sqrt(Math.abs(deltaX)) * 5, 100)
-        setSwipeOffset(damped)
+        setAnimateSnap(false);
+        pendingNav = null;
+        const damped =
+          Math.sign(deltaX) * Math.min(Math.sqrt(Math.abs(deltaX)) * 5, 100);
+        setSwipeOffset(damped);
       },
       onSwipeLeft() {
         if (activeIndex() < sessions().length - 1) {
-          pendingNav = navigateNext
+          pendingNav = navigateNext;
         }
-        setAnimateSnap(true)
-        setSwipeOffset(0)
+        setAnimateSnap(true);
+        setSwipeOffset(0);
       },
       onSwipeRight() {
         if (activeIndex() > 0) {
-          pendingNav = navigatePrev
+          pendingNav = navigatePrev;
         }
-        setAnimateSnap(true)
-        setSwipeOffset(0)
+        setAnimateSnap(true);
+        setSwipeOffset(0);
       },
       onSwipeCancel() {
-        setAnimateSnap(true)
-        setSwipeOffset(0)
+        setAnimateSnap(true);
+        setSwipeOffset(0);
       },
-    })
+    });
 
-    onCleanup(cleanup)
-  })
+    onCleanup(cleanup);
+  });
 
   function handleSubmit(e: SubmitEvent): void {
-    e.preventDefault()
-    const value = inputRef?.value.trim()
-    if (!value || isStreaming()) return
+    e.preventDefault();
+    const value = inputRef?.value.trim();
+    if (!value || isStreaming()) return;
     if (inputRef) {
-      inputRef.value = ""
+      inputRef.value = "";
     }
-    void sendUserMessage(value)
+    void sendUserMessage(value);
   }
 
   const showLeftArrow = () => {
-    const off = swipeOffset()
-    return off > 0 && activeIndex() > 0
-  }
+    const off = swipeOffset();
+    return off > 0 && activeIndex() > 0;
+  };
   const showRightArrow = () => {
-    const off = swipeOffset()
-    return off < 0 && activeIndex() < sessions().length - 1
-  }
-  const arrowOpacity = () => Math.min(Math.abs(swipeOffset()) / 60, 1)
+    const off = swipeOffset();
+    return off < 0 && activeIndex() < sessions().length - 1;
+  };
+  const arrowOpacity = () => Math.min(Math.abs(swipeOffset()) / 60, 1);
 
   return (
     <div id="chat-main">
@@ -143,9 +153,7 @@ export function ChatMain() {
         }}
         onTransitionEnd={handleTransitionEnd}
       >
-        <For each={messages()}>
-          {(msg) => <MessageBubble msg={msg} />}
-        </For>
+        <For each={messages()}>{(msg) => <MessageBubble msg={msg} />}</For>
 
         {/* Live streaming tool calls */}
         <For each={streamingToolParts()}>
@@ -184,5 +192,5 @@ export function ChatMain() {
         </button>
       </form>
     </div>
-  )
+  );
 }
