@@ -2,18 +2,16 @@ import { Hono } from "hono"
 import { cors } from "hono/cors"
 import { serveStatic } from "hono/bun"
 import { proxy } from "./proxy"
+import { reviewRouter } from "./routes/review"
 
 const OPENCODE_PORT = 4096
 const APP_PORT = Number(process.env.VOXPILOT_PORT ?? 8000)
 
-// OpenCode will be started separately or in-proc — for now just proxy to it
-// TODO: when createOpencode() API is confirmed, start it in-proc
-
 const app = new Hono()
 app.use("/*", cors({ origin: "*", credentials: true }))
 
-// Review routes (Phase 3)
-// app.route("/api/review", reviewRouter)
+// Review routes
+app.route("/api/review", reviewRouter)
 
 // Proxy all OpenCode API routes under /oc/*
 const OC_PREFIX = "/oc"
