@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { DiffHunk } from "../src/schemas/diff-document";
+import type { DiffHunk } from "../src/services/diff-types";
 import {
   renderDiffFileHtml,
   renderFullFileHtml,

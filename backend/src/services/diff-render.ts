@@ -9,7 +9,7 @@
  * 1:1 (page N = files[N].html).
  */
 
-import type { DiffHunk, DiffLine } from "../schemas/diff-document";
+import type { DiffHunk, DiffLine } from "./diff-types";
 
 /** Escape HTML special characters. */
 function escapeHtml(text: string): string {
