@@ -7,6 +7,7 @@ import { initSessions } from "../sessions"
 import { ChatMain } from "./ChatMain"
 import { BottomNav } from "./BottomNav"
 import { SessionPicker } from "./SessionPicker"
+import { ReviewOverlay } from "./ReviewOverlay"
 
 export function ChatView() {
   onMount(() => {
@@ -18,6 +19,7 @@ export function ChatView() {
       <ChatMain />
       <BottomNav />
       <SessionPicker />
+      <ReviewOverlay />
     </main>
   )
 }
