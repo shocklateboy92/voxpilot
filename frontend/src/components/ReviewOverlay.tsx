@@ -9,13 +9,12 @@
  * 5. Viewed state stored in localStorage
  */
 
-import type { FileDiff } from "@opencode-ai/sdk/client";
 import { createEffect, createSignal, onCleanup, Show } from "solid-js";
 import { markViewed } from "../review-state";
 import { activeSessionId } from "../store";
 
-// Shared state for what file is being reviewed
-export const [reviewFile, setReviewFile] = createSignal<FileDiff | null>(null);
+// Shared state for what file is being reviewed (just the file path)
+export const [reviewFilePath, setReviewFilePath] = createSignal<string | null>(null);
 
 export function ReviewOverlay() {
   const [diffHtml, setDiffHtml] = createSignal<string | null>(null);
@@ -24,9 +23,12 @@ export function ReviewOverlay() {
 
   const CHAR_WIDTH = 7.2; // approximate monospace char width in px
 
-  async function loadDiff(file: FileDiff, width: number): Promise<void> {
+  async function loadDiff(filePath: string, width: number): Promise<void> {
     setLoading(true);
     setDiffHtml(null);
+
+    const sessionId = activeSessionId();
+    if (!sessionId) return;
 
     const printWidth = Math.max(40, Math.floor(width / CHAR_WIDTH));
 
@@ -35,9 +37,8 @@ export function ReviewOverlay() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          before: file.before,
-          after: file.after,
-          filePath: file.file,
+          sessionId,
+          filePath,
           printWidth,
         }),
       });
@@ -53,10 +54,7 @@ export function ReviewOverlay() {
       setDiffHtml(data.html);
 
       // Mark as viewed
-      const sessionId = activeSessionId();
-      if (sessionId) {
-        markViewed(sessionId, file.file);
-      }
+      markViewed(sessionId, filePath);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       setDiffHtml(`<div class="error">Error: ${msg}</div>`);
@@ -67,22 +65,22 @@ export function ReviewOverlay() {
 
   // Load diff when file changes
   createEffect(() => {
-    const file = reviewFile();
-    if (!file || !containerRef) return;
-    void loadDiff(file, containerRef.clientWidth);
+    const filePath = reviewFilePath();
+    if (!filePath || !containerRef) return;
+    void loadDiff(filePath, containerRef.clientWidth);
   });
 
   // Handle resize
   createEffect(() => {
-    const file = reviewFile();
-    if (!file || !containerRef) return;
+    const filePath = reviewFilePath();
+    if (!filePath || !containerRef) return;
 
     let resizeTimer: ReturnType<typeof setTimeout> | undefined;
     const observer = new ResizeObserver(() => {
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => {
-        if (containerRef && file) {
-          void loadDiff(file, containerRef.clientWidth);
+        if (containerRef && filePath) {
+          void loadDiff(filePath, containerRef.clientWidth);
         }
       }, 500);
     });
@@ -92,13 +90,13 @@ export function ReviewOverlay() {
   });
 
   function close(): void {
-    setReviewFile(null);
+    setReviewFilePath(null);
     setDiffHtml(null);
   }
 
   return (
-    <Show when={reviewFile()}>
-      {(file) => (
+    <Show when={reviewFilePath()}>
+      {(filePath) => (
         <div class="review-overlay" onClick={close}>
           <div
             class="review-content"
@@ -106,7 +104,7 @@ export function ReviewOverlay() {
             onClick={(e) => e.stopPropagation()}
           >
             <div class="review-header">
-              <span class="review-file-path">{file().file}</span>
+              <span class="review-file-path">{filePath()}</span>
               <button class="review-close" onClick={close}>
                 {"\u2715"}
               </button>

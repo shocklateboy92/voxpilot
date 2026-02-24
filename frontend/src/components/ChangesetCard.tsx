@@ -7,7 +7,7 @@ import { createResource, createSignal, For, Show } from "solid-js";
 import { fetchSessionDiff } from "../api-client";
 import { getFileState } from "../review-state";
 import { activeSessionId } from "../store";
-import { setReviewFile } from "./ReviewOverlay";
+import { setReviewFilePath } from "./ReviewOverlay";
 
 export function ChangesetCard() {
   const [expanded, setExpanded] = createSignal(false);
@@ -59,7 +59,7 @@ export function ChangesetCard() {
               return (
                 <div
                   class={`changeset-file ${reviewed() ? "viewed" : ""}`}
-                  onClick={() => setReviewFile(diff)}
+                  onClick={() => setReviewFilePath(diff.file)}
                 >
                   <span class="file-path">{diff.file}</span>
                   <span class="file-stats">
