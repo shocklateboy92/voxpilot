@@ -5,7 +5,7 @@
  */
 
 import { For } from "solid-js";
-import { toasts, setToasts } from "../store";
+import { setToasts, toasts } from "../store";
 
 export function ToastContainer() {
   function dismiss(id: number) {

@@ -6,8 +6,12 @@
  */
 
 import { For, Show } from "solid-js";
-import { sessions, activeIndex, pickerOpen, setPickerOpen } from "../store";
-import { switchToIndex, handleDeleteSession, handleNewSession } from "../sessions";
+import {
+  handleDeleteSession,
+  handleNewSession,
+  switchToIndex,
+} from "../sessions";
+import { activeIndex, pickerOpen, sessions, setPickerOpen } from "../store";
 
 export function SessionPicker() {
   function selectSession(index: number): void {

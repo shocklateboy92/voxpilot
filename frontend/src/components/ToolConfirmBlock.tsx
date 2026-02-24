@@ -2,21 +2,21 @@
  * Permission prompt — Allow once / Always allow / Reject buttons.
  */
 
-import type { PendingPermission } from "../store"
-import { respondToConfirm } from "../streaming"
+import type { PendingPermission } from "../store";
+import { respondToConfirm } from "../streaming";
 
 interface Props {
-  permission: PendingPermission
+  permission: PendingPermission;
 }
 
 export function ToolConfirmBlock(props: Props) {
   const metadata = () => {
     try {
-      return JSON.stringify(props.permission.metadata, null, 2)
+      return JSON.stringify(props.permission.metadata, null, 2);
     } catch {
-      return String(props.permission.metadata)
+      return String(props.permission.metadata);
     }
-  }
+  };
 
   return (
     <div class="tool-confirm">
@@ -45,5 +45,5 @@ export function ToolConfirmBlock(props: Props) {
         </button>
       </div>
     </div>
-  )
+  );
 }
