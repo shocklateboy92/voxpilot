@@ -1,44 +1,49 @@
 /**
- * Tool confirmation prompt — Approve / Reject buttons for
- * tools that require user confirmation before execution.
+ * Permission prompt — Allow once / Always allow / Reject buttons.
  */
 
-import type { PendingConfirm } from "../store";
-import { respondToConfirm } from "../streaming";
+import type { PendingPermission } from "../store"
+import { respondToConfirm } from "../streaming"
 
 interface Props {
-  confirm: PendingConfirm;
+  permission: PendingPermission
 }
 
 export function ToolConfirmBlock(props: Props) {
-  const argsText = () => {
+  const metadata = () => {
     try {
-      return JSON.stringify(JSON.parse(props.confirm.arguments), null, 2);
+      return JSON.stringify(props.permission.metadata, null, 2)
     } catch {
-      return props.confirm.arguments;
+      return String(props.permission.metadata)
     }
-  };
+  }
 
   return (
-    <div class="tool-confirm" data-tool-call-id={props.confirm.id}>
+    <div class="tool-confirm">
       <div class="tool-confirm-header">
-        🔒 <strong>{props.confirm.name}</strong> requires approval
+        🔒 <strong>{props.permission.title}</strong> requires approval
       </div>
-      <pre class="tool-confirm-args">{argsText()}</pre>
+      <pre class="tool-confirm-args">{metadata()}</pre>
       <div class="tool-confirm-actions">
         <button
           class="btn btn-approve"
-          onClick={() => void respondToConfirm(props.confirm.id, true)}
+          onClick={() => void respondToConfirm(props.permission.id, "once")}
         >
-          Approve
+          Allow once
+        </button>
+        <button
+          class="btn btn-approve"
+          onClick={() => void respondToConfirm(props.permission.id, "always")}
+        >
+          Always allow
         </button>
         <button
           class="btn btn-reject"
-          onClick={() => void respondToConfirm(props.confirm.id, false)}
+          onClick={() => void respondToConfirm(props.permission.id, "reject")}
         >
           Reject
         </button>
       </div>
     </div>
-  );
+  )
 }

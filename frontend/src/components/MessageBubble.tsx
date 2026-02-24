@@ -2,110 +2,78 @@
  * Renders a completed message from history.
  */
 
-import { For, Show } from "solid-js";
-import type { MessageRead, ToolCallInfo } from "../store";
-import { artifacts } from "../store";
-import { ChangesetCard } from "./ChangesetCard";
+import { For, Show } from "solid-js"
+import type { MessageWithParts } from "../store"
+import type { TextPart, ToolPart } from "@opencode-ai/sdk/client"
+import { renderMarkdown } from "../markdown"
 
 interface Props {
-  message: MessageRead;
+  msg: MessageWithParts
 }
 
 export function MessageBubble(props: Props) {
+  const textContent = () =>
+    props.msg.parts
+      .filter((p): p is TextPart => p.type === "text")
+      .map((p) => p.text)
+      .join("")
+
+  const toolParts = () =>
+    props.msg.parts.filter((p): p is ToolPart => p.type === "tool")
+
+  const role = () => props.msg.info.role
+
   return (
-    <>
-      {/* For assistant messages with tool calls, render the tool blocks */}
-      <Show when={props.message.role === "assistant" && props.message.tool_calls?.length}>
-        <Show when={props.message.content}>
-          <Show
-            when={props.message.html}
-            fallback={<div class="message assistant">{props.message.content}</div>}
-          >
-            {(html) => <div class="message assistant markdown-body" innerHTML={html()} />}
-          </Show>
-        </Show>
-        <For each={props.message.tool_calls}>
-          {(tc) => <HistoryToolCall call={tc} />}
-        </For>
+    <div class={`message ${role()}`}>
+      <Show when={role() === "assistant" && textContent()}>
+        <div class="markdown-body" innerHTML={renderMarkdown(textContent())} />
       </Show>
-
-      {/* For tool result messages, render inside matching block or standalone */}
-      {props.message.role === "tool" && <HistoryToolResult message={props.message} />}
-
-      {/* For regular user/assistant/system messages */}
-      {!(props.message.role === "assistant" && props.message.tool_calls?.length) &&
-        props.message.role !== "tool" && (
-        <Show
-          when={props.message.role === "assistant" && props.message.html}
-          fallback={<div class={`message ${props.message.role}`}>{props.message.content}</div>}
-        >
-          {(html) => <div class="message assistant markdown-body" innerHTML={html()} />}
-        </Show>
-      )}
-    </>
-  );
+      <Show when={role() === "user" && textContent()}>
+        <p>{textContent()}</p>
+      </Show>
+      <For each={toolParts()}>
+        {(part) => <ToolPartBlock part={part} />}
+      </For>
+    </div>
+  )
 }
 
-function HistoryToolCall(props: { call: ToolCallInfo }) {
-  let argsText: string;
-  try {
-    argsText = JSON.stringify(JSON.parse(props.call.arguments), null, 2);
-  } catch {
-    argsText = props.call.arguments;
-  }
-
-  if (props.call.name === "copilot_agent") {
-    let sessionName = "copilot";
+function ToolPartBlock(props: { part: ToolPart }) {
+  const inputText = () => {
     try {
-      const parsed: unknown = JSON.parse(props.call.arguments);
-      if (
-        typeof parsed === "object" &&
-        parsed !== null &&
-        "session_name" in parsed &&
-        typeof (parsed as Record<string, unknown>).session_name === "string"
-      ) {
-        sessionName = (parsed as Record<string, unknown>).session_name as string;
-      }
-    } catch { /* ignore */ }
+      return JSON.stringify(props.part.state.input, null, 2)
+    } catch {
+      return String(props.part.state.input)
+    }
+  }
 
-    return (
-      <details class="copilot-block" data-tool-call-id={props.call.id}>
-        <summary class="copilot-summary">
-          🤖 Copilot [{sessionName}]
-          <span class="copilot-done-label"> — done</span>
-        </summary>
-      </details>
-    );
+  const isCompleted = () => props.part.state.status === "completed"
+  const isError = () => props.part.state.status === "error"
+  const isRunning = () => props.part.state.status === "running"
+
+  const output = () => {
+    const s = props.part.state
+    if (s.status === "completed") return s.output
+    if (s.status === "error") return s.error
+    return undefined
   }
 
   return (
-    <details class="tool-block" data-tool-call-id={props.call.id}>
-      <summary class="tool-summary">⚙ {props.call.name}</summary>
-      <div class="tool-arguments">{argsText}</div>
-    </details>
-  );
-}
-
-function HistoryToolResult(props: { message: MessageRead }) {
-  const isError = () => props.message.content.startsWith("Error:");
-  const artifact = () => {
-    const aid = props.message.artifactId;
-    if (!aid) return undefined;
-    return artifacts().get(aid);
-  };
-
-  return (
-    <>
-      {!artifact() && (
-        <div class="tool-result-standalone">
+    <details class="tool-block" open={isRunning()}>
+      <summary class="tool-summary">
+        ⚙ {props.part.tool}
+        {isRunning() && <span class="tool-spinner"> ⏳</span>}
+        {isCompleted() && " ✓"}
+        {isError() && " ✗"}
+      </summary>
+      <div class="tool-arguments">{inputText()}</div>
+      <Show when={output()}>
+        {(text) => (
           <div class={`tool-result${isError() ? " tool-error" : ""}`}>
-            <pre>{props.message.content}</pre>
+            <pre>{text()}</pre>
           </div>
-        </div>
-      )}
-      <Show when={artifact()}>
-        {(a) => <ChangesetCard artifact={a()} />}
+        )}
       </Show>
-    </>
-  );
+    </details>
+  )
 }
