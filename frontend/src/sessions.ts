@@ -11,90 +11,90 @@ import {
   activeIndex,
   setActiveIndex,
   setStreamingText,
-  setStreamingToolCalls,
+  setStreamingParts,
   setIsStreaming,
   setErrorMessage,
   setPickerOpen,
-} from "./store";
-import { fetchSessions, createSession, deleteSession } from "./api-client";
-import { openStream } from "./streaming";
+  setPendingPermission,
+} from "./store"
+import { fetchSessions, createSession, deleteSession } from "./api-client"
+import { openStream } from "./streaming"
 
 /**
  * Switch to the session at the given index.
  * Closes any existing stream and opens a new one.
  */
 export function switchToIndex(index: number): void {
-  const list = sessions();
-  if (index < 0 || index >= list.length) return;
+  const list = sessions()
+  if (index < 0 || index >= list.length) return
 
-  const session = list[index];
-  if (!session) return;
+  const session = list[index]
+  if (!session) return
 
-  setActiveIndex(index);
-  setStreamingText(null);
-  setStreamingToolCalls([]);
-  setIsStreaming(false);
-  setErrorMessage(null);
+  setActiveIndex(index)
+  setStreamingText(null)
+  setStreamingParts([])
+  setIsStreaming(false)
+  setErrorMessage(null)
+  setPendingPermission(null)
 
-  openStream(session.id);
+  openStream(session.id)
 }
 
 /**
  * Switch to a session by ID.
  */
 export function switchToSession(sessionId: string): void {
-  const index = sessions().findIndex((s) => s.id === sessionId);
+  const index = sessions().findIndex((s) => s.id === sessionId)
   if (index >= 0) {
-    switchToIndex(index);
+    switchToIndex(index)
   }
 }
 
 /** Navigate to the next session (if any). */
 export function navigateNext(): void {
-  const next = activeIndex() + 1;
+  const next = activeIndex() + 1
   if (next < sessions().length) {
-    switchToIndex(next);
+    switchToIndex(next)
   }
 }
 
 /** Navigate to the previous session (if any). */
 export function navigatePrev(): void {
-  const prev = activeIndex() - 1;
+  const prev = activeIndex() - 1
   if (prev >= 0) {
-    switchToIndex(prev);
+    switchToIndex(prev)
   }
 }
 
 /** Create a new session and switch to it. */
 export async function handleNewSession(): Promise<void> {
-  const session = await createSession();
-  const list = await fetchSessions();
-  setSessions(list);
-  const index = list.findIndex((s) => s.id === session.id);
-  switchToIndex(index >= 0 ? index : 0);
+  const session = await createSession()
+  const list = await fetchSessions()
+  setSessions(list)
+  const index = list.findIndex((s) => s.id === session.id)
+  switchToIndex(index >= 0 ? index : 0)
 }
 
 /** Delete a session and adjust navigation. */
 export async function handleDeleteSession(sessionId: string): Promise<void> {
-  await deleteSession(sessionId);
-  let list = await fetchSessions();
+  await deleteSession(sessionId)
+  let list = await fetchSessions()
 
   if (list.length === 0) {
-    // Create a fresh session if all were deleted
-    const fresh = await createSession();
-    list = [fresh];
+    const fresh = await createSession()
+    list = [fresh]
   }
 
-  setSessions(list);
+  setSessions(list)
 
-  // If we deleted the active session, switch to the nearest one
-  const currentId = sessions()[activeIndex()]?.id;
+  const currentId = sessions()[activeIndex()]?.id
   if (currentId === sessionId || !currentId) {
-    const newIndex = Math.min(activeIndex(), list.length - 1);
-    switchToIndex(Math.max(newIndex, 0));
+    const newIndex = Math.min(activeIndex(), list.length - 1)
+    switchToIndex(Math.max(newIndex, 0))
   }
 
-  setPickerOpen(false);
+  setPickerOpen(false)
 }
 
 /**
@@ -102,11 +102,11 @@ export async function handleDeleteSession(sessionId: string): Promise<void> {
  * Fetches the session list, creates one if empty, and switches to the first.
  */
 export async function initSessions(): Promise<void> {
-  let list = await fetchSessions();
+  let list = await fetchSessions()
   if (list.length === 0) {
-    const fresh = await createSession();
-    list = [fresh];
+    const fresh = await createSession()
+    list = [fresh]
   }
-  setSessions(list);
-  switchToIndex(0);
+  setSessions(list)
+  switchToIndex(0)
 }

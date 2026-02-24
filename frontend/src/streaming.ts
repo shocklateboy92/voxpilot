@@ -1,365 +1,247 @@
 /**
- * rAF-batched SSE streaming manager.
+ * rAF-batched OpenCode event streaming manager.
  *
- * Bridges the SSE event stream to SolidJS signals with
- * requestAnimationFrame batching on the hot path (text-delta).
- * This ensures at most one DOM update per frame regardless
- * of how fast tokens arrive.
+ * Bridges the OpenCode global event stream to SolidJS signals with
+ * requestAnimationFrame batching on the hot path (text parts).
  */
 
-import { connectSession, sendMessage as ssePostMessage, confirmTool } from "./sse";
-import type {
-  ToolCallEvent,
-  ToolResultEvent,
-  ToolConfirmEvent,
-  ReviewArtifactEvent,
-  CopilotDeltaEvent,
-  CopilotDoneEvent,
-  UsageEvent,
-} from "@backend/schemas/events";
+import { subscribeToEvents, unsubscribeFromEvents } from "./sse"
+import type { Event } from "./sse"
+import { fetchSessions, fetchMessages, sendPromptAsync, respondToPermission } from "./api-client"
 import {
   setMessages,
   setStreamingText,
-  setStreamingToolCalls,
+  setStreamingParts,
   setIsStreaming,
   setErrorMessage,
   activeSessionId,
   setSessions,
-  setPendingConfirm,
-  setArtifacts,
+  setPendingPermission,
   setContextUsage,
-  type MessageRead,
-  type StreamingToolCall,
-  type ArtifactSummary,
-} from "./store";
-import { fetchSessions } from "./api-client";
+  type ContextUsage,
+} from "./store"
 
-let activeStream: EventSource | null = null;
-let pendingText = "";
-let rafId: number | null = null;
-let isRafLoopRunning = false;
+let pendingText = ""
+let rafId: number | null = null
+let isRafLoopRunning = false
 
 /** Start the rAF loop that flushes pendingText → signal once per frame. */
 function startRafLoop(): void {
-  if (isRafLoopRunning) return;
-  isRafLoopRunning = true;
+  if (isRafLoopRunning) return
+  isRafLoopRunning = true
 
   const tick = (): void => {
-    if (!isRafLoopRunning) return;
-    setStreamingText(pendingText);
-    rafId = requestAnimationFrame(tick);
-  };
-  rafId = requestAnimationFrame(tick);
+    if (!isRafLoopRunning) return
+    setStreamingText(pendingText)
+    rafId = requestAnimationFrame(tick)
+  }
+  rafId = requestAnimationFrame(tick)
 }
 
 /** Stop the rAF loop. */
 function stopRafLoop(): void {
-  isRafLoopRunning = false;
+  isRafLoopRunning = false
   if (rafId !== null) {
-    cancelAnimationFrame(rafId);
-    rafId = null;
+    cancelAnimationFrame(rafId)
+    rafId = null
   }
 }
 
-/** Flush any remaining pending text to the signal immediately. */
-function flushPendingText(): void {
-  if (pendingText) {
-    setStreamingText(pendingText);
+/** Active session ID tracker for filtering events. */
+let currentSessionId: string | null = null
+
+/** Handle a single event from the global stream. */
+function handleEvent(event: Event): void {
+  const sid = currentSessionId
+  if (!sid) return
+
+  switch (event.type) {
+    case "message.updated": {
+      const msg = event.properties.info
+      if (msg.sessionID !== sid) return
+
+      if (msg.role === "assistant") {
+        // Assistant message started or completed
+        if ("time" in msg && msg.time.completed) {
+          // Message is complete — reload full messages
+          void fetchMessages(sid).then(setMessages)
+          stopRafLoop()
+          pendingText = ""
+          setStreamingText(null)
+          setStreamingParts([])
+          setIsStreaming(false)
+          setPendingPermission(null)
+
+          // Extract token usage from the last assistant message
+          if ("tokens" in msg) {
+            const usage: ContextUsage = {
+              inputTokens: msg.tokens.input,
+              outputTokens: msg.tokens.output,
+              reasoningTokens: msg.tokens.reasoning,
+              cacheRead: msg.tokens.cache.read,
+              cacheWrite: msg.tokens.cache.write,
+            }
+            setContextUsage(usage)
+          }
+        } else {
+          setIsStreaming(true)
+        }
+      }
+      break
+    }
+
+    case "message.part.updated": {
+      const part = event.properties.part
+      if (part.sessionID !== sid) return
+
+      switch (part.type) {
+        case "text": {
+          // Hot path: accumulate text, rAF flushes to signal
+          if (!isRafLoopRunning) {
+            pendingText = ""
+            startRafLoop()
+          }
+          pendingText = part.text
+          break
+        }
+        case "tool": {
+          // Update streaming parts
+          setStreamingParts((prev) => {
+            const idx = prev.findIndex((p) => p.id === part.id)
+            if (idx >= 0) {
+              const next = [...prev]
+              next[idx] = part
+              return next
+            }
+            return [...prev, part]
+          })
+          break
+        }
+        case "step-start": {
+          setIsStreaming(true)
+          break
+        }
+        case "step-finish": {
+          // Extract token usage
+          const usage: ContextUsage = {
+            inputTokens: part.tokens.input,
+            outputTokens: part.tokens.output,
+            reasoningTokens: part.tokens.reasoning,
+            cacheRead: part.tokens.cache.read,
+            cacheWrite: part.tokens.cache.write,
+          }
+          setContextUsage(usage)
+          break
+        }
+      }
+      break
+    }
+
+    case "permission.updated": {
+      const perm = event.properties
+      if (perm.sessionID !== sid) return
+      setPendingPermission(perm)
+      break
+    }
+
+    case "permission.replied": {
+      setPendingPermission(null)
+      break
+    }
+
+    case "session.updated": {
+      // Refresh session list (title may have changed)
+      void fetchSessions().then(setSessions)
+      break
+    }
+
+    case "session.error": {
+      const props = event.properties
+      if (props.sessionID !== sid) return
+      setIsStreaming(false)
+      const err = props.error
+      let errorMsg = "An error occurred"
+      if (err && "data" in err && typeof err.data === "object" && err.data !== null && "message" in err.data) {
+        errorMsg = String((err.data as Record<string, unknown>).message)
+      }
+      setErrorMessage(errorMsg)
+      stopRafLoop()
+      break
+    }
   }
 }
 
 /**
- * Connect to a session's SSE stream.
- *
- * Handles history replay (populates messages signal) and
- * live streaming (populates streamingText / streamingToolCalls).
+ * Connect to the OpenCode event stream and load session history.
  */
 export function openStream(sessionId: string): void {
-  closeStream();
+  closeStream()
 
-  setMessages([]);
-  setStreamingText(null);
-  setStreamingToolCalls([]);
-  setErrorMessage(null);
-  setPendingConfirm(null);
-  setArtifacts(new Map());
-  setContextUsage(null);
-  pendingText = "";
+  currentSessionId = sessionId
+  setMessages([])
+  setStreamingText(null)
+  setStreamingParts([])
+  setIsStreaming(false)
+  setErrorMessage(null)
+  setPendingPermission(null)
+  pendingText = ""
 
-  activeStream = connectSession(sessionId, {
-    onMessage(payload) {
-      const msg: MessageRead = {
-        role: payload.role,
-        content: payload.content,
-        created_at: payload.created_at,
-        tool_calls: payload.tool_calls ?? null,
-        tool_call_id: payload.tool_call_id ?? null,
-        html: payload.html ?? null,
-      };
-      if (payload.artifact_id) {
-        msg.artifactId = payload.artifact_id;
-      }
-      setMessages((prev) => [...prev, msg]);
-    },
+  // Load existing messages
+  void fetchMessages(sessionId).then(setMessages)
 
-    onReady() {
-      setIsStreaming(false);
-    },
-
-    onTextDelta(content) {
-      // Hot path: accumulate into buffer, rAF loop writes to signal
-      if (!isRafLoopRunning) {
-        pendingText = "";
-        startRafLoop();
-      }
-      pendingText += content;
-    },
-
-    onToolCall(payload: ToolCallEvent) {
-      // Finalize any in-progress streaming text
-      stopRafLoop();
-      if (pendingText) {
-        flushPendingText();
-        // Move streamed text into messages array as a complete message
-        const text = pendingText;
-        pendingText = "";
-        setStreamingText(null);
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: text, created_at: new Date().toISOString() },
-        ]);
-      }
-
-      const tc: StreamingToolCall = {
-        id: payload.id,
-        name: payload.name,
-        arguments: payload.arguments,
-      };
-      setStreamingToolCalls((prev) => [...prev, tc]);
-    },
-
-    onToolResult(payload: ToolResultEvent) {
-      setPendingConfirm(null);
-      const rawArtifactId = payload.artifact_id;
-      setStreamingToolCalls((prev) =>
-        prev.map((tc): StreamingToolCall => {
-          if (tc.id !== payload.id) return tc;
-          const updated: StreamingToolCall = {
-            ...tc,
-            result: payload.content,
-            isError: payload.is_error,
-          };
-          if (rawArtifactId) {
-            updated.artifactId = rawArtifactId;
-          }
-          return updated;
-        }),
-      );
-    },
-
-    onToolConfirm(payload: ToolConfirmEvent) {
-      setPendingConfirm({
-        id: payload.id,
-        name: payload.name,
-        arguments: payload.arguments,
-      });
-    },
-
-    onReviewArtifact(payload: ReviewArtifactEvent) {
-      const summary: ArtifactSummary = payload;
-      setArtifacts((prev) => {
-        const next = new Map(prev);
-        next.set(payload.artifactId, summary);
-        return next;
-      });
-    },
-
-    onCopilotDelta(payload: CopilotDeltaEvent) {
-      setStreamingToolCalls((prev) =>
-        prev.map((tc): StreamingToolCall => {
-          if (tc.id !== payload.tool_call_id) return tc;
-          const sessionName = payload.session_name || tc.copilotSessionName;
-          const updated: StreamingToolCall = {
-            ...tc,
-            copilotStream: (tc.copilotStream ?? "") + payload.content,
-          };
-          if (sessionName) updated.copilotSessionName = sessionName;
-          return updated;
-        }),
-      );
-    },
-
-    onCopilotDone(payload: CopilotDoneEvent) {
-      setStreamingToolCalls((prev) =>
-        prev.map((tc): StreamingToolCall => {
-          if (tc.id !== payload.tool_call_id) return tc;
-          const sessionName = payload.session_name || tc.copilotSessionName;
-          const updated: StreamingToolCall = {
-            ...tc,
-            copilotDone: true,
-            copilotSummary: payload.summary,
-          };
-          if (sessionName) updated.copilotSessionName = sessionName;
-          return updated;
-        }),
-      );
-    },
-
-    onUsage(payload: UsageEvent) {
-      setContextUsage({
-        promptTokens: payload.prompt_tokens,
-        completionTokens: payload.completion_tokens,
-        totalTokens: payload.total_tokens,
-        contextWindow: payload.context_window,
-      });
-    },
-
-    onDone(_model, html) {
-      stopRafLoop();
-      setPendingConfirm(null);
-
-      // Finalize any remaining streamed text
-      if (pendingText) {
-        flushPendingText();
-        const text = pendingText;
-        pendingText = "";
-        setStreamingText(null);
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: text, created_at: new Date().toISOString(), html },
-        ]);
-      } else {
-        setStreamingText(null);
-      }
-
-      // Move completed tool calls into messages
-      const toolCalls = [...getStreamingToolCallsSnapshot()];
-      if (toolCalls.length > 0) {
-        // Add the assistant message with tool_calls
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant" as const,
-            content: "",
-            created_at: new Date().toISOString(),
-            tool_calls: toolCalls.map((tc) => ({
-              id: tc.id,
-              name: tc.name,
-              arguments: tc.arguments,
-            })),
-          },
-        ]);
-        // Add tool result messages
-        for (const tc of toolCalls) {
-          if (tc.result !== undefined) {
-            const toolMsg: MessageRead = {
-              role: "tool" as const,
-              content: tc.result ?? "",
-              created_at: new Date().toISOString(),
-              tool_call_id: tc.id,
-            };
-            if (tc.artifactId) {
-              toolMsg.artifactId = tc.artifactId;
-            }
-            setMessages((prev) => [...prev, toolMsg]);
-          }
-        }
-        setStreamingToolCalls([]);
-      }
-
-      setIsStreaming(false);
-
-      // Refresh session list (title may have been auto-set)
-      void fetchSessions().then(setSessions).catch(() => {
-        // Best-effort refresh; ignore errors since the stream completed successfully
-      });
-    },
-
-    onError(message) {
-      stopRafLoop();
-      setPendingConfirm(null);
-
-      if (pendingText) {
-        // Flush what we have and show error after
-        flushPendingText();
-        const text = pendingText;
-        pendingText = "";
-        setStreamingText(null);
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: text, created_at: new Date().toISOString() },
-        ]);
-      } else {
-        setStreamingText(null);
-      }
-
-      setStreamingToolCalls([]);
-      setIsStreaming(false);
-      setErrorMessage(message);
-    },
-  });
+  // Subscribe to global events
+  void subscribeToEvents(handleEvent).catch((err: unknown) => {
+    if (err instanceof Error && err.name === "AbortError") return
+    const msg = err instanceof Error ? err.message : "Event stream error"
+    setErrorMessage(msg)
+  })
 }
 
-/** Close the current SSE stream. */
+/** Close the current event stream. */
 export function closeStream(): void {
-  stopRafLoop();
-  if (activeStream) {
-    activeStream.close();
-    activeStream = null;
-  }
+  stopRafLoop()
+  currentSessionId = null
+  unsubscribeFromEvents()
 }
 
 /**
- * Send a user message on the current session's stream.
- *
+ * Send a user message on the current session.
  * Returns true on success, false on failure.
  */
 export async function sendUserMessage(content: string): Promise<boolean> {
-  const sessionId = activeSessionId();
-  if (!sessionId) return false;
+  const sessionId = activeSessionId()
+  if (!sessionId) return false
 
-  setIsStreaming(true);
-  setErrorMessage(null);
+  setIsStreaming(true)
+  setErrorMessage(null)
 
   try {
-    const response = await ssePostMessage(sessionId, content);
-    if (!response.ok && response.status !== 202) {
-      const text = await response.text();
-      setErrorMessage(`Failed to send: HTTP ${response.status} — ${text}`);
-      setIsStreaming(false);
-      return false;
-    }
-    return true;
+    await sendPromptAsync(sessionId, content)
+    return true
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
-    setErrorMessage(`Network error: ${msg}`);
-    setIsStreaming(false);
-    return false;
+    const msg = err instanceof Error ? err.message : "Unknown error"
+    setErrorMessage(`Failed to send: ${msg}`)
+    setIsStreaming(false)
+    return false
   }
 }
 
 /**
- * Approve or deny a pending tool confirmation.
+ * Respond to a pending permission request.
  */
 export async function respondToConfirm(
-  toolCallId: string,
-  approved: boolean,
+  permissionId: string,
+  response: "once" | "always" | "reject",
 ): Promise<void> {
-  const sessionId = activeSessionId();
-  if (!sessionId) return;
+  const sessionId = activeSessionId()
+  if (!sessionId) return
 
-  setPendingConfirm(null);
+  setPendingPermission(null)
 
   try {
-    await confirmTool(sessionId, toolCallId, approved);
+    await respondToPermission(sessionId, permissionId, response)
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
-    setErrorMessage(`Confirm error: ${msg}`);
+    const msg = err instanceof Error ? err.message : "Unknown error"
+    setErrorMessage(`Permission error: ${msg}`)
   }
-}
-
-// Helper to read current tool calls snapshot (avoids importing the getter)
-import { streamingToolCalls as getStreamingToolCallsSignal } from "./store";
-function getStreamingToolCallsSnapshot(): StreamingToolCall[] {
-  return getStreamingToolCallsSignal();
 }
