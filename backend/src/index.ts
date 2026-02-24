@@ -29,6 +29,9 @@ export default {
   port: APP_PORT,
   fetch: app.fetch,
   idleTimeout: 255,
+  onListen(server: { hostname: string; port: number }) {
+    console.log(
+      `VoxPilot running on http://${server.hostname}:${server.port}`,
+    );
+  },
 };
-
-console.log(`VoxPilot running on http://0.0.0.0:${APP_PORT}`);
