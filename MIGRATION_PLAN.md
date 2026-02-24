@@ -12,15 +12,7 @@ Single Bun process hosting both the OpenCode server (in-proc via `createOpencode
 │  │  Hono app                                 │  │
 │  │                                           │  │
 │  │  /api/review/*    → review routes (ours)  │  │
-│  │  /session/*       → proxy to OpenCode     │  │
-│  │  /event           → proxy to OpenCode     │  │
-│  │  /global/*        → proxy to OpenCode     │  │
-│  │  /find/*          → proxy to OpenCode     │  │
-│  │  /file/*          → proxy to OpenCode     │  │
-│  │  /config/*        → proxy to OpenCode     │  │
-│  │  /agent           → proxy to OpenCode     │  │
-│  │  /provider/*      → proxy to OpenCode     │  │
-│  │  /auth/*          → proxy to OpenCode     │  │
+│  │  /oc/*            → proxy to OpenCode     │  │
 │  │  /*               → static SolidJS app    │  │
 │  └───────────────────────────────────────────┘  │
 │                        │                        │
@@ -49,6 +41,8 @@ Single Bun process hosting both the OpenCode server (in-proc via `createOpencode
 - **Client-side markdown**: `markdown-it` added to frontend for rendering assistant text parts.
 - **Review formatting sidecar**: A `/api/review/format-diff` endpoint runs `prettier` (or other language formatters) server-side to reformat `before`/`after` file content to the client's screen width before diffing.
 - **Review state**: Start with `localStorage` for viewed/comments. Add server persistence later if cross-device state is needed.
+- **`/oc` prefix proxy**: All OpenCode API routes are exposed under `/oc/*`. The Hono proxy strips the prefix before forwarding to the OpenCode server. This avoids enumerating every OpenCode route and cleanly separates our routes (`/api/*`) from theirs. The frontend SDK client uses `baseUrl: "${origin}/oc"`. Since the OpenCode server doesn't support a `basePath` option, the proxy does the rewriting.
+- **Fetch-based proxy**: The proxy uses `fetch()` to forward requests, which handles REST and SSE (streaming `ReadableStream` bodies) correctly. WebSocket upgrade (used by OpenCode's PTY terminal feature) is **not** supported by fetch — if PTY is needed later, Bun's native `server.upgrade()` + `websocket` handler can be added for that single route.
 - **ACP dropped**: OpenCode handles ACP natively; all custom copilot-acp.ts code deleted.
 
 ## Phases
@@ -58,7 +52,7 @@ Single Bun process hosting both the OpenCode server (in-proc via `createOpencode
 **Branch and archive.**
 
 1. Create branch `archive/pre-opencode-migration` from current `main` to preserve the full codebase.
-2. Create working branch `feat/opencode-migration`.
+2. Create working branch `refactor/opencode`.
 
 ### Phase 1: Backend Scaffold (~80 lines new)
 
@@ -101,39 +95,35 @@ app.use("/*", cors({ origin: "*", credentials: true }))
 // Review routes (Phase 3)
 // app.route("/api/review", reviewRouter)
 
-// Proxy all OpenCode API routes
-const ocProxy = proxy(`http://127.0.0.1:${OPENCODE_PORT}`)
-app.all("/session/*", ocProxy)
-app.all("/event",     ocProxy)
-app.all("/global/*",  ocProxy)
-app.all("/find",      ocProxy)
-app.all("/find/*",    ocProxy)
-app.all("/file",      ocProxy)
-app.all("/file/*",    ocProxy)
-app.all("/config",    ocProxy)
-app.all("/config/*",  ocProxy)
-app.all("/agent",     ocProxy)
-app.all("/provider",  ocProxy)
-app.all("/provider/*",ocProxy)
-app.all("/auth/*",    ocProxy)
-app.all("/doc",       ocProxy)
+// Proxy all OpenCode API routes under /oc/* (strips prefix before forwarding)
+const OC_PREFIX = "/oc"
+app.all(`${OC_PREFIX}/*`, proxy(`http://127.0.0.1:${OPENCODE_PORT}`, OC_PREFIX))
 
-// Static frontend
+// Static frontend (serves files, falls through if not found)
 app.use("/*", serveStatic({ root: "./static" }))
+app.use("/*", serveStatic({ root: "./static", path: "index.html" }))  // SPA fallback
 
 Bun.serve({ fetch: app.fetch, port: APP_PORT, idleTimeout: 255 })
 console.log(`VoxPilot running on http://0.0.0.0:${APP_PORT}`)
 ```
 
-#### 1.3 New `backend/src/proxy.ts` (~20 lines)
+#### 1.3 New `backend/src/proxy.ts` (~25 lines)
+
+Strips an optional path prefix before forwarding. Handles REST and SSE (streaming
+`ReadableStream` bodies pass through). Does **not** handle WebSocket upgrade —
+see Risk Mitigations for details.
 
 ```ts
 import type { Context } from "hono"
 
-export function proxy(target: string) {
+export function proxy(target: string, stripPrefix?: string) {
   return async (c: Context) => {
     const url = new URL(c.req.url)
-    const proxiedUrl = `${target}${url.pathname}${url.search}`
+    let path = url.pathname
+    if (stripPrefix && path.startsWith(stripPrefix)) {
+      path = path.slice(stripPrefix.length) || "/"
+    }
+    const proxiedUrl = `${target}${path}${url.search}`
     const resp = await fetch(proxiedUrl, {
       method: c.req.method,
       headers: c.req.raw.headers,
@@ -193,8 +183,8 @@ Remove path aliases to deleted modules. Ensure `@opencode-ai/sdk` resolves.
 #### 1.6 Verify
 
 - `cd backend && bun run src/index.ts` starts without errors
-- `curl http://localhost:8000/global/health` returns `{ healthy: true }`
-- `curl http://localhost:8000/session` returns `[]`
+- `curl http://localhost:8000/oc/global/health` returns `{ healthy: true }`
+- `curl http://localhost:8000/oc/session` returns `[]`
 
 ---
 
@@ -226,15 +216,7 @@ Remove the `@backend` alias. Add dev proxy:
 ```ts
 server: {
   proxy: {
-    "/session": "http://localhost:8000",
-    "/event": "http://localhost:8000",
-    "/global": "http://localhost:8000",
-    "/find": "http://localhost:8000",
-    "/file": "http://localhost:8000",
-    "/config": "http://localhost:8000",
-    "/agent": "http://localhost:8000",
-    "/provider": "http://localhost:8000",
-    "/auth": "http://localhost:8000",
+    "/oc": "http://localhost:8000",
     "/api": "http://localhost:8000",
   }
 }
@@ -249,7 +231,7 @@ import { createOpencodeClient } from "@opencode-ai/sdk"
 import type { Session, Message, Part } from "@opencode-ai/sdk"
 
 export const client = createOpencodeClient({
-  baseUrl: window.location.origin,
+  baseUrl: `${window.location.origin}/oc`,
 })
 
 export async function fetchSessions(): Promise<Session[]> {
@@ -779,3 +761,4 @@ backend/
 | `prettier` doesn't support a language | `tryFormat()` falls back to unformatted content gracefully |
 | OpenCode's `FileDiff` doesn't include a file the agent edited | `FileDiff` is per-session cumulative; fallback to showing tool output text |
 | Mobile performance with client-side markdown | `markdown-it` is ~30KB gzipped, renders fast; monitor and lazy-load if needed |
+| WebSocket proxy for PTY | The `fetch()`-based proxy cannot handle WebSocket upgrade (protocol error on data exchange). PTY is only used for OpenCode's built-in terminal — not needed for chat. If an in-browser terminal is added later, use Bun's native `server.upgrade()` + `websocket` handler for the `/oc/pty/*/connect` route only. |
