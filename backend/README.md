@@ -1,11 +1,21 @@
-To install dependencies:
+# VoxPilot Backend
+
+Hono + Bun backend that proxies the OpenCode SDK and serves the review diff API.
+
+## Setup
+
 ```sh
 bun install
 ```
 
-To run:
+## Development
+
 ```sh
-bun run dev
+bun run --hot src/index.ts
 ```
 
-open http://localhost:3000
+## Tests
+
+```sh
+bun test
+```
