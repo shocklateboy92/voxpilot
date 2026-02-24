@@ -2,13 +2,13 @@
  * Renders a completed message from history.
  */
 
-import { For, Show } from "solid-js"
-import type { MessageWithParts } from "../store"
-import type { TextPart, ToolPart } from "@opencode-ai/sdk/client"
-import { renderMarkdown } from "../markdown"
+import type { TextPart, ToolPart } from "@opencode-ai/sdk/client";
+import { For, Show } from "solid-js";
+import { renderMarkdown } from "../markdown";
+import type { MessageWithParts } from "../store";
 
 interface Props {
-  msg: MessageWithParts
+  msg: MessageWithParts;
 }
 
 export function MessageBubble(props: Props) {
@@ -16,12 +16,12 @@ export function MessageBubble(props: Props) {
     props.msg.parts
       .filter((p): p is TextPart => p.type === "text")
       .map((p) => p.text)
-      .join("")
+      .join("");
 
   const toolParts = () =>
-    props.msg.parts.filter((p): p is ToolPart => p.type === "tool")
+    props.msg.parts.filter((p): p is ToolPart => p.type === "tool");
 
-  const role = () => props.msg.info.role
+  const role = () => props.msg.info.role;
 
   return (
     <div class={`message ${role()}`}>
@@ -31,32 +31,30 @@ export function MessageBubble(props: Props) {
       <Show when={role() === "user" && textContent()}>
         <p>{textContent()}</p>
       </Show>
-      <For each={toolParts()}>
-        {(part) => <ToolPartBlock part={part} />}
-      </For>
+      <For each={toolParts()}>{(part) => <ToolPartBlock part={part} />}</For>
     </div>
-  )
+  );
 }
 
 function ToolPartBlock(props: { part: ToolPart }) {
   const inputText = () => {
     try {
-      return JSON.stringify(props.part.state.input, null, 2)
+      return JSON.stringify(props.part.state.input, null, 2);
     } catch {
-      return String(props.part.state.input)
+      return String(props.part.state.input);
     }
-  }
+  };
 
-  const isCompleted = () => props.part.state.status === "completed"
-  const isError = () => props.part.state.status === "error"
-  const isRunning = () => props.part.state.status === "running"
+  const isCompleted = () => props.part.state.status === "completed";
+  const isError = () => props.part.state.status === "error";
+  const isRunning = () => props.part.state.status === "running";
 
   const output = () => {
-    const s = props.part.state
-    if (s.status === "completed") return s.output
-    if (s.status === "error") return s.error
-    return undefined
-  }
+    const s = props.part.state;
+    if (s.status === "completed") return s.output;
+    if (s.status === "error") return s.error;
+    return undefined;
+  };
 
   return (
     <details class="tool-block" open={isRunning()}>
@@ -75,5 +73,5 @@ function ToolPartBlock(props: { part: ToolPart }) {
         )}
       </Show>
     </details>
-  )
+  );
 }
