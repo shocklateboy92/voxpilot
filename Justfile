@@ -11,15 +11,11 @@ install:
 
 # Run backend dev server
 dev-backend:
-    BUN_CONFIG_VERBOSE_FETCH=1 VOXPILOT_DB_PATH=${VOXPILOT_DB_PATH:-backend/voxpilot.db} bun run --inspect --hot backend/src/index.ts
+    cd backend && bun run --hot src/index.ts
 
 # Run frontend dev server
 dev-frontend:
     cd frontend && npm run dev
-
-# Generate a new Drizzle migration after schema changes
-db-generate:
-    cd backend && bunx drizzle-kit generate
 
 # Run backend tests
 test:
@@ -27,7 +23,7 @@ test:
 
 # Lint everything
 lint:
-    bunx @biomejs/biome check backend/src backend/tests
+    cd backend && bunx @biomejs/biome check src tests
     cd frontend && npx tsc --noEmit
 
 # Type check everything
@@ -37,7 +33,7 @@ typecheck:
 
 # Format backend code
 format:
-    bunx @biomejs/biome check --write backend/src backend/tests
+    cd backend && bunx @biomejs/biome check --write src tests
 
 # Build frontend for production
 build:
@@ -45,13 +41,12 @@ build:
 
 # Build frontend and copy to backend static dir
 build-static: build
-    mkdir -p backend/static
+    rm -rf backend/static/assets
     cp -r frontend/dist/* backend/static/
 
 # Clean build artifacts
 clean:
-    cd frontend && npm run clean
-    find backend -type d -name node_modules -prune -o -name '*.tsbuildinfo' -print -exec rm {} +
+    rm -rf frontend/dist backend/tsconfig.tsbuildinfo
 
 # Run everything (install, lint, typecheck, test)
 check: install lint typecheck test
