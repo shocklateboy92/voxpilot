@@ -4,19 +4,11 @@
     "dev": "bun run --hot src/index.ts"
   },
   "dependencies": {
-    "@agentclientprotocol/sdk": "^0.14.1",
-    "@hono/zod-validator": "^0.7.6",
-    "drizzle-orm": "^0.45.1",
-    "hono": "4.12.1",
-    "markdown-it": "^14.1.1",
-    "openai": "^6.22.0",
-    "zod": "^4.3.6",
-    "zod-config": "^1.4.0"
+    "@opencode-ai/sdk": "^1.2.10",
+    "hono": "4.12.1"
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/markdown-it": "^14.1.2",
-    "drizzle-kit": "^0.31.9",
     "typescript": "^5.9.3"
   }
 }

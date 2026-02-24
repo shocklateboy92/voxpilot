@@ -1,33 +1,61 @@
 /**
- * Artifact CRUD service.
+ * Artifact CRUD service — STUBBED for Phase 1.
  *
- * Manages review artifacts, file viewed toggles, comments,
- * and status transitions backed by Drizzle ORM.
+ * All Drizzle-backed implementations have been removed.  The type
+ * signatures are preserved so that routes/artifacts.ts (also stubbed)
+ * can still compile.  Phase 3 will reimplement this against the
+ * OpenCode session store.
  */
 
-import { asc, eq } from "drizzle-orm";
-import type { getDb } from "../db";
-import {
-  artifactFiles,
-  messages,
-  reviewArtifacts,
-  reviewComments,
-} from "../schema";
-import {
-  DiffDocument,
-  DiffFile,
-  ReviewComment,
-  type DiffHunk,
-} from "../schemas/diff-document";
-import type { ReviewArtifactEvent } from "../schemas/events";
+import type { DiffHunk } from "./diff-types";
 
-type Db = ReturnType<typeof getDb>;
+// ── Placeholder types (were Zod-inferred) ────────────────────────────────────
 
-function nowIso(): string {
-  return new Date().toISOString();
+export type ArtifactStatus = "pending" | "approved" | "changes_requested";
+
+export interface DiffDocumentLike {
+  id: string;
+  version: number;
+  sessionId: string;
+  toolName: string;
+  toolCallId: string;
+  commitRef: string | null;
+  title: string;
+  status: ArtifactStatus;
+  totalFiles: number;
+  totalAdditions: number;
+  totalDeletions: number;
+  createdAt: string;
 }
 
-// ── Create ───────────────────────────────────────────────────────────────────
+export interface DiffFileLike {
+  id: string;
+  artifactId: string;
+  path: string;
+  changeType: string;
+  oldPath: string | null;
+  additions: number;
+  deletions: number;
+  viewed: boolean;
+  html: string;
+  hunksJson: DiffHunk[];
+  fullTextAvailable: boolean;
+  fullTextLineCount: number | null;
+  fullTextContent: string | null;
+  fullTextHtml: string | null;
+}
+
+export interface ReviewCommentLike {
+  id: string;
+  artifactId: string;
+  fileId: string;
+  lineId: string | null;
+  lineNumber: number | null;
+  content: string;
+  createdAt: string;
+}
+
+// ── Inputs ───────────────────────────────────────────────────────────────────
 
 export interface CreateArtifactInput {
   id: string;
@@ -57,245 +85,75 @@ export interface CreateFileInput {
   fullTextHtml: string | null;
 }
 
+// ── Read result ──────────────────────────────────────────────────────────────
+
+export interface ArtifactDetail {
+  artifact: DiffDocumentLike;
+  files: DiffFileLike[];
+  comments: ReviewCommentLike[];
+}
+
+// ── Stub implementations (Phase 3) ──────────────────────────────────────────
+
+// TODO: Phase 3 — reimplement against OpenCode session store
+
 export async function createArtifact(
-  db: Db,
-  input: CreateArtifactInput,
+  _input: CreateArtifactInput,
 ): Promise<void> {
-  await db.insert(reviewArtifacts).values({
-    id: input.id,
-    version: 1,
-    sessionId: input.sessionId,
-    toolName: input.toolName,
-    toolCallId: input.toolCallId,
-    commitRef: input.commitRef,
-    title: input.title,
-    status: "pending",
-    totalFiles: input.totalFiles,
-    totalAdditions: input.totalAdditions,
-    totalDeletions: input.totalDeletions,
-    createdAt: nowIso(),
-  });
+  throw new Error("Not implemented — pending Phase 3");
 }
 
 export async function createArtifactFile(
-  db: Db,
-  input: CreateFileInput,
+  _input: CreateFileInput,
 ): Promise<void> {
-  await db.insert(artifactFiles).values({
-    id: input.id,
-    artifactId: input.artifactId,
-    path: input.path,
-    changeType: input.changeType,
-    oldPath: input.oldPath,
-    additions: input.additions,
-    deletions: input.deletions,
-    viewed: false,
-    html: input.html,
-    hunksJson: input.hunksJson,
-    fullTextAvailable: input.fullTextAvailable,
-    fullTextLineCount: input.fullTextLineCount,
-    fullTextContent: input.fullTextContent,
-    fullTextHtml: input.fullTextHtml,
-  });
-}
-
-// ── Read ─────────────────────────────────────────────────────────────────────
-
-export interface ArtifactDetail {
-  artifact: DiffDocument;
-  files: DiffFile[];
-  comments: ReviewComment[];
+  throw new Error("Not implemented — pending Phase 3");
 }
 
 export async function getArtifact(
-  db: Db,
-  artifactId: string,
+  _artifactId: string,
 ): Promise<ArtifactDetail | null> {
-  const rows = await db
-    .select()
-    .from(reviewArtifacts)
-    .where(eq(reviewArtifacts.id, artifactId));
-  const row = rows[0];
-  if (!row) return null;
-
-  const fileRows = await db
-    .select()
-    .from(artifactFiles)
-    .where(eq(artifactFiles.artifactId, artifactId));
-
-  const commentRows = await db
-    .select()
-    .from(reviewComments)
-    .where(eq(reviewComments.artifactId, artifactId))
-    .orderBy(asc(reviewComments.createdAt));
-
-  const artifact = DiffDocument.parse(row);
-
-  const files = fileRows.map((f) =>
-    DiffFile.parse({ ...f, hunksJson: f.hunksJson ?? [] }),
-  );
-
-  const comments = commentRows.map((c) => ReviewComment.parse(c));
-
-  return { artifact, files, comments };
+  throw new Error("Not implemented — pending Phase 3");
 }
-
-// ── Viewed toggle ────────────────────────────────────────────────────────────
 
 export async function setFileViewed(
-  db: Db,
-  fileId: string,
-  viewed: boolean,
+  _fileId: string,
+  _viewed: boolean,
 ): Promise<boolean> {
-  const updated = await db
-    .update(artifactFiles)
-    .set({ viewed })
-    .where(eq(artifactFiles.id, fileId))
-    .returning({ id: artifactFiles.id });
-  return updated.length > 0;
+  throw new Error("Not implemented — pending Phase 3");
 }
 
-// ── Comments ─────────────────────────────────────────────────────────────────
-
 export async function addComment(
-  db: Db,
-  artifactId: string,
-  fileId: string,
-  content: string,
-  lineId?: string | null,
-  lineNumber?: number | null,
-): Promise<ReviewComment> {
-  const id = crypto.randomUUID();
-  const now = nowIso();
-  await db.insert(reviewComments).values({
-    id,
-    artifactId,
-    fileId,
-    lineId: lineId ?? null,
-    lineNumber: lineNumber ?? null,
-    content,
-    createdAt: now,
-  });
-  return {
-    id,
-    artifactId,
-    fileId,
-    lineId: lineId ?? null,
-    lineNumber: lineNumber ?? null,
-    content,
-    createdAt: now,
-  };
+  _artifactId: string,
+  _fileId: string,
+  _content: string,
+  _lineId?: string | null,
+  _lineNumber?: number | null,
+): Promise<ReviewCommentLike> {
+  throw new Error("Not implemented — pending Phase 3");
 }
 
 export async function deleteComment(
-  db: Db,
-  commentId: string,
+  _commentId: string,
 ): Promise<boolean> {
-  const deleted = await db
-    .delete(reviewComments)
-    .where(eq(reviewComments.id, commentId))
-    .returning({ id: reviewComments.id });
-  return deleted.length > 0;
+  throw new Error("Not implemented — pending Phase 3");
 }
-
-// ── Status transitions ──────────────────────────────────────────────────────
 
 export async function updateArtifactStatus(
-  db: Db,
-  artifactId: string,
-  status: DiffDocument["status"],
+  _artifactId: string,
+  _status: ArtifactStatus,
 ): Promise<boolean> {
-  const updated = await db
-    .update(reviewArtifacts)
-    .set({ status })
-    .where(eq(reviewArtifacts.id, artifactId))
-    .returning({ id: reviewArtifacts.id });
-  return updated.length > 0;
+  throw new Error("Not implemented — pending Phase 3");
 }
-
-// ── Link artifact to message ─────────────────────────────────────────────────
-
-export async function linkArtifactToMessage(
-  db: Db,
-  toolCallId: string,
-  artifactId: string,
-): Promise<void> {
-  await db
-    .update(messages)
-    .set({ artifactId })
-    .where(eq(messages.toolCallId, toolCallId));
-}
-
-// ── Get file full text (lazy) ────────────────────────────────────────────────
 
 export async function getFileFullText(
-  db: Db,
-  fileId: string,
+  _fileId: string,
 ): Promise<{ content: string; lineCount: number } | null> {
-  const rows = await db
-    .select({
-      fullTextAvailable: artifactFiles.fullTextAvailable,
-      fullTextContent: artifactFiles.fullTextContent,
-      fullTextLineCount: artifactFiles.fullTextLineCount,
-    })
-    .from(artifactFiles)
-    .where(eq(artifactFiles.id, fileId));
-  const row = rows[0];
-  if (!row || !row.fullTextAvailable || row.fullTextContent === null) {
-    return null;
-  }
-  return {
-    content: row.fullTextContent,
-    lineCount: row.fullTextLineCount ?? 0,
-  };
-}
-
-// ── Get all comments for an artifact ─────────────────────────────────────────
-
-export async function getSessionArtifactSummaries(
-  db: Db,
-  sessionId: string,
-): Promise<ReviewArtifactEvent[]> {
-  const artRows = await db
-    .select()
-    .from(reviewArtifacts)
-    .where(eq(reviewArtifacts.sessionId, sessionId));
-
-  const results: ReviewArtifactEvent[] = [];
-  for (const row of artRows) {
-    const fileRows = await db
-      .select({
-        id: artifactFiles.id,
-        path: artifactFiles.path,
-        changeType: artifactFiles.changeType,
-        additions: artifactFiles.additions,
-        deletions: artifactFiles.deletions,
-        viewed: artifactFiles.viewed,
-      })
-      .from(artifactFiles)
-      .where(eq(artifactFiles.artifactId, row.id));
-
-    results.push({
-      artifactId: row.id,
-      title: row.title,
-      status: row.status,
-      totalFiles: row.totalFiles,
-      totalAdditions: row.totalAdditions,
-      totalDeletions: row.totalDeletions,
-      files: fileRows,
-    });
-  }
-  return results;
+  throw new Error("Not implemented — pending Phase 3");
 }
 
 export async function getArtifactComments(
-  db: Db,
-  artifactId: string,
-): Promise<ReviewComment[]> {
-  const rows = await db
-    .select()
-    .from(reviewComments)
-    .where(eq(reviewComments.artifactId, artifactId))
-    .orderBy(asc(reviewComments.createdAt));
-  return rows.map((c) => ReviewComment.parse(c));
+  _artifactId: string,
+): Promise<ReviewCommentLike[]> {
+  throw new Error("Not implemented — pending Phase 3");
 }
+
