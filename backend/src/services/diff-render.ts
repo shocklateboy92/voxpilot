@@ -30,7 +30,7 @@ function escapeHtml(text: string): string {
  */
 export function renderDiffFileHtml(
   fileId: string,
-  path: string,
+  _path: string,
   hunks: DiffHunk[],
 ): string {
   const parts: string[] = [];
@@ -89,7 +89,7 @@ function renderDiffLine(line: DiffLine): string {
  */
 export function renderFullFileHtml(
   fileId: string,
-  path: string,
+  _path: string,
   fullTextContent: string,
   hunks: DiffHunk[],
 ): string {

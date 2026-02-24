@@ -1,9 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import type { DiffHunk } from "../src/services/diff-types";
 import {
   renderDiffFileHtml,
   renderFullFileHtml,
 } from "../src/services/diff-render";
+import type { DiffHunk } from "../src/services/diff-types";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
