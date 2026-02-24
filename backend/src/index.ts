@@ -1,46 +1,32 @@
-import { Hono } from "hono";
-import { cors } from "hono/cors";
-import { config } from "./config";
-import { closeDb, getDb } from "./db";
-import { artifactRouter } from "./routes/artifacts";
-import { chatRouter } from "./routes/chat";
-import { healthRouter } from "./routes/health";
-import { sessionsRouter } from "./routes/sessions";
+import { Hono } from "hono"
+import { cors } from "hono/cors"
+import { serveStatic } from "hono/bun"
+import { proxy } from "./proxy"
 
-// Chain .route() calls so Hono's type system propagates route
-// definitions — required for the frontend hc<AppType>() RPC client.
-const appBase = new Hono();
-appBase.use(
-  "*",
-  cors({
-    origin: config.corsOrigins,
-    credentials: true,
-  }),
-);
-export const app = appBase
-  .route("/", healthRouter)
-  .route("/", sessionsRouter)
-  .route("/", chatRouter)
-  .route("/", artifactRouter);
+const OPENCODE_PORT = 4096
+const APP_PORT = Number(process.env.VOXPILOT_PORT ?? 8000)
 
-export type AppType = typeof app;
+// OpenCode will be started separately or in-proc — for now just proxy to it
+// TODO: when createOpencode() API is confirmed, start it in-proc
 
-// Initialize the db so any errors happen
-// before we start accepting requests.
-getDb();
+const app = new Hono()
+app.use("/*", cors({ origin: "*", credentials: true }))
 
-process.on("SIGINT", () => {
-  closeDb();
-  process.exit(0);
-});
+// Review routes (Phase 3)
+// app.route("/api/review", reviewRouter)
+
+// Proxy all OpenCode API routes under /oc/*
+const OC_PREFIX = "/oc"
+app.all(`${OC_PREFIX}/*`, proxy(`http://127.0.0.1:${OPENCODE_PORT}`, OC_PREFIX))
+
+// Static frontend
+app.use("/*", serveStatic({ root: "./static" }))
+app.use("/*", serveStatic({ root: "./static", path: "index.html" }))
 
 export default {
-  port: 8000,
+  port: APP_PORT,
   fetch: app.fetch,
-  idleTimeout: 255, // seconds — max value; keeps SSE connections alive
-  onListen(server: { hostname: string; port: number }) {
-    console.log(
-      `${config.appName} listening on http://${server.hostname}:${server.port} (debug=${String(config.debug)})`,
-    );
-  },
-};
+  idleTimeout: 255,
+}
+
+console.log(`VoxPilot running on http://0.0.0.0:${APP_PORT}`)
