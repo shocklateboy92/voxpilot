@@ -17,10 +17,10 @@ interface Props {
 export function QuestionBlock(props: Props) {
   // One answers array per question (each is an array of selected labels)
   const [answers, setAnswers] = createSignal<QuestionAnswer[]>(
-    props.request.questions.map(() => []),
+    Array(props.request.questions.length).fill([]),
   );
-  const [customInputs, setCustomInputs] = createSignal<string[]>(
-    props.request.questions.map(() => ""),
+  const [customInputs, setCustomInputs] = createSignal(
+    Array(props.request.questions.length).fill(""),
   );
 
   function toggleOption(qIndex: number, label: string): void {

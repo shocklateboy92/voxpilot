@@ -40,38 +40,36 @@ export async function fetchSessions(): Promise<Session[]> {
 }
 
 export async function createSession(title?: string): Promise<Session> {
-  const params: { title?: string } = {};
-  if (title !== undefined) {
-    params.title = title;
-  }
-  const result = await client.session.create(params);
+  const result = await client.session.create(
+    title !== undefined ? { title } : undefined,
+  );
   if (!result.data) throw new Error("Failed to create session");
   return result.data;
 }
 
-export async function deleteSession(id: string): Promise<void> {
-  await client.session.delete({ sessionID: id });
+export async function deleteSession(sessionID: string): Promise<void> {
+  await client.session.delete({ sessionID });
 }
 
 export async function fetchMessages(
-  sessionId: string,
+  sessionID: string,
 ): Promise<MessageWithParts[]> {
-  const result = await client.session.messages({ sessionID: sessionId });
+  const result = await client.session.messages({ sessionID });
   return (result.data ?? []) as MessageWithParts[];
 }
 
 export async function sendPromptAsync(
-  sessionId: string,
+  sessionID: string,
   text: string,
 ): Promise<void> {
   await client.session.promptAsync({
-    sessionID: sessionId,
+    sessionID,
     parts: [{ type: "text", text }],
   });
 }
 
-export async function abortSession(sessionId: string): Promise<void> {
-  await client.session.abort({ sessionID: sessionId });
+export async function abortSession(sessionID: string): Promise<void> {
+  await client.session.abort({ sessionID });
 }
 
 export async function respondToPermission(
@@ -92,7 +90,7 @@ export async function rejectQuestion(requestID: string): Promise<void> {
   await client.question.reject({ requestID });
 }
 
-export async function fetchSessionDiff(sessionId: string): Promise<FileDiff[]> {
-  const result = await client.session.diff({ sessionID: sessionId });
+export async function fetchSessionDiff(sessionID: string): Promise<FileDiff[]> {
+  const result = await client.session.diff({ sessionID });
   return (result.data ?? []) as FileDiff[];
 }
