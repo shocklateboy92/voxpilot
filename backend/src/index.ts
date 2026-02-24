@@ -1,11 +1,15 @@
+import { createOpencode } from "@opencode-ai/sdk";
 import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import { cors } from "hono/cors";
 import { proxy } from "./proxy";
 import { reviewRouter } from "./routes/review";
 
-const OPENCODE_PORT = 4096;
 const APP_PORT = Number(process.env.VOXPILOT_PORT ?? 8000);
+
+// Start OpenCode server in-process
+const { server: ocServer } = await createOpencode();
+console.log(`OpenCode server started at ${ocServer.url}`);
 
 const app = new Hono();
 app.use("/*", cors({ origin: "*", credentials: true }));
@@ -15,10 +19,7 @@ app.route("/api/review", reviewRouter);
 
 // Proxy all OpenCode API routes under /oc/*
 const OC_PREFIX = "/oc";
-app.all(
-  `${OC_PREFIX}/*`,
-  proxy(`http://127.0.0.1:${OPENCODE_PORT}`, OC_PREFIX),
-);
+app.all(`${OC_PREFIX}/*`, proxy(ocServer.url, OC_PREFIX));
 
 // Static frontend
 app.use("/*", serveStatic({ root: "./static" }));
