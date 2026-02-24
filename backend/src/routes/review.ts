@@ -1,4 +1,4 @@
-import type { OpencodeClient } from "@opencode-ai/sdk/client";
+import type { OpencodeClient } from "@opencode-ai/sdk/v2/client";
 import { Hono } from "hono";
 import { formatAndDiff } from "../services/format-diff";
 
@@ -25,7 +25,7 @@ export function createReviewRouter(client: OpencodeClient) {
     }
 
     const diffResult = await client.session.diff({
-      path: { id: body.sessionId },
+      sessionID: body.sessionId,
     });
     const fileDiff = (diffResult.data ?? []).find(
       (d) => d.file === body.filePath,

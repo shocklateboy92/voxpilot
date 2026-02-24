@@ -2,7 +2,7 @@
  * Tool call block for streaming tool parts.
  */
 
-import type { ToolPart } from "@opencode-ai/sdk/client";
+import type { ToolPart } from "@opencode-ai/sdk/v2/client";
 import { Show } from "solid-js";
 
 interface Props {

@@ -21,7 +21,7 @@ export function ToolConfirmBlock(props: Props) {
   return (
     <div class="tool-confirm">
       <div class="tool-confirm-header">
-        🔒 <strong>{props.permission.title}</strong> requires approval
+        🔒 <strong>{props.permission.permission}</strong> requires approval
       </div>
       <pre class="tool-confirm-args">{metadata()}</pre>
       <div class="tool-confirm-actions">

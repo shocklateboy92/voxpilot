@@ -21,6 +21,7 @@ import {
   setIsStreaming,
   setMessages,
   setPendingPermission,
+  setPendingQuestion,
   setSessions,
   setStreamingParts,
   setStreamingText,
@@ -142,7 +143,7 @@ function handleEvent(event: Event): void {
       break;
     }
 
-    case "permission.updated": {
+    case "permission.asked": {
       const perm = event.properties;
       if (perm.sessionID !== sid) return;
       setPendingPermission(perm);
@@ -151,6 +152,19 @@ function handleEvent(event: Event): void {
 
     case "permission.replied": {
       setPendingPermission(null);
+      break;
+    }
+
+    case "question.asked": {
+      const req = event.properties;
+      if (req.sessionID !== sid) return;
+      setPendingQuestion(req);
+      break;
+    }
+
+    case "question.replied":
+    case "question.rejected": {
+      setPendingQuestion(null);
       break;
     }
 
@@ -241,16 +255,13 @@ export async function sendUserMessage(content: string): Promise<boolean> {
  * Respond to a pending permission request.
  */
 export async function respondToConfirm(
-  permissionId: string,
-  response: "once" | "always" | "reject",
+  requestID: string,
+  reply: "once" | "always" | "reject",
 ): Promise<void> {
-  const sessionId = activeSessionId();
-  if (!sessionId) return;
-
   setPendingPermission(null);
 
   try {
-    await respondToPermission(sessionId, permissionId, response);
+    await respondToPermission(requestID, reply);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     setErrorMessage(`Permission error: ${msg}`);

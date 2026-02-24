@@ -2,7 +2,7 @@
  * Changeset card — shows file diffs summary for a session.
  */
 
-import type { FileDiff } from "@opencode-ai/sdk/client";
+import type { FileDiff } from "@opencode-ai/sdk/v2/client";
 import { createResource, createSignal, For, Show } from "solid-js";
 import { fetchSessionDiff } from "../api-client";
 import { getFileState } from "../review-state";

@@ -2,7 +2,7 @@
  * OpenCode event stream subscription.
  */
 
-import type { Event } from "@opencode-ai/sdk/client";
+import type { Event } from "@opencode-ai/sdk/v2/client";
 import { client } from "./api-client";
 
 export type { Event };

@@ -2,7 +2,7 @@
  * Renders a completed message from history.
  */
 
-import type { TextPart, ToolPart } from "@opencode-ai/sdk/client";
+import type { TextPart, ToolPart } from "@opencode-ai/sdk/v2/client";
 import { For, Show } from "solid-js";
 import { renderMarkdown } from "../markdown";
 import type { MessageWithParts } from "../store";
