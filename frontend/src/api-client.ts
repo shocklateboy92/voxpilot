@@ -40,9 +40,7 @@ export async function fetchSessions(): Promise<Session[]> {
 }
 
 export async function createSession(title?: string): Promise<Session> {
-  const result = await client.session.create(
-    title !== undefined ? { title } : undefined,
-  );
+  const result = await client.session.create({ title });
   if (!result.data) throw new Error("Failed to create session");
   return result.data;
 }
