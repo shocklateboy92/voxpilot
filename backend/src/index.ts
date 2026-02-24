@@ -3,19 +3,19 @@ import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import { cors } from "hono/cors";
 import { proxy } from "./proxy";
-import { reviewRouter } from "./routes/review";
+import { createReviewRouter } from "./routes/review";
 
 const APP_PORT = Number(process.env.VOXPILOT_PORT ?? 8000);
 
 // Start OpenCode server in-process
-const { server: ocServer } = await createOpencode();
+const { client: ocClient, server: ocServer } = await createOpencode();
 console.log(`OpenCode server started at ${ocServer.url}`);
 
 const app = new Hono();
 app.use("/*", cors({ origin: "*", credentials: true }));
 
 // Review routes
-app.route("/api/review", reviewRouter);
+app.route("/api/review", createReviewRouter(ocClient));
 
 // Proxy all OpenCode API routes under /oc/*
 const OC_PREFIX = "/oc";
@@ -30,8 +30,6 @@ export default {
   fetch: app.fetch,
   idleTimeout: 255,
   onListen(server: { hostname: string; port: number }) {
-    console.log(
-      `VoxPilot running on http://${server.hostname}:${server.port}`,
-    );
+    console.log(`VoxPilot running on http://${server.hostname}:${server.port}`);
   },
 };
