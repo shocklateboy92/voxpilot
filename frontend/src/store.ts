@@ -37,8 +37,23 @@ let nextToastId = 0;
 /** All sessions, most-recently-updated first. */
 export const [sessions, setSessions] = createSignal<Session[]>([]);
 
-/** Index into sessions() for the currently active session. */
-export const [activeIndex, setActiveIndex] = createSignal(0);
+/**
+ * Reactive version counter — bumped whenever the active session changes.
+ * Used to make activeSessionId() reactive despite reading from the URL hash.
+ */
+const [hashVersion, setHashVersion] = createSignal(0);
+
+/** Bump the hash version to notify reactive consumers. */
+export function notifySessionChanged(): void {
+  setHashVersion((v) => v + 1);
+}
+
+/** ID of the currently active session, read from the URL hash. */
+export const activeSessionId = (): string | undefined => {
+  hashVersion(); // subscribe to changes
+  const hash = window.location.hash.slice(1);
+  return hash || undefined;
+};
 
 /** Messages for the active session (history). */
 export const [messages, setMessages] = createSignal<MessageWithParts[]>([]);
@@ -101,7 +116,20 @@ export function extractErrorMessage(err: unknown): string {
 // ── Derived ──────────────────────────────────────────────────────
 
 /** The currently active session summary, or undefined. */
-export const activeSession = () => sessions()[activeIndex()];
+export const activeSession = () => {
+  const id = activeSessionId();
+  return sessions().find((s) => s.id === id);
+};
 
-/** ID of the active session, or undefined. */
-export const activeSessionId = () => activeSession()?.id;
+/** Top-level (root) sessions only — sessions without a parentID. */
+export const rootSessions = () => {
+  return sessions().filter((s) => !s.parentID);
+};
+
+/** Index of the active session within rootSessions(), or -1 if it's a child. */
+export const activeRootIndex = () => {
+  const id = activeSessionId();
+  if (!id) return 0;
+  const idx = rootSessions().findIndex((s) => s.id === id);
+  return idx >= 0 ? idx : -1;
+};

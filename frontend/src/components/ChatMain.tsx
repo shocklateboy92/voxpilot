@@ -14,13 +14,13 @@ import {
 import { attachSwipeHandler } from "../gestures";
 import { navigateNext, navigatePrev } from "../sessions";
 import {
-  activeIndex,
+  activeRootIndex,
   errorMessage,
   isStreaming,
   messages,
   pendingPermission,
   pendingQuestion,
-  sessions,
+  rootSessions,
   setSwipeOffset,
   streamingParts,
   streamingText,
@@ -89,14 +89,17 @@ export function ChatMain() {
         setSwipeOffset(damped);
       },
       onSwipeLeft() {
-        if (activeIndex() < sessions().length - 1) {
+        if (
+          activeRootIndex() >= 0 &&
+          activeRootIndex() < rootSessions().length - 1
+        ) {
           pendingNav = navigateNext;
         }
         setAnimateSnap(true);
         setSwipeOffset(0);
       },
       onSwipeRight() {
-        if (activeIndex() > 0) {
+        if (activeRootIndex() > 0) {
           pendingNav = navigatePrev;
         }
         setAnimateSnap(true);
@@ -123,11 +126,15 @@ export function ChatMain() {
 
   const showLeftArrow = () => {
     const off = swipeOffset();
-    return off > 0 && activeIndex() > 0;
+    return off > 0 && activeRootIndex() > 0;
   };
   const showRightArrow = () => {
     const off = swipeOffset();
-    return off < 0 && activeIndex() < sessions().length - 1;
+    return (
+      off < 0 &&
+      activeRootIndex() >= 0 &&
+      activeRootIndex() < rootSessions().length - 1
+    );
   };
   const arrowOpacity = () => Math.min(Math.abs(swipeOffset()) / 60, 1);
 

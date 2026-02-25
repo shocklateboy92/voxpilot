@@ -7,9 +7,11 @@
 
 import { createSession, deleteSession, fetchSessions } from "./api-client";
 import {
-  activeIndex,
+  activeRootIndex,
+  activeSessionId,
+  notifySessionChanged,
+  rootSessions,
   sessions,
-  setActiveIndex,
   setErrorMessage,
   setIsStreaming,
   setPendingPermission,
@@ -19,6 +21,20 @@ import {
   setStreamingText,
 } from "./store";
 import { openStream } from "./streaming";
+
+// ── URL hash helpers ──────────────────────────────────────────────
+
+/** Read session ID from the URL hash (e.g. "#abc123" → "abc123"). */
+export function sessionIdFromHash(): string | undefined {
+  const hash = window.location.hash.slice(1);
+  return hash || undefined;
+}
+
+/** Write session ID to the URL hash without triggering navigation. */
+function setSessionHash(sessionId: string): void {
+  history.replaceState(null, "", `#${sessionId}`);
+  notifySessionChanged();
+}
 
 /**
  * Switch to the session at the given index.
@@ -31,39 +47,47 @@ export function switchToIndex(index: number): void {
   const session = list[index];
   if (!session) return;
 
-  setActiveIndex(index);
+  switchToSession(session.id);
+}
+
+/**
+ * Switch to a session by ID.
+ * Updates the URL hash, resets streaming state, and opens the event stream.
+ */
+export function switchToSession(sessionId: string): void {
+  if (activeSessionId() === sessionId) return;
+
+  setSessionHash(sessionId);
   setStreamingText(null);
   setStreamingParts([]);
   setIsStreaming(false);
   setErrorMessage(null);
   setPendingPermission(null);
 
-  openStream(session.id);
+  openStream(sessionId);
 }
 
-/**
- * Switch to a session by ID.
- */
-export function switchToSession(sessionId: string): void {
-  const index = sessions().findIndex((s) => s.id === sessionId);
-  if (index >= 0) {
-    switchToIndex(index);
-  }
-}
-
-/** Navigate to the next session (if any). */
+/** Navigate to the next root session (if any). */
 export function navigateNext(): void {
-  const next = activeIndex() + 1;
-  if (next < sessions().length) {
-    switchToIndex(next);
+  const roots = rootSessions();
+  const idx = activeRootIndex();
+  if (idx < 0) return;
+  const next = idx + 1;
+  if (next < roots.length) {
+    const target = roots[next];
+    if (target) switchToSession(target.id);
   }
 }
 
-/** Navigate to the previous session (if any). */
+/** Navigate to the previous root session (if any). */
 export function navigatePrev(): void {
-  const prev = activeIndex() - 1;
+  const roots = rootSessions();
+  const idx = activeRootIndex();
+  if (idx < 0) return;
+  const prev = idx - 1;
   if (prev >= 0) {
-    switchToIndex(prev);
+    const target = roots[prev];
+    if (target) switchToSession(target.id);
   }
 }
 
@@ -72,8 +96,7 @@ export async function handleNewSession(): Promise<void> {
   const session = await createSession();
   const list = await fetchSessions();
   setSessions(list);
-  const index = list.findIndex((s) => s.id === session.id);
-  switchToIndex(index >= 0 ? index : 0);
+  switchToSession(session.id);
 }
 
 /** Delete a session and adjust navigation. */
@@ -88,10 +111,15 @@ export async function handleDeleteSession(sessionId: string): Promise<void> {
 
   setSessions(list);
 
-  const currentId = sessions()[activeIndex()]?.id;
-  if (currentId === sessionId || !currentId) {
-    const newIndex = Math.min(activeIndex(), list.length - 1);
-    switchToIndex(Math.max(newIndex, 0));
+  // If we deleted the active session, switch to the nearest one
+  const currentId = activeSessionId();
+  if (currentId === sessionId || !list.some((s) => s.id === currentId)) {
+    const oldIdx = list.findIndex((s) => s.id === currentId);
+    const newIdx = Math.min(Math.max(oldIdx, 0), list.length - 1);
+    const target = list[newIdx];
+    if (target) {
+      switchToSession(target.id);
+    }
   }
 
   setPickerOpen(false);
@@ -99,7 +127,9 @@ export async function handleDeleteSession(sessionId: string): Promise<void> {
 
 /**
  * Initialize sessions on login.
- * Fetches the session list, creates one if empty, and switches to the first.
+ * Fetches the session list, creates one if empty.
+ * Restores the previously selected session from the URL hash,
+ * or falls back to the first session.
  */
 export async function initSessions(): Promise<void> {
   let list = await fetchSessions();
@@ -108,5 +138,9 @@ export async function initSessions(): Promise<void> {
     list = [fresh];
   }
   setSessions(list);
-  switchToIndex(0);
+
+  const hashId = sessionIdFromHash();
+  const target =
+    hashId && list.some((s) => s.id === hashId) ? hashId : list[0]!.id;
+  switchToSession(target);
 }
