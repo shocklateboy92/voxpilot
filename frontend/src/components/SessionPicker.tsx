@@ -70,7 +70,11 @@ export function SessionPicker() {
                 const session = () => sessions()[entry.originalIndex];
                 return (
                   <div
-                    class={`picker-item${session()?.id === activeSessionId() ? " active" : ""}${entry.isChild ? " child" : ""}`}
+                    class="picker-item"
+                    classList={{
+                      active: session()?.id === activeSessionId(),
+                      child: entry.isChild,
+                    }}
                     onClick={() => {
                       const id = session()?.id;
                       if (id) selectSession(id);

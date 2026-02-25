@@ -7,12 +7,11 @@
 
 import { createSession, deleteSession, fetchSessions } from "./api-client";
 import {
-  activeIndex,
   activeRootIndex,
   activeSessionId,
+  notifySessionChanged,
   rootSessions,
   sessions,
-  setActiveSessionId,
   setErrorMessage,
   setIsStreaming,
   setPendingPermission,
@@ -26,14 +25,15 @@ import { openStream } from "./streaming";
 // ── URL hash helpers ──────────────────────────────────────────────
 
 /** Read session ID from the URL hash (e.g. "#abc123" → "abc123"). */
-export function getSessionIdFromHash(): string | undefined {
+export function sessionIdFromHash(): string | undefined {
   const hash = window.location.hash.slice(1);
   return hash || undefined;
 }
 
 /** Write session ID to the URL hash without triggering navigation. */
-function setHashSessionId(sessionId: string): void {
+function setSessionHash(sessionId: string): void {
   history.replaceState(null, "", `#${sessionId}`);
+  notifySessionChanged();
 }
 
 /**
@@ -57,8 +57,7 @@ export function switchToIndex(index: number): void {
 export function switchToSession(sessionId: string): void {
   if (activeSessionId() === sessionId) return;
 
-  setActiveSessionId(sessionId);
-  setHashSessionId(sessionId);
+  setSessionHash(sessionId);
   setStreamingText(null);
   setStreamingParts([]);
   setIsStreaming(false);
@@ -115,9 +114,9 @@ export async function handleDeleteSession(sessionId: string): Promise<void> {
   // If we deleted the active session, switch to the nearest one
   const currentId = activeSessionId();
   if (currentId === sessionId || !list.some((s) => s.id === currentId)) {
-    const oldIdx = activeIndex();
-    const newIdx = Math.min(oldIdx, list.length - 1);
-    const target = list[Math.max(newIdx, 0)];
+    const oldIdx = list.findIndex((s) => s.id === currentId);
+    const newIdx = Math.min(Math.max(oldIdx, 0), list.length - 1);
+    const target = list[newIdx];
     if (target) {
       switchToSession(target.id);
     }
@@ -140,7 +139,7 @@ export async function initSessions(): Promise<void> {
   }
   setSessions(list);
 
-  const hashId = getSessionIdFromHash();
+  const hashId = sessionIdFromHash();
   const target =
     hashId && list.some((s) => s.id === hashId) ? hashId : list[0]!.id;
   switchToSession(target);
