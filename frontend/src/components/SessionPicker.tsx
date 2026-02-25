@@ -10,9 +10,9 @@ import { createMemo, For, Show } from "solid-js";
 import {
   handleDeleteSession,
   handleNewSession,
-  switchToIndex,
+  switchToSession,
 } from "../sessions";
-import { activeIndex, pickerOpen, sessions, setPickerOpen } from "../store";
+import { activeSessionId, pickerOpen, sessions, setPickerOpen } from "../store";
 
 type GroupedEntry = {
   originalIndex: number;
@@ -20,8 +20,8 @@ type GroupedEntry = {
 };
 
 export function SessionPicker() {
-  function selectSession(index: number): void {
-    switchToIndex(index);
+  function selectSession(sessionId: string): void {
+    switchToSession(sessionId);
     setPickerOpen(false);
   }
 
@@ -70,8 +70,11 @@ export function SessionPicker() {
                 const session = () => sessions()[entry.originalIndex];
                 return (
                   <div
-                    class={`picker-item${entry.originalIndex === activeIndex() ? " active" : ""}${entry.isChild ? " child" : ""}`}
-                    onClick={() => selectSession(entry.originalIndex)}
+                    class={`picker-item${session()?.id === activeSessionId() ? " active" : ""}${entry.isChild ? " child" : ""}`}
+                    onClick={() => {
+                      const id = session()?.id;
+                      if (id) selectSession(id);
+                    }}
                   >
                     <span class="picker-item-title">
                       {session()?.title || "New chat"}

@@ -37,8 +37,18 @@ let nextToastId = 0;
 /** All sessions, most-recently-updated first. */
 export const [sessions, setSessions] = createSignal<Session[]>([]);
 
-/** Index into sessions() for the currently active session. */
-export const [activeIndex, setActiveIndex] = createSignal(0);
+/** ID of the currently active session (stored in URL hash). */
+export const [activeSessionId, setActiveSessionId] = createSignal<
+  string | undefined
+>(undefined);
+
+/** Derived index into sessions() for the currently active session. */
+export const activeIndex = () => {
+  const id = activeSessionId();
+  if (!id) return 0;
+  const idx = sessions().findIndex((s) => s.id === id);
+  return idx >= 0 ? idx : 0;
+};
 
 /** Messages for the active session (history). */
 export const [messages, setMessages] = createSignal<MessageWithParts[]>([]);
@@ -102,6 +112,3 @@ export function extractErrorMessage(err: unknown): string {
 
 /** The currently active session summary, or undefined. */
 export const activeSession = () => sessions()[activeIndex()];
-
-/** ID of the active session, or undefined. */
-export const activeSessionId = () => activeSession()?.id;
