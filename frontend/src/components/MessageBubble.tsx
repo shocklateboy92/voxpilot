@@ -34,14 +34,15 @@ export function MessageBubble(props: Props) {
     return !("time" in info && info.time.completed);
   };
 
-  const classes = () => {
-    const parts = ["message", role()];
-    if (isInProgress() && textContent()) parts.push("streaming");
-    return parts.join(" ");
-  };
-
   return (
-    <div class={classes()}>
+    <div
+      class="message"
+      classList={{
+        user: role() === "user",
+        assistant: role() === "assistant",
+        streaming: isInProgress() && !!textContent(),
+      }}
+    >
       <Show when={role() === "assistant" && textContent()}>
         <div class="markdown-body" innerHTML={renderMarkdown(textContent())} />
       </Show>

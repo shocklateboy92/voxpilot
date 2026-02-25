@@ -4,7 +4,7 @@
  */
 
 import type { ToolPart } from "@opencode-ai/sdk/v2/client";
-import { Show } from "solid-js";
+import { Match, Show, Switch } from "solid-js";
 
 interface Props {
   part: ToolPart;
@@ -19,11 +19,8 @@ export function ToolPartBlock(props: Props) {
     }
   };
 
-  const isPending = () => props.part.state.status === "pending";
-  const isRunning = () => props.part.state.status === "running";
-  const isCompleted = () => props.part.state.status === "completed";
-  const isError = () => props.part.state.status === "error";
-  const isActive = () => isPending() || isRunning();
+  const status = () => props.part.state.status;
+  const isActive = () => status() === "pending" || status() === "running";
 
   const output = () => {
     const s = props.part.state;
@@ -36,14 +33,21 @@ export function ToolPartBlock(props: Props) {
     <details class="tool-block" open={isActive()}>
       <summary class="tool-summary">
         ⚙ {props.part.tool}
-        {isActive() && <span class="tool-spinner"> ⏳</span>}
-        {isCompleted() && " ✓"}
-        {isError() && " ✗"}
+        <Switch>
+          <Match when={isActive()}>
+            <span class="tool-spinner"> ⏳</span>
+          </Match>
+          <Match when={status() === "completed"}> ✓</Match>
+          <Match when={status() === "error"}> ✗</Match>
+        </Switch>
       </summary>
       <div class="tool-arguments">{inputText()}</div>
       <Show when={output()}>
         {(text) => (
-          <div class={`tool-result${isError() ? " tool-error" : ""}`}>
+          <div
+            class="tool-result"
+            classList={{ "tool-error": status() === "error" }}
+          >
             <pre>{text()}</pre>
           </div>
         )}

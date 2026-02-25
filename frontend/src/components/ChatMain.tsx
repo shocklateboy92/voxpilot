@@ -47,8 +47,7 @@ export function ChatMain() {
 
   // Auto-scroll when messages change or streaming updates
   createEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-    messages.length; // track store array changes
+    void messages.length; // track store array changes
     errorMessage();
     pendingPermission();
     pendingQuestion();
