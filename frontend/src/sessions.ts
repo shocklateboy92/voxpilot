@@ -142,5 +142,12 @@ export async function initSessions(): Promise<void> {
   const hashId = sessionIdFromHash();
   const target =
     hashId && list.some((s) => s.id === hashId) ? hashId : list[0]!.id;
-  switchToSession(target);
+
+  // Always open the stream on init — bypass switchToSession's same-ID guard,
+  // which would skip openStream when the URL hash already matches (e.g. page reload).
+  setSessionHash(target);
+  setIsStreaming(false);
+  setErrorMessage(null);
+  setPendingPermission(null);
+  openStream(target);
 }
