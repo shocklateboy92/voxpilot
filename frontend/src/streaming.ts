@@ -7,6 +7,9 @@
 
 import {
   fetchMessages,
+  fetchPendingPermissions,
+  fetchPendingQuestions,
+  fetchSessionStatus,
   fetchSessions,
   respondToPermission,
   sendPromptAsync,
@@ -209,16 +212,52 @@ export function openStream(sessionId: string): void {
   setIsStreaming(false);
   setErrorMessage(null);
   setPendingPermission(null);
+  setPendingQuestion(null);
   pendingText = "";
 
   // Load existing messages
   void fetchMessages(sessionId).then(setMessages);
 
-  // Subscribe to global events
+  // Subscribe to global events (do this before polling so we don't miss events)
   void subscribeToEvents(handleEvent).catch((err: unknown) => {
     if (err instanceof Error && err.name === "AbortError") return;
     const msg = err instanceof Error ? err.message : "Event stream error";
     setErrorMessage(msg);
+  });
+
+  // Poll for pending state that may have been missed (permissions, questions, session status)
+  void Promise.all([
+    fetchPendingPermissions().catch((err: unknown) => {
+      console.warn("Failed to fetch pending permissions:", err);
+      return [] as Awaited<ReturnType<typeof fetchPendingPermissions>>;
+    }),
+    fetchPendingQuestions().catch((err: unknown) => {
+      console.warn("Failed to fetch pending questions:", err);
+      return [] as Awaited<ReturnType<typeof fetchPendingQuestions>>;
+    }),
+    fetchSessionStatus(sessionId).catch((err: unknown) => {
+      console.warn("Failed to fetch session status:", err);
+      return undefined;
+    }),
+  ]).then(([permissions, questions, status]) => {
+    // Only apply if we're still on the same session
+    if (currentSessionId !== sessionId) return;
+
+    const sessionPermission = permissions.find(
+      (p) => p.sessionID === sessionId,
+    );
+    if (sessionPermission) {
+      setPendingPermission(sessionPermission);
+    }
+
+    const sessionQuestion = questions.find((q) => q.sessionID === sessionId);
+    if (sessionQuestion) {
+      setPendingQuestion(sessionQuestion);
+    }
+
+    if (status?.type === "busy") {
+      setIsStreaming(true);
+    }
   });
 }
 

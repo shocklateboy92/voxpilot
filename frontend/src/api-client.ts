@@ -10,6 +10,7 @@ import type {
   QuestionAnswer,
   QuestionRequest,
   Session,
+  SessionStatus,
 } from "@opencode-ai/sdk/v2/client";
 import { createOpencodeClient } from "@opencode-ai/sdk/v2/client";
 
@@ -94,4 +95,22 @@ export async function rejectQuestion(requestID: string): Promise<void> {
 export async function fetchSessionDiff(sessionID: string): Promise<FileDiff[]> {
   const result = await client.session.diff({ sessionID });
   return (result.data ?? []) as FileDiff[];
+}
+
+export async function fetchPendingPermissions(): Promise<PermissionRequest[]> {
+  const result = await client.permission.list();
+  return (result.data ?? []) as PermissionRequest[];
+}
+
+export async function fetchPendingQuestions(): Promise<QuestionRequest[]> {
+  const result = await client.question.list();
+  return (result.data ?? []) as QuestionRequest[];
+}
+
+export async function fetchSessionStatus(
+  sessionID: string,
+): Promise<SessionStatus | undefined> {
+  const result = await client.session.status();
+  const statuses = result.data as Record<string, SessionStatus> | undefined;
+  return statuses?.[sessionID];
 }
