@@ -31,7 +31,7 @@ import { ToolConfirmBlock } from "./ToolConfirmBlock";
 export function ChatMain() {
   let messagesRef: HTMLDivElement | undefined;
   let scrollSentinel: HTMLDivElement | undefined;
-  let inputRef: HTMLInputElement | undefined;
+  let inputRef: HTMLTextAreaElement | undefined;
 
   const [animateSnap, setAnimateSnap] = createSignal(false);
   let pendingNav: (() => void) | null = null;
@@ -109,8 +109,25 @@ export function ChatMain() {
     if (!value || isStreaming()) return;
     if (inputRef) {
       inputRef.value = "";
+      inputRef.style.height = "auto";
     }
     void sendUserMessage(value);
+  }
+
+  function handleKeyDown(e: KeyboardEvent): void {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      const form = inputRef?.closest("form");
+      if (form) {
+        form.requestSubmit();
+      }
+    }
+  }
+
+  function handleAutoResize(): void {
+    if (!inputRef) return;
+    inputRef.style.height = "auto";
+    inputRef.style.height = `${inputRef.scrollHeight}px`;
   }
 
   const showLeftArrow = () => {
@@ -173,13 +190,15 @@ export function ChatMain() {
       </div>
 
       <form id="chat-form" onSubmit={handleSubmit}>
-        <input
+        <textarea
           ref={inputRef}
           id="chat-input"
-          type="text"
           placeholder="Send a message…"
           autocomplete="off"
           disabled={isStreaming()}
+          rows={1}
+          onKeyDown={handleKeyDown}
+          onInput={handleAutoResize}
         />
         <button type="submit" class="btn" disabled={isStreaming()}>
           Send
