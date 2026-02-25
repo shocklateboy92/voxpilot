@@ -8,7 +8,9 @@
 import { createSession, deleteSession, fetchSessions } from "./api-client";
 import {
   activeIndex,
+  activeRootIndex,
   activeSessionId,
+  rootSessions,
   sessions,
   setActiveSessionId,
   setErrorMessage,
@@ -66,19 +68,27 @@ export function switchToSession(sessionId: string): void {
   openStream(sessionId);
 }
 
-/** Navigate to the next session (if any). */
+/** Navigate to the next root session (if any). */
 export function navigateNext(): void {
-  const next = activeIndex() + 1;
-  if (next < sessions().length) {
-    switchToIndex(next);
+  const roots = rootSessions();
+  const idx = activeRootIndex();
+  if (idx < 0) return;
+  const next = idx + 1;
+  if (next < roots.length) {
+    const target = roots[next];
+    if (target) switchToSession(target.id);
   }
 }
 
-/** Navigate to the previous session (if any). */
+/** Navigate to the previous root session (if any). */
 export function navigatePrev(): void {
-  const prev = activeIndex() - 1;
+  const roots = rootSessions();
+  const idx = activeRootIndex();
+  if (idx < 0) return;
+  const prev = idx - 1;
   if (prev >= 0) {
-    switchToIndex(prev);
+    const target = roots[prev];
+    if (target) switchToSession(target.id);
   }
 }
 

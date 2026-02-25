@@ -112,3 +112,18 @@ export function extractErrorMessage(err: unknown): string {
 
 /** The currently active session summary, or undefined. */
 export const activeSession = () => sessions()[activeIndex()];
+
+/** Top-level (root) sessions only — sessions without a parent in the list. */
+export const rootSessions = () => {
+  const list = sessions();
+  const ids = new Set(list.map((s) => s.id));
+  return list.filter((s) => !s.parentID || !ids.has(s.parentID));
+};
+
+/** Index of the active session within rootSessions(), or -1 if it's a child. */
+export const activeRootIndex = () => {
+  const id = activeSessionId();
+  if (!id) return 0;
+  const idx = rootSessions().findIndex((s) => s.id === id);
+  return idx >= 0 ? idx : -1;
+};
