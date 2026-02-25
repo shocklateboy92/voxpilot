@@ -1,5 +1,6 @@
 /**
- * Tool call block for streaming tool parts.
+ * Unified tool part block — renders a tool call in any state:
+ * pending, running, completed, or error.
  */
 
 import type { ToolPart } from "@opencode-ai/sdk/v2/client";
@@ -9,7 +10,7 @@ interface Props {
   part: ToolPart;
 }
 
-export function ToolCallBlock(props: Props) {
+export function ToolPartBlock(props: Props) {
   const inputText = () => {
     try {
       return JSON.stringify(props.part.state.input, null, 2);
@@ -18,10 +19,11 @@ export function ToolCallBlock(props: Props) {
     }
   };
 
-  const isRunning = () =>
-    props.part.state.status === "running" ||
-    props.part.state.status === "pending";
+  const isPending = () => props.part.state.status === "pending";
+  const isRunning = () => props.part.state.status === "running";
+  const isCompleted = () => props.part.state.status === "completed";
   const isError = () => props.part.state.status === "error";
+  const isActive = () => isPending() || isRunning();
 
   const output = () => {
     const s = props.part.state;
@@ -31,10 +33,12 @@ export function ToolCallBlock(props: Props) {
   };
 
   return (
-    <details class="tool-block" open={isRunning()}>
+    <details class="tool-block" open={isActive()}>
       <summary class="tool-summary">
         ⚙ {props.part.tool}
-        {isRunning() && <span class="tool-spinner"> ⏳</span>}
+        {isActive() && <span class="tool-spinner"> ⏳</span>}
+        {isCompleted() && " ✓"}
+        {isError() && " ✗"}
       </summary>
       <div class="tool-arguments">{inputText()}</div>
       <Show when={output()}>

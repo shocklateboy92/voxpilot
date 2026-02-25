@@ -2,7 +2,6 @@
  * Main chat area — messages + input form.
  */
 
-import type { ToolPart } from "@opencode-ai/sdk/v2/client";
 import {
   createEffect,
   createSignal,
@@ -22,15 +21,11 @@ import {
   pendingQuestion,
   rootSessions,
   setSwipeOffset,
-  streamingParts,
-  streamingText,
   swipeOffset,
 } from "../store";
 import { sendUserMessage } from "../streaming";
 import { MessageBubble } from "./MessageBubble";
 import { QuestionBlock } from "./QuestionBlock";
-import { StreamingBubble } from "./StreamingBubble";
-import { ToolCallBlock } from "./ToolCallBlock";
 import { ToolConfirmBlock } from "./ToolConfirmBlock";
 
 export function ChatMain() {
@@ -50,15 +45,10 @@ export function ChatMain() {
     }
   }
 
-  // Derived: filter streaming parts to just tool parts
-  const streamingToolParts = () =>
-    streamingParts().filter((p): p is ToolPart => p.type === "tool");
-
-  // Auto-scroll when messages change or streaming text updates
+  // Auto-scroll when messages change or streaming updates
   createEffect(() => {
-    messages();
-    streamingText();
-    streamingParts();
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    messages.length; // track store array changes
     errorMessage();
     pendingPermission();
     pendingQuestion();
@@ -163,12 +153,7 @@ export function ChatMain() {
         }}
         onTransitionEnd={handleTransitionEnd}
       >
-        <For each={messages()}>{(msg) => <MessageBubble msg={msg} />}</For>
-
-        {/* Live streaming tool calls */}
-        <For each={streamingToolParts()}>
-          {(part) => <ToolCallBlock part={part} />}
-        </For>
+        <For each={messages}>{(msg) => <MessageBubble msg={msg} />}</For>
 
         {/* Permission prompt */}
         <Show when={pendingPermission()}>
@@ -178,11 +163,6 @@ export function ChatMain() {
         {/* Question prompt */}
         <Show when={pendingQuestion()}>
           {(req) => <QuestionBlock request={req()} />}
-        </Show>
-
-        {/* Live streaming text */}
-        <Show when={streamingText()}>
-          {(text) => <StreamingBubble text={text()} />}
         </Show>
 
         {/* Error display */}

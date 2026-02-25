@@ -1,10 +1,11 @@
 /**
  * rAF-batched OpenCode event streaming manager.
  *
- * Bridges the OpenCode global event stream to SolidJS signals with
+ * Bridges the OpenCode global event stream to SolidJS store with
  * requestAnimationFrame batching on the hot path (text parts).
  */
 
+import type { TextPart } from "@opencode-ai/sdk/v2/client";
 import {
   fetchMessages,
   fetchPendingPermissions,
@@ -19,29 +20,32 @@ import { subscribeToEvents, unsubscribeFromEvents } from "./sse";
 import {
   activeSessionId,
   type ContextUsage,
+  ensureAssistantMessage,
+  extractContextUsageFromMessages,
+  replaceMessages,
   setContextUsage,
   setErrorMessage,
   setIsStreaming,
-  setMessages,
   setPendingPermission,
   setPendingQuestion,
   setSessions,
-  setStreamingParts,
-  setStreamingText,
+  upsertPart,
 } from "./store";
 
-let pendingText = "";
+let pendingTextPart: TextPart | null = null;
 let rafId: number | null = null;
 let isRafLoopRunning = false;
 
-/** Start the rAF loop that flushes pendingText → signal once per frame. */
+/** Start the rAF loop that flushes pendingTextPart → store once per frame. */
 function startRafLoop(): void {
   if (isRafLoopRunning) return;
   isRafLoopRunning = true;
 
   const tick = (): void => {
     if (!isRafLoopRunning) return;
-    setStreamingText(pendingText);
+    if (pendingTextPart) {
+      upsertPart(pendingTextPart);
+    }
     rafId = requestAnimationFrame(tick);
   };
   rafId = requestAnimationFrame(tick);
@@ -73,11 +77,9 @@ function handleEvent(event: Event): void {
         // Assistant message started or completed
         if ("time" in msg && msg.time.completed) {
           // Message is complete — reload full messages
-          void fetchMessages(sid).then(setMessages);
+          void fetchMessages(sid).then(replaceMessages);
           stopRafLoop();
-          pendingText = "";
-          setStreamingText(null);
-          setStreamingParts([]);
+          pendingTextPart = null;
           setIsStreaming(false);
           setPendingPermission(null);
 
@@ -93,6 +95,8 @@ function handleEvent(event: Event): void {
             setContextUsage(usage);
           }
         } else {
+          // Ensure the in-progress message exists in the store
+          ensureAssistantMessage(msg.id, sid, msg);
           setIsStreaming(true);
         }
       }
@@ -105,25 +109,18 @@ function handleEvent(event: Event): void {
 
       switch (part.type) {
         case "text": {
-          // Hot path: accumulate text, rAF flushes to signal
+          // Hot path: accumulate text part, rAF flushes to store
+          ensureAssistantMessage(part.messageID, sid);
+          pendingTextPart = part;
           if (!isRafLoopRunning) {
-            pendingText = "";
             startRafLoop();
           }
-          pendingText = part.text;
           break;
         }
         case "tool": {
-          // Update streaming parts
-          setStreamingParts((prev) => {
-            const idx = prev.findIndex((p) => p.id === part.id);
-            if (idx >= 0) {
-              const next = [...prev];
-              next[idx] = part;
-              return next;
-            }
-            return [...prev, part];
-          });
+          // Upsert tool part into the message in the store
+          ensureAssistantMessage(part.messageID, sid);
+          upsertPart(part);
           break;
         }
         case "step-start": {
@@ -206,17 +203,19 @@ export function openStream(sessionId: string): void {
   closeStream();
 
   currentSessionId = sessionId;
-  setMessages([]);
-  setStreamingText(null);
-  setStreamingParts([]);
+  replaceMessages([]);
   setIsStreaming(false);
   setErrorMessage(null);
   setPendingPermission(null);
   setPendingQuestion(null);
-  pendingText = "";
+  pendingTextPart = null;
 
-  // Load existing messages
-  void fetchMessages(sessionId).then(setMessages);
+  // Load existing messages and extract context usage
+  void fetchMessages(sessionId).then((msgs) => {
+    replaceMessages(msgs);
+    const usage = extractContextUsageFromMessages(msgs);
+    if (usage) setContextUsage(usage);
+  });
 
   // Subscribe to global events (do this before polling so we don't miss events)
   void subscribeToEvents(handleEvent).catch((err: unknown) => {

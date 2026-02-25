@@ -1,11 +1,15 @@
 /**
- * Renders a completed message from history.
+ * Renders a message — both completed history and in-progress streaming.
+ *
+ * A message is considered "streaming" when it is an assistant message
+ * whose `time.completed` is not yet set.
  */
 
 import type { TextPart, ToolPart } from "@opencode-ai/sdk/v2/client";
 import { For, Show } from "solid-js";
 import { renderMarkdown } from "../markdown";
 import type { MessageWithParts } from "../store";
+import { ToolPartBlock } from "./ToolPartBlock";
 
 interface Props {
   msg: MessageWithParts;
@@ -23,8 +27,21 @@ export function MessageBubble(props: Props) {
 
   const role = () => props.msg.info.role;
 
+  /** Whether this message is still being streamed (assistant, not yet completed). */
+  const isInProgress = () => {
+    const info = props.msg.info;
+    if (info.role !== "assistant") return false;
+    return !("time" in info && info.time.completed);
+  };
+
+  const classes = () => {
+    const parts = ["message", role()];
+    if (isInProgress() && textContent()) parts.push("streaming");
+    return parts.join(" ");
+  };
+
   return (
-    <div class={`message ${role()}`}>
+    <div class={classes()}>
       <Show when={role() === "assistant" && textContent()}>
         <div class="markdown-body" innerHTML={renderMarkdown(textContent())} />
       </Show>
@@ -33,45 +50,5 @@ export function MessageBubble(props: Props) {
       </Show>
       <For each={toolParts()}>{(part) => <ToolPartBlock part={part} />}</For>
     </div>
-  );
-}
-
-function ToolPartBlock(props: { part: ToolPart }) {
-  const inputText = () => {
-    try {
-      return JSON.stringify(props.part.state.input, null, 2);
-    } catch {
-      return String(props.part.state.input);
-    }
-  };
-
-  const isCompleted = () => props.part.state.status === "completed";
-  const isError = () => props.part.state.status === "error";
-  const isRunning = () => props.part.state.status === "running";
-
-  const output = () => {
-    const s = props.part.state;
-    if (s.status === "completed") return s.output;
-    if (s.status === "error") return s.error;
-    return undefined;
-  };
-
-  return (
-    <details class="tool-block" open={isRunning()}>
-      <summary class="tool-summary">
-        ⚙ {props.part.tool}
-        {isRunning() && <span class="tool-spinner"> ⏳</span>}
-        {isCompleted() && " ✓"}
-        {isError() && " ✗"}
-      </summary>
-      <div class="tool-arguments">{inputText()}</div>
-      <Show when={output()}>
-        {(text) => (
-          <div class={`tool-result${isError() ? " tool-error" : ""}`}>
-            <pre>{text()}</pre>
-          </div>
-        )}
-      </Show>
-    </details>
   );
 }
