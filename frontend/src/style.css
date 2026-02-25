@@ -780,6 +780,7 @@ h1 {
   display: flex;
   flex-direction: column;
   padding-bottom: var(--safe-bottom);
+  text-align: left;
 }
 
 .picker-header {
@@ -831,6 +832,10 @@ h1 {
 .picker-item.active {
   background: var(--color-bg);
   border-left: 3px solid var(--color-accent);
+}
+
+.picker-item.child {
+  padding-left: 2.5rem;
 }
 
 .picker-item-title {
