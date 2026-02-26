@@ -8,7 +8,9 @@ import { createReviewRouter } from "./routes/review";
 const APP_PORT = Number(process.env.VOXPILOT_PORT ?? 8000);
 
 // Start OpenCode server in-process
-const { client: ocClient, server: ocServer } = await createOpencode();
+const { client: ocClient, server: ocServer } = await createOpencode({
+  hostname: "*",
+});
 console.log(`OpenCode server started at ${ocServer.url}`);
 
 const app = new Hono();
