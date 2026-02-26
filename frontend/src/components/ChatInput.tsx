@@ -60,8 +60,21 @@ export function ChatInput() {
         onKeyDown={handleKeyDown}
         onInput={handleAutoResize}
       />
-      <button type="submit" class="btn" disabled={isStreaming()}>
-        Send
+      <button
+        type="submit"
+        class="chat-send-btn"
+        disabled={isStreaming()}
+        aria-label="Send"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          width="18"
+          height="18"
+          aria-hidden="true"
+        >
+          <path d="M3.478 2.405a.75.75 0 0 0-.926.94l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.405z" />
+        </svg>
       </button>
     </form>
   );
