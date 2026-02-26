@@ -13,15 +13,16 @@ let abortController: AbortController | null = null;
 
 export async function subscribeToEvents(onEvent: EventCallback): Promise<void> {
   abortController = new AbortController();
+  const { signal } = abortController;
 
   try {
-    const result = await client.event.subscribe();
+    const result = await client.event.subscribe(undefined, { signal });
     for await (const event of result.stream) {
-      if (abortController.signal.aborted) break;
+      if (signal.aborted) break;
       onEvent(event as Event);
     }
   } catch (err: unknown) {
-    if (abortController?.signal.aborted) return;
+    if (signal.aborted) return;
     throw err;
   }
 }
