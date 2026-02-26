@@ -29,6 +29,7 @@ export interface DiffCacheEntry {
   to: string;
   resolvedFrom: string;
   resolvedTo: string;
+  repoRoot: string;
   path?: string;
   files: { file: string; additions: number; deletions: number }[];
   createdAt: number;
@@ -283,6 +284,7 @@ function createMcpServer(workDir: string) {
         to: toRef,
         resolvedFrom,
         resolvedTo,
+        repoRoot: repoCheck.root,
         path,
         files,
         createdAt: Date.now(),

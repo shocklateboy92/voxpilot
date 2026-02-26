@@ -18,6 +18,7 @@ interface DiffCacheEntry {
   to: string;
   resolvedFrom: string;
   resolvedTo: string;
+  repoRoot: string;
   path?: string;
   files: { file: string; additions: number; deletions: number }[];
 }
@@ -55,6 +56,7 @@ export function ChangesetCard(props: Props) {
     setReviewFile({
       from: c.resolvedFrom,
       to: c.resolvedTo,
+      repoRoot: c.repoRoot,
       filePath,
     });
   }

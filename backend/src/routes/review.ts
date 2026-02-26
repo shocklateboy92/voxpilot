@@ -105,6 +105,7 @@ export function createReviewRouter(client: OpencodeClient, workDir: string) {
       to: string;
       filePath: string;
       printWidth: number;
+      repoRoot?: string;
     };
 
     if (
@@ -119,8 +120,9 @@ export function createReviewRouter(client: OpencodeClient, workDir: string) {
       );
     }
 
-    const before = await getFileAtRef(body.from, body.filePath, workDir);
-    const after = await getFileAtRef(body.to, body.filePath, workDir);
+    const baseDir = body.repoRoot ?? workDir;
+    const before = await getFileAtRef(body.from, body.filePath, baseDir);
+    const after = await getFileAtRef(body.to, body.filePath, baseDir);
 
     const result = await formatAndDiff({
       before,

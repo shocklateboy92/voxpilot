@@ -15,6 +15,7 @@ import { createEffect, createSignal, onCleanup, Show } from "solid-js";
 export interface ReviewRequest {
   from: string;
   to: string;
+  repoRoot: string;
   filePath: string;
 }
 
@@ -45,6 +46,7 @@ export function ReviewOverlay() {
           to: req.to,
           filePath: req.filePath,
           printWidth,
+          repoRoot: req.repoRoot,
         }),
       });
 
