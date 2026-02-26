@@ -9,6 +9,13 @@ install:
     cd backend && bun install
     cd frontend && npm install
 
+# Run both frontend and backend dev servers
+dev:
+    trap 'kill 0' EXIT; \
+    (cd backend && bun run --hot src/index.ts) & \
+    (cd frontend && npm run dev) & \
+    wait
+
 # Run backend dev server
 dev-backend:
     cd backend && bun run --hot src/index.ts
