@@ -383,6 +383,7 @@ h1 {
 
 #chat-form {
   display: flex;
+  align-items: flex-end;
   gap: 0.5rem;
 }
 
@@ -396,6 +397,10 @@ h1 {
   font-family: var(--font-sans);
   font-size: 0.9rem;
   outline: none;
+  resize: none;
+  overflow-y: auto;
+  max-height: 10rem;
+  line-height: 1.4;
 }
 
 #chat-input:focus {
