@@ -114,3 +114,12 @@ export async function fetchSessionStatus(
   const statuses = result.data as Record<string, SessionStatus> | undefined;
   return statuses?.[sessionID];
 }
+
+export async function fetchGitBranch(): Promise<string | null> {
+  try {
+    const result = await client.vcs.get();
+    return result.data?.branch ?? null;
+  } catch {
+    return null;
+  }
+}

@@ -1,5 +1,5 @@
 /**
- * Main chat area — messages + input form.
+ * Main chat area — messages list with swipe gestures.
  */
 
 import {
@@ -15,7 +15,6 @@ import { navigateNext, navigatePrev } from "../sessions";
 import {
   activeRootIndex,
   errorMessage,
-  isStreaming,
   messages,
   pendingPermission,
   pendingQuestion,
@@ -23,7 +22,6 @@ import {
   setSwipeOffset,
   swipeOffset,
 } from "../store";
-import { sendUserMessage } from "../streaming";
 import { MessageBubble } from "./MessageBubble";
 import { QuestionBlock } from "./QuestionBlock";
 import { ToolConfirmBlock } from "./ToolConfirmBlock";
@@ -31,7 +29,6 @@ import { ToolConfirmBlock } from "./ToolConfirmBlock";
 export function ChatMain() {
   let messagesRef: HTMLDivElement | undefined;
   let scrollSentinel: HTMLDivElement | undefined;
-  let inputRef: HTMLTextAreaElement | undefined;
 
   const [animateSnap, setAnimateSnap] = createSignal(false);
   let pendingNav: (() => void) | null = null;
@@ -52,13 +49,6 @@ export function ChatMain() {
     pendingPermission();
     pendingQuestion();
     scrollSentinel?.scrollIntoView({ block: "end", behavior: "instant" });
-  });
-
-  // Focus input when streaming finishes
-  createEffect(() => {
-    if (!isStreaming()) {
-      inputRef?.focus();
-    }
   });
 
   // Swipe gesture handling
@@ -102,33 +92,6 @@ export function ChatMain() {
 
     onCleanup(cleanup);
   });
-
-  function handleSubmit(e: SubmitEvent): void {
-    e.preventDefault();
-    const value = inputRef?.value.trim();
-    if (!value || isStreaming()) return;
-    if (inputRef) {
-      inputRef.value = "";
-      inputRef.style.height = "auto";
-    }
-    void sendUserMessage(value);
-  }
-
-  function handleKeyDown(e: KeyboardEvent): void {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      const form = inputRef?.closest("form");
-      if (form) {
-        form.requestSubmit();
-      }
-    }
-  }
-
-  function handleAutoResize(): void {
-    if (!inputRef) return;
-    inputRef.style.height = "auto";
-    inputRef.style.height = `${inputRef.scrollHeight}px`;
-  }
 
   const showLeftArrow = () => {
     const off = swipeOffset();
@@ -188,22 +151,6 @@ export function ChatMain() {
 
         <div ref={scrollSentinel} class="scroll-sentinel" />
       </div>
-
-      <form id="chat-form" onSubmit={handleSubmit}>
-        <textarea
-          ref={inputRef}
-          id="chat-input"
-          placeholder="Send a message…"
-          autocomplete="off"
-          disabled={isStreaming()}
-          rows={1}
-          onKeyDown={handleKeyDown}
-          onInput={handleAutoResize}
-        />
-        <button type="submit" class="btn" disabled={isStreaming()}>
-          Send
-        </button>
-      </form>
     </div>
   );
 }

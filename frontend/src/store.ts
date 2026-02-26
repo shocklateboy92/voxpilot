@@ -205,6 +205,9 @@ export const [pendingQuestion, setPendingQuestion] =
 export const [contextUsage, setContextUsage] =
   createSignal<ContextUsage | null>(null);
 
+/** Current git branch name. */
+export const [gitBranch, setGitBranch] = createSignal<string | null>(null);
+
 /** Toast notifications. */
 export const [toasts, setToasts] = createSignal<Toast[]>([]);
 
