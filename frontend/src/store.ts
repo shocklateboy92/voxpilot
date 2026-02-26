@@ -1,12 +1,16 @@
 /**
- * Reactive store using SolidJS signals.
+ * Reactive store using SolidJS signals and stores.
  */
 
 import type {
+  AssistantMessage,
   PermissionRequest,
   QuestionRequest,
+  Part as SdkPart,
+  StepFinishPart,
 } from "@opencode-ai/sdk/v2/client";
 import { createSignal } from "solid-js";
+import { createStore, produce, reconcile } from "solid-js/store";
 import type { Message, MessageWithParts, Part, Session } from "./api-client";
 
 export type { Session, Message, Part, MessageWithParts };
@@ -22,6 +26,49 @@ export type ContextUsage = {
   cacheRead: number;
   cacheWrite: number;
 };
+
+/**
+ * Extract context usage from loaded messages.
+ * Looks at the last assistant message's tokens, or the last step-finish part.
+ */
+export function extractContextUsageFromMessages(
+  msgs: MessageWithParts[],
+): ContextUsage | null {
+  // Walk backwards to find the last assistant message
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    const msg = msgs[i]!;
+    if (msg.info.role !== "assistant") continue;
+
+    // First try step-finish parts (most granular, per-step)
+    for (let j = msg.parts.length - 1; j >= 0; j--) {
+      const part = msg.parts[j]!;
+      if (part.type === "step-finish") {
+        const sf = part as StepFinishPart;
+        return {
+          inputTokens: sf.tokens.input,
+          outputTokens: sf.tokens.output,
+          reasoningTokens: sf.tokens.reasoning,
+          cacheRead: sf.tokens.cache.read,
+          cacheWrite: sf.tokens.cache.write,
+        };
+      }
+    }
+
+    // Fall back to message-level tokens
+    const info = msg.info as AssistantMessage;
+    if (info.tokens) {
+      return {
+        inputTokens: info.tokens.input,
+        outputTokens: info.tokens.output,
+        reasoningTokens: info.tokens.reasoning,
+        cacheRead: info.tokens.cache.read,
+        cacheWrite: info.tokens.cache.write,
+      };
+    }
+  }
+
+  return null;
+}
 
 // ── Toast types ──────────────────────────────────────────────────
 
@@ -55,16 +102,82 @@ export const activeSessionId = (): string | undefined => {
   return hash || undefined;
 };
 
-/** Messages for the active session (history). */
-export const [messages, setMessages] = createSignal<MessageWithParts[]>([]);
+/** Messages for the active session — single source of truth for both history and streaming. */
+export const [messages, setMessages] = createStore<MessageWithParts[]>([]);
 
-/** Live parts being streamed for the current assistant message. */
-export const [streamingParts, setStreamingParts] = createSignal<Part[]>([]);
+/** Replace the entire messages array (used for history load and reconciliation). */
+export function replaceMessages(msgs: MessageWithParts[]): void {
+  setMessages(reconcile(msgs));
+}
 
-/** Accumulated text of the in-progress assistant response (null = not streaming text). */
-export const [streamingText, setStreamingText] = createSignal<string | null>(
-  null,
-);
+/**
+ * Ensure an in-progress assistant message exists in the store for the given messageID.
+ * If it doesn't exist, creates a placeholder entry so parts can be appended to it.
+ */
+export function ensureAssistantMessage(
+  messageID: string,
+  sessionID: string,
+  info?: AssistantMessage,
+): void {
+  const idx = messages.findIndex((m) => m.info.id === messageID);
+  if (idx >= 0) {
+    // Already exists — update its info if provided
+    if (info) {
+      setMessages(idx, "info", info);
+    }
+    return;
+  }
+
+  // Create a placeholder assistant message
+  const placeholder: MessageWithParts = {
+    info:
+      info ??
+      ({
+        id: messageID,
+        sessionID,
+        role: "assistant",
+        tokens: {
+          input: 0,
+          output: 0,
+          reasoning: 0,
+          cache: { read: 0, write: 0 },
+        },
+        cost: 0,
+        time: { created: Date.now() },
+      } as AssistantMessage),
+    parts: [],
+  };
+
+  setMessages(
+    produce((msgs) => {
+      msgs.push(placeholder);
+    }),
+  );
+}
+
+/**
+ * Upsert a part into the message it belongs to.
+ * If the part already exists (by ID), it is replaced; otherwise it is appended.
+ */
+export function upsertPart(part: SdkPart): void {
+  const msgIdx = messages.findIndex((m) => m.info.id === part.messageID);
+  if (msgIdx < 0) return;
+
+  const partIdx = messages[msgIdx]!.parts.findIndex((p) => p.id === part.id);
+  if (partIdx >= 0) {
+    // Replace existing part
+    setMessages(msgIdx, "parts", partIdx, reconcile(part));
+  } else {
+    // Append new part
+    setMessages(
+      msgIdx,
+      "parts",
+      produce((parts) => {
+        parts.push(part as Part);
+      }),
+    );
+  }
+}
 
 /** Whether we're waiting for an assistant response. */
 export const [isStreaming, setIsStreaming] = createSignal(false);

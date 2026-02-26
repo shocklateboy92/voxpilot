@@ -17,8 +17,6 @@ import {
   setPendingPermission,
   setPickerOpen,
   setSessions,
-  setStreamingParts,
-  setStreamingText,
 } from "./store";
 import { openStream } from "./streaming";
 
@@ -58,8 +56,6 @@ export function switchToSession(sessionId: string): void {
   if (activeSessionId() === sessionId) return;
 
   setSessionHash(sessionId);
-  setStreamingText(null);
-  setStreamingParts([]);
   setIsStreaming(false);
   setErrorMessage(null);
   setPendingPermission(null);
