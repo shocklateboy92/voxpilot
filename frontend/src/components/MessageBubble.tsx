@@ -9,6 +9,7 @@ import type { TextPart, ToolPart } from "@opencode-ai/sdk/v2/client";
 import { For, Show } from "solid-js";
 import { renderMarkdown } from "../markdown";
 import type { MessageWithParts } from "../store";
+import { ChangesetCard } from "./ChangesetCard";
 import { ToolPartBlock } from "./ToolPartBlock";
 
 interface Props {
@@ -49,7 +50,15 @@ export function MessageBubble(props: Props) {
       <Show when={role() === "user" && textContent()}>
         <p>{textContent()}</p>
       </Show>
-      <For each={toolParts()}>{(part) => <ToolPartBlock part={part} />}</For>
+      <For each={toolParts()}>
+        {(part) =>
+          part.tool === "voxpilot_show_diff" ? (
+            <ChangesetCard part={part} />
+          ) : (
+            <ToolPartBlock part={part} />
+          )
+        }
+      </For>
     </div>
   );
 }

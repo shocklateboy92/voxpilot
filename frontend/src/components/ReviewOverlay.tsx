@@ -1,44 +1,49 @@
 /**
- * Review overlay — fullscreen diff viewer.
+ * Review overlay — fullscreen diff viewer for git ref-based diffs.
  *
  * Flow:
- * 1. User taps a file in ChangesetCard -> overlay opens
- * 2. Measures container width -> calculates printWidth
- * 3. POST /api/review/format-diff -> gets formatted HTML
+ * 1. User clicks a file in ChangesetCard -> setReviewFile() called
+ * 2. Overlay opens, measures container width -> calculates printWidth
+ * 3. POST /api/review/ref-diff -> gets formatted HTML
  * 4. Renders HTML diff
- * 5. Viewed state stored in localStorage
+ * 5. Resize re-renders at correct width
  */
 
 import { createEffect, createSignal, onCleanup, Show } from "solid-js";
-import { markViewed } from "../review-state";
-import { activeSessionId } from "../store";
 
-// Shared state for what file is being reviewed (just the file path)
-export const [reviewFilePath, setReviewFilePath] = createSignal<string | null>(null);
+/** What the overlay needs to display a single file diff. */
+export interface ReviewRequest {
+  from: string;
+  to: string;
+  filePath: string;
+}
+
+// Shared signal — set by ChangesetCard, consumed by this overlay
+export const [reviewFile, setReviewFile] = createSignal<ReviewRequest | null>(
+  null,
+);
 
 export function ReviewOverlay() {
   const [diffHtml, setDiffHtml] = createSignal<string | null>(null);
   const [loading, setLoading] = createSignal(false);
   let containerRef: HTMLDivElement | undefined;
 
-  const CHAR_WIDTH = 7.2; // approximate monospace char width in px
+  const CHAR_WIDTH = 7.2;
 
-  async function loadDiff(filePath: string, width: number): Promise<void> {
+  async function loadDiff(req: ReviewRequest, width: number): Promise<void> {
     setLoading(true);
     setDiffHtml(null);
-
-    const sessionId = activeSessionId();
-    if (!sessionId) return;
 
     const printWidth = Math.max(40, Math.floor(width / CHAR_WIDTH));
 
     try {
-      const res = await fetch("/api/review/format-diff", {
+      const res = await fetch("/api/review/ref-diff", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          sessionId,
-          filePath,
+          from: req.from,
+          to: req.to,
+          filePath: req.filePath,
           printWidth,
         }),
       });
@@ -52,9 +57,6 @@ export function ReviewOverlay() {
 
       const data = (await res.json()) as { html: string };
       setDiffHtml(data.html);
-
-      // Mark as viewed
-      markViewed(sessionId, filePath);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       setDiffHtml(`<div class="error">Error: ${msg}</div>`);
@@ -65,22 +67,22 @@ export function ReviewOverlay() {
 
   // Load diff when file changes
   createEffect(() => {
-    const filePath = reviewFilePath();
-    if (!filePath || !containerRef) return;
-    void loadDiff(filePath, containerRef.clientWidth);
+    const req = reviewFile();
+    if (!req || !containerRef) return;
+    void loadDiff(req, containerRef.clientWidth);
   });
 
-  // Handle resize
+  // Re-fetch on resize
   createEffect(() => {
-    const filePath = reviewFilePath();
-    if (!filePath || !containerRef) return;
+    const req = reviewFile();
+    if (!req || !containerRef) return;
 
     let resizeTimer: ReturnType<typeof setTimeout> | undefined;
     const observer = new ResizeObserver(() => {
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => {
-        if (containerRef && filePath) {
-          void loadDiff(filePath, containerRef.clientWidth);
+        if (containerRef && req) {
+          void loadDiff(req, containerRef.clientWidth);
         }
       }, 500);
     });
@@ -90,13 +92,13 @@ export function ReviewOverlay() {
   });
 
   function close(): void {
-    setReviewFilePath(null);
+    setReviewFile(null);
     setDiffHtml(null);
   }
 
   return (
-    <Show when={reviewFilePath()}>
-      {(filePath) => (
+    <Show when={reviewFile()}>
+      {(req) => (
         <div class="review-overlay" onClick={close}>
           <div
             class="review-content"
@@ -104,7 +106,7 @@ export function ReviewOverlay() {
             onClick={(e) => e.stopPropagation()}
           >
             <div class="review-header">
-              <span class="review-file-path">{filePath()}</span>
+              <span class="review-file-path">{req().filePath}</span>
               <button class="review-close" onClick={close}>
                 {"\u2715"}
               </button>

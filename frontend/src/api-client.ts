@@ -3,7 +3,6 @@
  */
 
 import type {
-  FileDiff,
   Message,
   Part,
   PermissionRequest,
@@ -18,7 +17,6 @@ export type {
   Session,
   Message,
   Part,
-  FileDiff,
   PermissionRequest,
   QuestionRequest,
   QuestionAnswer,
@@ -90,11 +88,6 @@ export async function replyToQuestion(
 
 export async function rejectQuestion(requestID: string): Promise<void> {
   await client.question.reject({ requestID });
-}
-
-export async function fetchSessionDiff(sessionID: string): Promise<FileDiff[]> {
-  const result = await client.session.diff({ sessionID });
-  return (result.data ?? []) as FileDiff[];
 }
 
 export async function fetchPendingPermissions(): Promise<PermissionRequest[]> {

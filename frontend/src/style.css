@@ -1602,3 +1602,64 @@ h1 {
   text-align: left;
   font-size: 0.85rem;
 }
+
+/* ── Review overlay: missing class aliases ────────────────────────────────── */
+
+.review-file-path {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-close {
+  background: none;
+  border: none;
+  color: var(--color-muted);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.review-close:hover {
+  color: var(--color-text);
+}
+
+/* ── Changeset Card: new rules ────────────────────────────────────────────── */
+
+.changeset-label {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.changeset-stats {
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.changeset-error {
+  padding: 0.5rem 0.75rem;
+  color: var(--color-error);
+  font-size: 0.8rem;
+}
+.changeset-error pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.changeset-loading {
+  padding: 0.5rem 0.75rem;
+  color: var(--color-muted);
+  font-size: 0.8rem;
+}
