@@ -2,7 +2,7 @@ import { createOpencode } from "@opencode-ai/sdk/v2";
 import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import { cors } from "hono/cors";
-import { mcpRouter } from "./mcp";
+import { createMcpRouter } from "./mcp";
 import { proxy } from "./proxy";
 import { createReviewRouter } from "./routes/review";
 
@@ -43,11 +43,13 @@ const ocServer = _global.__ocServer as Awaited<
 const app = new Hono();
 app.use("/*", cors({ origin: "*", credentials: true }));
 
+const workDir = process.cwd();
+
 // MCP server
-app.route("/mcp", mcpRouter);
+app.route("/mcp", createMcpRouter(workDir));
 
 // Review routes
-app.route("/api/review", createReviewRouter(ocClient));
+app.route("/api/review", createReviewRouter(ocClient, workDir));
 
 // Proxy all OpenCode API routes under /oc/*
 const OC_PREFIX = "/oc";
