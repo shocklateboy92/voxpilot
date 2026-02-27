@@ -3,6 +3,15 @@
    ═══════════════════════════════════════════════ */
 
 :root {
+  color-scheme: light dark;
+
+  /* Layout (non-color tokens — shared across themes) */
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "JetBrains Mono", monospace;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --bottom-nav-height: 48px;
+
+  /* Dark theme (default) */
   --color-bg: #0f1117;
   --color-surface: #1a1d27;
   --color-text: #e4e4e7;
@@ -13,10 +22,6 @@
   --color-accent-hover: #2563eb;
   --color-user-msg: #1e293b;
   --color-assistant-msg: #1a1d27;
-  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-mono: ui-monospace, "Cascadia Code", "JetBrains Mono", monospace;
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
-  --bottom-nav-height: 48px;
   --color-white: #fff;
   --color-border: #2a2d37;
   --color-surface-dark: #151820;
@@ -44,6 +49,48 @@
   --color-diff-header-bg: rgba(255, 255, 255, 0.04);
   --color-diff-divider: rgba(255, 255, 255, 0.05);
   --color-table-border: rgba(255, 255, 255, 0.12);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --color-bg: #f8f9fa;
+    --color-surface: #ffffff;
+    --color-text: #1a1a2e;
+    --color-muted: #6b7280;
+    --color-ok: #16a34a;
+    --color-error: #dc2626;
+    --color-accent: #2563eb;
+    --color-accent-hover: #1d4ed8;
+    --color-user-msg: #e0e7ff;
+    --color-assistant-msg: #ffffff;
+    --color-white: #fff;
+    --color-border: #d1d5db;
+    --color-surface-dark: #f0f1f3;
+    --color-warning: #ea8c00;
+    --color-info: #4f46e5;
+    --color-info-light: #6366f1;
+    --color-info-dark: #c7d2fe;
+    --color-option-bg: #f3f4f6;
+    --color-option-border: #d1d5db;
+    --color-ok-hover: #15803d;
+    --color-ok-dark: #16a34a;
+    --color-reject: #9ca3af;
+    --color-reject-hover: #6b7280;
+    --color-toast-error-bg: #fef2f2;
+    --color-context-warn: #d97706;
+    --color-glass: rgba(248, 249, 250, 0.8);
+    --color-overlay: rgba(0, 0, 0, 0.3);
+    --color-subtle-border: rgba(0, 0, 0, 0.08);
+    --color-subtle-bg: rgba(0, 0, 0, 0.03);
+    --color-code-bg: rgba(0, 0, 0, 0.05);
+    --color-code-block-bg: rgba(0, 0, 0, 0.04);
+    --color-diff-add-bg: rgba(34, 197, 94, 0.12);
+    --color-diff-del-bg: rgba(239, 68, 68, 0.12);
+    --color-diff-hunk-bg: rgba(59, 130, 246, 0.08);
+    --color-diff-header-bg: rgba(0, 0, 0, 0.03);
+    --color-diff-divider: rgba(0, 0, 0, 0.06);
+    --color-table-border: rgba(0, 0, 0, 0.1);
+  }
 }
 
 /* ═══════════════════════════════════════════════
