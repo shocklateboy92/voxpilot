@@ -13,6 +13,7 @@ export function BottomNav() {
       </button>
       <button
         id="new-chat-btn"
+        class="btn btn-icon"
         onClick={() => void handleNewSession()}
         title="New chat"
       >
