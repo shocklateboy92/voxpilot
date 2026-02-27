@@ -110,7 +110,7 @@ export function ReviewOverlay() {
           >
             <div class="review-header">
               <span class="review-file-path">{req().filePath}</span>
-              <button class="review-close" onClick={close}>
+              <button class="btn btn-ghost" onClick={close}>
                 {"\u2715"}
               </button>
             </div>

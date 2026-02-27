@@ -60,7 +60,7 @@ export function SessionPicker() {
         <div class="session-picker" onClick={(e) => e.stopPropagation()}>
           <div class="picker-header">
             <h2>Sessions</h2>
-            <button class="picker-close" onClick={() => setPickerOpen(false)}>
+            <button class="btn btn-ghost" onClick={() => setPickerOpen(false)}>
               ✕
             </button>
           </div>
@@ -84,7 +84,7 @@ export function SessionPicker() {
                       {session()?.title || "New chat"}
                     </span>
                     <button
-                      class="picker-item-delete"
+                      class="btn btn-ghost picker-item-delete"
                       onClick={(e) => {
                         e.stopPropagation();
                         const id = session()?.id;

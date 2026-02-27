@@ -62,7 +62,7 @@ export function ChatInput() {
       />
       <button
         type="submit"
-        class="chat-send-btn"
+        class="btn btn-icon"
         disabled={isStreaming()}
         aria-label="Send"
       >

@@ -26,19 +26,19 @@ export function ToolConfirmBlock(props: Props) {
       <pre class="tool-confirm-args">{metadata()}</pre>
       <div class="tool-confirm-actions">
         <button
-          class="btn btn-approve"
+          class="btn btn-success btn-sm"
           onClick={() => void respondToConfirm(props.permission.id, "once")}
         >
           Allow once
         </button>
         <button
-          class="btn btn-approve"
+          class="btn btn-success btn-sm"
           onClick={() => void respondToConfirm(props.permission.id, "always")}
         >
           Always allow
         </button>
         <button
-          class="btn btn-reject"
+          class="btn btn-danger btn-sm"
           onClick={() => void respondToConfirm(props.permission.id, "reject")}
         >
           Reject

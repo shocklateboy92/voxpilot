@@ -148,21 +148,70 @@ h1 {
 /* ── Buttons ──────────────────────────────────────────────────────────────── */
 
 .btn {
-  display: inline-block;
-  padding: 0.6rem 1.2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
   border: none;
   border-radius: 0.5rem;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
-  color: var(--color-white);
-  background: var(--color-accent);
+  transition:
+    background 0.15s,
+    opacity 0.15s;
   text-decoration: none;
-  transition: background 0.15s;
+  background: var(--color-accent);
+  color: var(--color-white);
 }
-
 .btn:hover {
   background: var(--color-accent-hover);
+}
+
+.btn-success {
+  background: var(--color-ok-dark);
+}
+.btn-success:hover {
+  background: var(--color-ok-hover);
+}
+
+.btn-danger {
+  background: var(--color-reject);
+}
+.btn-danger:hover {
+  background: var(--color-reject-hover);
+}
+
+.btn-ghost {
+  background: none;
+  border: none;
+  color: var(--color-muted);
+  padding: 0.25rem;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.btn-ghost:hover {
+  background: none;
+  color: var(--color-text);
+}
+
+.btn-icon {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.btn-icon:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.btn-sm {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  border-radius: 4px;
 }
 
 .btn:disabled {
@@ -427,30 +476,6 @@ h1 {
   opacity: 0.5;
 }
 
-.chat-send-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border: none;
-  border-radius: 50%;
-  background: var(--color-accent);
-  color: var(--color-white);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background 0.15s;
-}
-
-.chat-send-btn:hover {
-  background: var(--color-accent-hover);
-}
-
-.chat-send-btn:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
 /* ── Tool call blocks ─────────────────────────────────────────────────────── */
 
 .tool-block {
@@ -562,34 +587,6 @@ h1 {
   display: flex;
   gap: 0.5rem;
   margin-top: 0.5rem;
-}
-
-.btn-approve {
-  background: var(--color-ok-dark);
-  color: var(--color-white);
-  border: none;
-  padding: 0.35rem 0.75rem;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.8rem;
-}
-
-.btn-approve:hover {
-  background: var(--color-ok-hover);
-}
-
-.btn-reject {
-  background: var(--color-reject);
-  color: var(--color-white);
-  border: none;
-  padding: 0.35rem 0.75rem;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.8rem;
-}
-
-.btn-reject:hover {
-  background: var(--color-reject-hover);
 }
 
 /* ── Question block ──────────────────────────────────────────────────────────── */
@@ -715,20 +712,10 @@ h1 {
 }
 
 #new-chat-btn {
-  background: var(--color-accent);
-  border: none;
-  color: var(--color-white);
   width: 36px;
   height: 36px;
-  border-radius: 50%;
   font-size: 1.2rem;
   font-weight: 700;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: background 0.15s;
 }
 
 #new-chat-btn:hover {
@@ -772,19 +759,6 @@ h1 {
   font-weight: 600;
 }
 
-.picker-close {
-  background: none;
-  border: none;
-  color: var(--color-muted);
-  font-size: 1.2rem;
-  cursor: pointer;
-  padding: 0.25rem;
-}
-
-.picker-close:hover {
-  color: var(--color-text);
-}
-
 .picker-list {
   flex: 1;
   overflow-y: auto;
@@ -823,11 +797,6 @@ h1 {
 }
 
 .picker-item-delete {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 0.85rem;
-  padding: 0.25rem;
   opacity: 0.4;
   transition: opacity 0.1s;
 }
@@ -1248,21 +1217,6 @@ h1 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.review-close {
-  background: none;
-  border: none;
-  color: var(--color-muted);
-  font-size: 1.2rem;
-  cursor: pointer;
-  padding: 0.25rem;
-  line-height: 1;
-  flex-shrink: 0;
-}
-
-.review-close:hover {
-  color: var(--color-text);
 }
 
 /* ── Changeset Card: new rules ────────────────────────────────────────────── */

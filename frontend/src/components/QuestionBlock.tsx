@@ -123,7 +123,7 @@ export function QuestionBlock(props: Props) {
       <div class="question-actions">
         <button
           type="button"
-          class="btn btn-approve"
+          class="btn btn-success btn-sm"
           disabled={!allAnswered()}
           onClick={() => void handleSubmit()}
         >
@@ -131,7 +131,7 @@ export function QuestionBlock(props: Props) {
         </button>
         <button
           type="button"
-          class="btn btn-reject"
+          class="btn btn-danger btn-sm"
           onClick={() => void handleReject()}
         >
           Reject
