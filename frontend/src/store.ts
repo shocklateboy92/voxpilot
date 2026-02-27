@@ -8,7 +8,6 @@ import type {
   PermissionRequest,
   QuestionRequest,
   Part as SdkPart,
-  StepFinishPart,
 } from "@opencode-ai/sdk/v2/client";
 import { createEffect, createSignal } from "solid-js";
 import { createStore, produce, reconcile } from "solid-js/store";
@@ -19,57 +18,6 @@ export type { Session, Message, Part, MessageWithParts };
 // ── Streaming state types ──────────────────────────────────────
 
 export type PendingPermission = PermissionRequest;
-
-export type ContextUsage = {
-  inputTokens: number;
-  outputTokens: number;
-  reasoningTokens: number;
-  cacheRead: number;
-  cacheWrite: number;
-};
-
-/**
- * Extract context usage from loaded messages.
- * Looks at the last assistant message's tokens, or the last step-finish part.
- */
-export function extractContextUsageFromMessages(
-  msgs: MessageWithParts[],
-): ContextUsage | null {
-  // Walk backwards to find the last assistant message
-  for (let i = msgs.length - 1; i >= 0; i--) {
-    const msg = msgs[i]!;
-    if (msg.info.role !== "assistant") continue;
-
-    // First try step-finish parts (most granular, per-step)
-    for (let j = msg.parts.length - 1; j >= 0; j--) {
-      const part = msg.parts[j]!;
-      if (part.type === "step-finish") {
-        const sf = part as StepFinishPart;
-        return {
-          inputTokens: sf.tokens.input,
-          outputTokens: sf.tokens.output,
-          reasoningTokens: sf.tokens.reasoning,
-          cacheRead: sf.tokens.cache.read,
-          cacheWrite: sf.tokens.cache.write,
-        };
-      }
-    }
-
-    // Fall back to message-level tokens
-    const info = msg.info as AssistantMessage;
-    if (info.tokens) {
-      return {
-        inputTokens: info.tokens.input,
-        outputTokens: info.tokens.output,
-        reasoningTokens: info.tokens.reasoning,
-        cacheRead: info.tokens.cache.read,
-        cacheWrite: info.tokens.cache.write,
-      };
-    }
-  }
-
-  return null;
-}
 
 // ── Toast types ──────────────────────────────────────────────────
 
@@ -201,10 +149,6 @@ export const [pendingPermission, setPendingPermission] =
 /** Pending question request (null = none pending). */
 export const [pendingQuestion, setPendingQuestion] =
   createSignal<QuestionRequest | null>(null);
-
-/** Token usage from the latest step-finish event. */
-export const [contextUsage, setContextUsage] =
-  createSignal<ContextUsage | null>(null);
 
 /** Current git branch name. */
 export const [gitBranch, setGitBranch] = createSignal<string | null>(null);

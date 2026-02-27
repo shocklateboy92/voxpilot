@@ -19,12 +19,9 @@ import type { Event } from "./sse";
 import { subscribeToEvents, unsubscribeFromEvents } from "./sse";
 import {
   activeSessionId,
-  type ContextUsage,
   ensureAssistantMessage,
-  extractContextUsageFromMessages,
   replaceMessages,
   selectedAgent,
-  setContextUsage,
   setErrorMessage,
   setIsStreaming,
   setPendingPermission,
@@ -83,18 +80,6 @@ function handleEvent(event: Event): void {
           pendingTextPart = null;
           setIsStreaming(false);
           setPendingPermission(null);
-
-          // Extract token usage from the last assistant message
-          if ("tokens" in msg) {
-            const usage: ContextUsage = {
-              inputTokens: msg.tokens.input,
-              outputTokens: msg.tokens.output,
-              reasoningTokens: msg.tokens.reasoning,
-              cacheRead: msg.tokens.cache.read,
-              cacheWrite: msg.tokens.cache.write,
-            };
-            setContextUsage(usage);
-          }
         } else {
           // Ensure the in-progress message exists in the store
           ensureAssistantMessage(msg.id, sid, msg);
@@ -129,15 +114,6 @@ function handleEvent(event: Event): void {
           break;
         }
         case "step-finish": {
-          // Extract token usage
-          const usage: ContextUsage = {
-            inputTokens: part.tokens.input,
-            outputTokens: part.tokens.output,
-            reasoningTokens: part.tokens.reasoning,
-            cacheRead: part.tokens.cache.read,
-            cacheWrite: part.tokens.cache.write,
-          };
-          setContextUsage(usage);
           break;
         }
       }
@@ -211,12 +187,8 @@ export function openStream(sessionId: string): void {
   setPendingQuestion(null);
   pendingTextPart = null;
 
-  // Load existing messages and extract context usage
-  void fetchMessages(sessionId).then((msgs) => {
-    replaceMessages(msgs);
-    const usage = extractContextUsageFromMessages(msgs);
-    if (usage) setContextUsage(usage);
-  });
+  // Load existing messages
+  void fetchMessages(sessionId).then(replaceMessages);
 
   // Subscribe to global events (do this before polling so we don't miss events)
   void subscribeToEvents(handleEvent).catch((err: unknown) => {
