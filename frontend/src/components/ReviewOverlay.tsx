@@ -118,7 +118,9 @@ export function ReviewOverlay() {
               <div class="review-loading">Formatting...</div>
             </Show>
             <Show when={diffHtml()}>
-              {(html) => <div class="review-diff" innerHTML={html()} />}
+              {(html) => (
+                <div class="review-diff-container" innerHTML={html()} />
+              )}
             </Show>
           </div>
         </div>
