@@ -10,7 +10,7 @@ let db: ReturnType<typeof drizzle<typeof schema>> | undefined;
 
 export function getDb() {
   if (!db) {
-    const path = process.env["VOXPILOT_DB_PATH"] ?? "voxpilot.db";
+    const path = process.env.VOXPILOT_DB_PATH ?? "voxpilot.db";
     const sqlite = new Database(path);
     sqlite.run("PRAGMA journal_mode = WAL");
     sqlite.run("PRAGMA foreign_keys = ON");

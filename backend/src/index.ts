@@ -36,7 +36,7 @@ if (!_global.__ocClient) {
   console.log("OpenCode server already running (hot reload), skipping restart");
 }
 
-const ocClient = _global.__ocClient;
+const _ocClient = _global.__ocClient;
 const ocServer = _global.__ocServer as Awaited<
   ReturnType<typeof createOpencode>
 >["server"];

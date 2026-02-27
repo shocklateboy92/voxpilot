@@ -238,11 +238,11 @@ function createMcpServer(workDir: string) {
               .split("\n")
               .filter((line) => line.includes("\t"))
               .map((line) => {
-                const [add, del, file] = line.split("\t");
+                const [add = "0", del = "0", file = ""] = line.split("\t");
                 return {
-                  file: file!,
-                  additions: Number.parseInt(add!, 10) || 0,
-                  deletions: Number.parseInt(del!, 10) || 0,
+                  file,
+                  additions: Number.parseInt(add, 10) || 0,
+                  deletions: Number.parseInt(del, 10) || 0,
                 };
               })
           : [];
