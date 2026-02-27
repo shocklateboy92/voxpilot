@@ -18,7 +18,7 @@ export function ChatView() {
   });
 
   return (
-    <main id="app">
+    <main class="app">
       <StatusBar />
       <ChatMain />
       <AgentPicker />

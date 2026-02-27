@@ -50,10 +50,10 @@ export function ChatInput() {
   });
 
   return (
-    <form id="chat-form" onSubmit={handleSubmit}>
+    <form class="chat-form" onSubmit={handleSubmit}>
       <textarea
         ref={inputEl}
-        id="chat-input"
+        class="chat-input"
         placeholder="Send a message..."
         autocomplete="off"
         disabled={isStreaming()}

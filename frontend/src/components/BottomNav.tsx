@@ -8,13 +8,12 @@ import { activeSession, setPickerOpen } from "../store";
 
 export function BottomNav() {
   return (
-    <nav id="bottom-nav">
-      <button id="session-title-btn" onClick={() => setPickerOpen(true)}>
+    <nav class="bottom-nav">
+      <button class="session-title-btn" onClick={() => setPickerOpen(true)}>
         {activeSession()?.title || "New chat"}
       </button>
       <button
-        id="new-chat-btn"
-        class="btn btn-icon"
+        class="new-chat-btn btn btn-icon"
         onClick={() => void handleNewSession()}
         title="New chat"
       >
