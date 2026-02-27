@@ -12,7 +12,7 @@
 import type { AssistantMessage } from "@opencode-ai/sdk/v2/client";
 import { createMemo, createResource, Show } from "solid-js";
 import { client } from "../api-client";
-import { agents, messages, selectedAgent } from "../store";
+import { messages } from "../store";
 
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -27,35 +27,40 @@ export function ContextUsageBar() {
     return result.data;
   });
 
-  // Resolve the context window limit for the currently selected agent's model.
-  const contextLimit = createMemo(() => {
-    const providerData = providers();
-    if (!providerData) return undefined;
-
-    const agent = agents().find((a) => a.name === selectedAgent());
-    if (!agent?.model) return undefined;
-
-    const provider = providerData.all.find(
-      (p) => p.id === agent.model!.providerID,
-    );
-    if (!provider) return undefined;
-
-    const model = provider.models[agent.model.modelID];
-    return model?.limit.context;
-  });
-
-  // Find the last assistant message's input tokens — this represents
-  // how much of the context window was consumed on the most recent turn.
-  const lastInputTokens = createMemo(() => {
+  // Extract the model/provider from the last assistant message so we can
+  // look up the context window limit from the provider data.
+  const lastAssistant = createMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i]!;
       if (msg.info.role !== "assistant") continue;
       const info = msg.info as AssistantMessage;
       if (info.tokens && info.tokens.input > 0) {
-        return info.tokens.input;
+        return info;
       }
     }
-    return 0;
+    return undefined;
+  });
+
+  // Resolve the context window limit for the model used in the last response.
+  const contextLimit = createMemo(() => {
+    const providerData = providers();
+    const assistant = lastAssistant();
+    if (!providerData || !assistant) return undefined;
+
+    const provider = providerData.all.find(
+      (p) => p.id === assistant.providerID,
+    );
+    if (!provider) return undefined;
+
+    const model = provider.models[assistant.modelID];
+    return model?.limit.context;
+  });
+
+  // The last assistant message's input tokens represent how much of the
+  // context window was consumed on the most recent turn.
+  const lastInputTokens = createMemo(() => {
+    const assistant = lastAssistant();
+    return assistant?.tokens.input ?? 0;
   });
 
   const percentage = createMemo(() => {
