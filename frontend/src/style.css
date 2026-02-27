@@ -673,8 +673,7 @@ h1 {
    ═══════════════════════════════════════════════ */
 
 .tool-block {
-  align-self: flex-start;
-  max-width: 90%;
+  align-self: stretch;
   background: var(--color-surface-dark);
   border: 1px solid var(--color-border);
   border-radius: 0.5rem;
@@ -694,7 +693,7 @@ h1 {
   font-size: 0.8rem;
   user-select: none;
   list-style: none;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 0.3rem;
 }
