@@ -10,13 +10,15 @@
  */
 
 import { createEffect, createSignal, onCleanup, Show } from "solid-js";
+import { rpc } from "../rpc";
 
 /** What the overlay needs to display a single file diff. */
 export interface ReviewRequest {
-  from: string;
-  to: string;
+  fromRef: string;
+  toRef: string;
   repoRoot: string;
   filePath: string;
+  cacheId?: string;
 }
 
 // Shared signal — set by ChangesetCard, consumed by this overlay
@@ -38,16 +40,15 @@ export function ReviewOverlay() {
     const printWidth = Math.max(40, Math.floor(width / CHAR_WIDTH));
 
     try {
-      const res = await fetch("/api/review/ref-diff", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          from: req.from,
-          to: req.to,
+      const res = await rpc.api.review["ref-diff"].$post({
+        json: {
+          fromRef: req.fromRef,
+          toRef: req.toRef,
           filePath: req.filePath,
           printWidth,
           repoRoot: req.repoRoot,
-        }),
+          cacheId: req.cacheId,
+        },
       });
 
       if (!res.ok) {
@@ -57,7 +58,7 @@ export function ReviewOverlay() {
         return;
       }
 
-      const data = (await res.json()) as { html: string };
+      const data = await res.json();
       setDiffHtml(data.html);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Unknown error";

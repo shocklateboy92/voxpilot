@@ -11,17 +11,8 @@
 
 import type { ToolPart } from "@opencode-ai/sdk/v2/client";
 import { createResource, For, Match, Show, Switch } from "solid-js";
+import { rpc } from "../rpc";
 import { setReviewFile } from "./ReviewOverlay";
-
-interface DiffCacheEntry {
-  from: string;
-  to: string;
-  resolvedFrom: string;
-  resolvedTo: string;
-  repoRoot: string;
-  path?: string;
-  files: { file: string; additions: number; deletions: number }[];
-}
 
 interface Props {
   part: ToolPart;
@@ -45,25 +36,31 @@ export function ChangesetCard(props: Props) {
 
   // Fetch cache entry when tool completes
   const [cache] = createResource(cacheId, async (id) => {
-    const res = await fetch(`/api/review/ref-diff/cache/${id}`);
+    const res = await rpc.api.review["ref-diff"].cache[":id"].$get({
+      param: { id },
+    });
     if (!res.ok) return null;
-    return (await res.json()) as DiffCacheEntry;
+    const data = await res.json();
+    if ("error" in data) return null;
+    return data;
   });
 
   function openFile(filePath: string): void {
     const c = cache();
+    const id = cacheId();
     if (!c) return;
     setReviewFile({
-      from: c.resolvedFrom,
-      to: c.resolvedTo,
+      fromRef: c.resolvedFrom,
+      toRef: c.resolvedTo,
       repoRoot: c.repoRoot,
       filePath,
+      cacheId: id ?? undefined,
     });
   }
 
   const label = () => {
     const c = cache();
-    if (c) return `${c.from} \u2192 ${c.to}`;
+    if (c) return `${c.fromRef} \u2192 ${c.toRef}`;
     return "show_diff";
   };
 
@@ -117,9 +114,9 @@ export function ChangesetCard(props: Props) {
                 <button
                   type="button"
                   class="changeset-file-row"
-                  onClick={() => openFile(f.file)}
+                  onClick={() => openFile(f.filePath)}
                 >
-                  <span class="changeset-file-path">{f.file}</span>
+                  <span class="changeset-file-path">{f.filePath}</span>
                   <span class="changeset-file-stats">
                     <span class="changeset-adds">+{f.additions}</span>{" "}
                     <span class="changeset-dels">-{f.deletions}</span>

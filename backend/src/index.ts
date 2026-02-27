@@ -2,6 +2,7 @@ import { createOpencode } from "@opencode-ai/sdk/v2";
 import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import { cors } from "hono/cors";
+import { closeDb, getDb } from "./db";
 import { createMcpRouter } from "./mcp";
 import { proxy } from "./proxy";
 import { createReviewRouter } from "./routes/review";
@@ -40,24 +41,30 @@ const ocServer = _global.__ocServer as Awaited<
   ReturnType<typeof createOpencode>
 >["server"];
 
-const app = new Hono();
-app.use("/*", cors({ origin: "*", credentials: true }));
+// Initialize database (runs migrations on first call)
+getDb();
+
+const appBase = new Hono();
+appBase.use("/*", cors({ origin: "*", credentials: true }));
 
 const workDir = process.cwd();
 
-// MCP server
-app.route("/mcp", createMcpRouter(workDir));
+export const app = appBase
+  .route("/mcp", createMcpRouter(workDir))
+  .route("/api/review", createReviewRouter(workDir));
 
-// Review routes
-app.route("/api/review", createReviewRouter(ocClient, workDir));
-
-// Proxy all OpenCode API routes under /oc/*
+// Proxy and static don't need RPC types — keep imperative
 const OC_PREFIX = "/oc";
 app.all(`${OC_PREFIX}/*`, proxy(ocServer.url, OC_PREFIX));
-
-// Static frontend
 app.use("/*", serveStatic({ root: "./static" }));
 app.use("/*", serveStatic({ root: "./static", path: "index.html" }));
+
+export type AppType = typeof app;
+
+process.on("exit", () => {
+  ocServer.close();
+  closeDb();
+});
 
 export default {
   port: APP_PORT,

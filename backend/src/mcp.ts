@@ -17,50 +17,26 @@ import { randomUUID } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
+import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod/v4";
-import { ensureGitRepo, runGit } from "./services/git-utils";
+import { getDb } from "./db";
+import { diffEntries, diffEntryFiles } from "./schema";
+import { ensureGitRepo, getFileAtRef, runGit } from "./services/git-utils";
 
-// ── Diff cache ──────────────────────────────────────────────────
+// ── Diff cache (DB-backed) ─────────────────────────────────────
 
-/** Cached result from a show_diff tool call. */
-export interface DiffCacheEntry {
-  from: string;
-  to: string;
-  resolvedFrom: string;
-  resolvedTo: string;
-  repoRoot: string;
-  path?: string;
-  files: { file: string; additions: number; deletions: number }[];
-  createdAt: number;
+export function getDiffCacheEntry(id: string) {
+  const db = getDb();
+  return db.query.diffEntries
+    .findFirst({
+      where: eq(diffEntries.id, id),
+      with: { files: true },
+    })
+    .sync();
 }
 
-const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
-
-const diffCache = new Map<string, DiffCacheEntry>();
-
-export function getDiffCacheEntry(id: string): DiffCacheEntry | undefined {
-  const entry = diffCache.get(id);
-  if (!entry) return undefined;
-  if (Date.now() - entry.createdAt > CACHE_TTL_MS) {
-    diffCache.delete(id);
-    return undefined;
-  }
-  return entry;
-}
-
-/** Periodically evict expired entries. */
-setInterval(
-  () => {
-    const now = Date.now();
-    for (const [id, entry] of diffCache) {
-      if (now - entry.createdAt > CACHE_TTL_MS) {
-        diffCache.delete(id);
-      }
-    }
-  },
-  5 * 60 * 1000,
-);
+export type DiffCacheEntry = NonNullable<ReturnType<typeof getDiffCacheEntry>>;
 
 // ── Ref validation & diff args ──────────────────────────────────
 
@@ -277,18 +253,49 @@ function createMcpServer(workDir: string) {
         resolveRef(toRef, workDir),
       ]);
 
-      // Cache the structured result
+      // Persist the structured result to DB
       const cacheId = randomUUID();
-      diffCache.set(cacheId, {
-        from: fromRef,
-        to: toRef,
-        resolvedFrom,
-        resolvedTo,
-        repoRoot: repoCheck.root,
-        path,
-        files,
-        createdAt: Date.now(),
-      });
+
+      // Capture file content (before/after) for each changed file
+      const filesWithContent = await Promise.all(
+        files.map(async (f) => {
+          const [beforeContent, afterContent] = await Promise.all([
+            getFileAtRef(fromRef, f.file, workDir),
+            getFileAtRef(toRef, f.file, workDir),
+          ]);
+          return { ...f, beforeContent, afterContent };
+        }),
+      );
+
+      const db = getDb();
+      db.insert(diffEntries)
+        .values({
+          id: cacheId,
+          fromRef,
+          toRef,
+          resolvedFrom,
+          resolvedTo,
+          repoRoot: repoCheck.root,
+          path: path ?? null,
+          createdAt: new Date(),
+        })
+        .run();
+
+      if (filesWithContent.length > 0) {
+        db.insert(diffEntryFiles)
+          .values(
+            filesWithContent.map((f) => ({
+              id: randomUUID(),
+              entryId: cacheId,
+              filePath: f.file,
+              additions: f.additions,
+              deletions: f.deletions,
+              beforeContent: f.beforeContent,
+              afterContent: f.afterContent,
+            })),
+          )
+          .run();
+      }
 
       const label = `Diff ${fromRef} → ${toRef}`;
       return {

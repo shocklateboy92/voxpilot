@@ -67,3 +67,32 @@ export async function ensureGitRepo(
   const root = resolve(result.stdout.trim());
   return { root };
 }
+
+/**
+ * Get file content at a specific git ref.
+ *
+ * Handles the synthetic refs INDEX and WORKTREE, plus any real git ref.
+ */
+export async function getFileAtRef(
+  ref: string,
+  filePath: string,
+  workDir: string,
+): Promise<string> {
+  if (ref === "WORKTREE") {
+    try {
+      const file = Bun.file(`${workDir}/${filePath}`);
+      return await file.text();
+    } catch {
+      return "";
+    }
+  }
+
+  if (ref === "INDEX") {
+    const result = await runGit(["show", `:${filePath}`], workDir);
+    return result.exitCode === 0 ? result.stdout : "";
+  }
+
+  // Real git ref — use git show
+  const result = await runGit(["show", `${ref}:${filePath}`], workDir);
+  return result.exitCode === 0 ? result.stdout : "";
+}

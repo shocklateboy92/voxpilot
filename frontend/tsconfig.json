@@ -16,7 +16,16 @@
     "declaration": true,
     "sourceMap": true,
     "jsx": "preserve",
-    "jsxImportSource": "solid-js"
+    "jsxImportSource": "solid-js",
+    "baseUrl": ".",
+    "paths": {
+      "@backend/*": ["../backend/src/*"],
+      "hono": ["../backend/node_modules/hono"],
+      "hono/client": [
+        "../backend/node_modules/hono/dist/types/client/index.d.ts"
+      ],
+      "hono/*": ["../backend/node_modules/hono/*"]
+    }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["node_modules", "dist"]
