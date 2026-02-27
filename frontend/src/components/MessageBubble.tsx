@@ -5,14 +5,11 @@
  * whose `time.completed` is not yet set.
  */
 
-import type {
-  AssistantMessage,
-  TextPart,
-  ToolPart,
-} from "@opencode-ai/sdk/v2/client";
+import type { TextPart, ToolPart } from "@opencode-ai/sdk/v2/client";
 import { For, Show } from "solid-js";
 import { renderMarkdown } from "../markdown";
 import type { MessageWithParts } from "../store";
+import { agents } from "../store";
 import { ChangesetCard } from "./ChangesetCard";
 import { ToolPartBlock } from "./ToolPartBlock";
 
@@ -36,7 +33,14 @@ export function MessageBubble(props: Props) {
   const agentName = () => {
     const info = props.msg.info;
     if (info.role !== "assistant") return undefined;
-    return (info as AssistantMessage).agent;
+    return info.agent;
+  };
+
+  /** Resolve the agent's configured color (from the SDK), if available. */
+  const agentColor = () => {
+    const name = agentName();
+    if (!name) return undefined;
+    return agents().find((a) => a.name === name)?.color;
   };
 
   /** Whether this message is still being streamed (assistant, not yet completed). */
@@ -58,10 +62,15 @@ export function MessageBubble(props: Props) {
       <Show when={role() === "assistant" && agentName()}>
         <span
           class="agent-badge"
-          classList={{
-            "agent-badge-plan": agentName() === "plan",
-            "agent-badge-build": agentName() !== "plan",
-          }}
+          style={
+            agentColor()
+              ? {
+                  background: `${agentColor()}20`,
+                  color: agentColor(),
+                  border: `1px solid ${agentColor()}40`,
+                }
+              : undefined
+          }
         >
           {agentName()}
         </span>

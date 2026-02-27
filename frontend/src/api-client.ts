@@ -68,7 +68,7 @@ export async function sendPromptAsync(
   await client.session.promptAsync({
     sessionID,
     parts: [{ type: "text", text }],
-    ...(agent ? { agent } : {}),
+    agent,
   });
 }
 
@@ -124,7 +124,7 @@ export async function fetchGitBranch(): Promise<string | null> {
 export async function fetchAgents(): Promise<Agent[]> {
   try {
     const result = await client.app.agents();
-    return (result.data ?? []) as Agent[];
+    return result.data ?? [];
   } catch {
     return [];
   }
