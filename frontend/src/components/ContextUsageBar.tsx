@@ -28,68 +28,62 @@ export function ContextUsageBar() {
     return result.data;
   });
 
-  // Extract the model/provider from the last assistant message so we can
-  // look up the context window limit from the provider data.
-  const lastAssistant = createMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i]!;
+  // Single memo that iterates forward through messages to find the last
+  // assistant message with tokens, then resolves the context limit from
+  // provider data and computes total usage + percentage in one pass.
+  const context = createMemo(() => {
+    let lastAssistant: AssistantMessage | undefined;
+    for (const msg of messages) {
       if (msg.info.role !== "assistant") continue;
       const info = msg.info as AssistantMessage;
       if (info.tokens && info.tokens.input > 0) {
-        return info;
+        lastAssistant = info;
       }
     }
-    return undefined;
-  });
 
-  // Resolve the context window limit for the model used in the last response.
-  const contextLimit = createMemo(() => {
+    if (!lastAssistant?.tokens) return undefined;
+
+    const t = lastAssistant.tokens;
+    const total =
+      t.input + t.output + t.reasoning + t.cache.read + t.cache.write;
+    if (total <= 0) return undefined;
+
     const providerData = providers();
-    const assistant = lastAssistant();
-    if (!providerData || !assistant) return undefined;
+    let limit: number | undefined;
+    if (providerData) {
+      const provider = providerData.all.find(
+        (p) => p.id === lastAssistant!.providerID,
+      );
+      const model = provider?.models[lastAssistant.modelID];
+      limit = model?.limit.context;
+    }
 
-    const provider = providerData.all.find(
-      (p) => p.id === assistant.providerID,
-    );
-    if (!provider) return undefined;
-
-    const model = provider.models[assistant.modelID];
-    return model?.limit.context;
-  });
-
-  // Total tokens consumed on the most recent turn, matching OpenCode's
-  // upstream calculation: input + output + reasoning + cache.read + cache.write.
-  const lastTotalTokens = createMemo(() => {
-    const assistant = lastAssistant();
-    if (!assistant?.tokens) return 0;
-    const t = assistant.tokens;
-    return t.input + t.output + t.reasoning + t.cache.read + t.cache.write;
-  });
-
-  const percentage = createMemo(() => {
-    const limit = contextLimit();
-    const used = lastTotalTokens();
-    if (!limit || !used) return undefined;
-    return Math.round((used / limit) * 100);
+    return {
+      total,
+      limit,
+      percentage: limit ? Math.round((total / limit) * 100) : undefined,
+    };
   });
 
   return (
-    <Show when={lastTotalTokens() > 0}>
-      <div class="context-usage">
-        <span class="context-label">
-          <Show
-            when={contextLimit()}
-            fallback={<>{formatTokens(lastTotalTokens())} tokens</>}
-          >
-            {(limit) => (
-              <>
-                {formatTokens(lastTotalTokens())} / {formatTokens(limit())}{" "}
-                tokens ({percentage()}%)
-              </>
-            )}
-          </Show>
-        </span>
-      </div>
+    <Show when={context()}>
+      {(ctx) => (
+        <div class="context-usage">
+          <span class="context-label">
+            <Show
+              when={ctx().limit}
+              fallback={<>{formatTokens(ctx().total)} tokens</>}
+            >
+              {(limit) => (
+                <>
+                  {formatTokens(ctx().total)} / {formatTokens(limit())} tokens (
+                  {ctx().percentage}%)
+                </>
+              )}
+            </Show>
+          </span>
+        </div>
+      )}
     </Show>
   );
 }
