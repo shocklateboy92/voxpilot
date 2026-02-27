@@ -3,13 +3,14 @@
  */
 
 import type {
+  Agent,
   AssistantMessage,
   PermissionRequest,
   QuestionRequest,
   Part as SdkPart,
   StepFinishPart,
 } from "@opencode-ai/sdk/v2/client";
-import { createSignal } from "solid-js";
+import { createEffect, createSignal } from "solid-js";
 import { createStore, produce, reconcile } from "solid-js/store";
 import type { Message, MessageWithParts, Part, Session } from "./api-client";
 
@@ -210,6 +211,22 @@ export const [gitBranch, setGitBranch] = createSignal<string | null>(null);
 
 /** Toast notifications. */
 export const [toasts, setToasts] = createSignal<Toast[]>([]);
+
+// ── Agent/mode state ─────────────────────────────────────────────
+
+/** Available agents fetched from OpenCode (primary agents only). */
+export const [agents, setAgents] = createSignal<Agent[]>([]);
+
+const AGENT_STORAGE_KEY = "voxpilot-selected-agent";
+
+/** Currently selected agent name (persisted to localStorage). */
+export const [selectedAgent, setSelectedAgent] = createSignal<string>(
+  localStorage.getItem(AGENT_STORAGE_KEY) ?? "build",
+);
+
+createEffect(() => {
+  localStorage.setItem(AGENT_STORAGE_KEY, selectedAgent());
+});
 
 // ── Toast helpers ────────────────────────────────────────────────
 

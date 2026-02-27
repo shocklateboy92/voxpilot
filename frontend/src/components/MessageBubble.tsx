@@ -9,6 +9,7 @@ import type { TextPart, ToolPart } from "@opencode-ai/sdk/v2/client";
 import { For, Show } from "solid-js";
 import { renderMarkdown } from "../markdown";
 import type { MessageWithParts } from "../store";
+import { agents } from "../store";
 import { ChangesetCard } from "./ChangesetCard";
 import { ToolPartBlock } from "./ToolPartBlock";
 
@@ -28,6 +29,20 @@ export function MessageBubble(props: Props) {
 
   const role = () => props.msg.info.role;
 
+  /** The agent name that produced this assistant message, if available. */
+  const agentName = () => {
+    const info = props.msg.info;
+    if (info.role !== "assistant") return undefined;
+    return info.agent;
+  };
+
+  /** Resolve the agent's configured color (from the SDK), if available. */
+  const agentColor = () => {
+    const name = agentName();
+    if (!name) return undefined;
+    return agents().find((a) => a.name === name)?.color;
+  };
+
   /** Whether this message is still being streamed (assistant, not yet completed). */
   const isInProgress = () => {
     const info = props.msg.info;
@@ -44,6 +59,22 @@ export function MessageBubble(props: Props) {
         streaming: isInProgress() && !!textContent(),
       }}
     >
+      <Show when={role() === "assistant" && agentName()}>
+        <span
+          class="agent-badge"
+          style={
+            agentColor()
+              ? {
+                  background: `${agentColor()}20`,
+                  color: agentColor(),
+                  border: `1px solid ${agentColor()}40`,
+                }
+              : undefined
+          }
+        >
+          {agentName()}
+        </span>
+      </Show>
       <Show when={role() === "assistant" && textContent()}>
         <div class="markdown-body" innerHTML={renderMarkdown(textContent())} />
       </Show>

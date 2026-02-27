@@ -5,13 +5,19 @@
  * the store signals and streaming manager.
  */
 
-import { createSession, deleteSession, fetchSessions } from "./api-client";
+import {
+  createSession,
+  deleteSession,
+  fetchAgents,
+  fetchSessions,
+} from "./api-client";
 import {
   activeRootIndex,
   activeSessionId,
   notifySessionChanged,
   rootSessions,
   sessions,
+  setAgents,
   setErrorMessage,
   setIsStreaming,
   setPendingPermission,
@@ -134,6 +140,15 @@ export async function initSessions(): Promise<void> {
     list = [fresh];
   }
   setSessions(list);
+
+  // Fetch available agents (non-blocking — runs in parallel with session setup)
+  void fetchAgents().then((allAgents) => {
+    // Only show primary agents (not subagents) and non-hidden agents
+    const primaryAgents = allAgents.filter(
+      (a) => (a.mode === "primary" || a.mode === "all") && !a.hidden,
+    );
+    setAgents(primaryAgents);
+  });
 
   const hashId = sessionIdFromHash();
   const target =
