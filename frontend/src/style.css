@@ -145,16 +145,6 @@ h1 {
   display: none !important;
 }
 
-/* Status / loading */
-.status-text {
-  font-family: var(--font-mono);
-  font-size: 0.9rem;
-  color: var(--color-muted);
-  padding: 0.75rem 1rem;
-  border-radius: 0.5rem;
-  background: var(--color-bg);
-}
-
 /* ── Buttons ──────────────────────────────────────────────────────────────── */
 
 .btn {
@@ -178,72 +168,6 @@ h1 {
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.btn-github {
-  background: var(--color-surface-dark);
-  margin-top: 1rem;
-}
-
-.btn-github:hover {
-  background: var(--color-border);
-}
-
-.btn-small {
-  padding: 0.3rem 0.7rem;
-  font-size: 0.8rem;
-}
-
-/* ── Login view ───────────────────────────────────────────────────────────── */
-
-#login-view {
-  text-align: center;
-}
-
-#login-view p {
-  color: var(--color-muted);
-  margin-bottom: 0.5rem;
-}
-
-/* ── User info bar ────────────────────────────────────────────────────────── */
-
-#user-info {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-  padding: 0.5rem 0.75rem;
-  background: var(--color-bg);
-  border-radius: 0.5rem;
-}
-
-#user-avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-}
-
-.health-dot {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.health-dot-green {
-  background: var(--color-ok);
-}
-
-.health-dot-red {
-  background: var(--color-error);
-}
-
-#user-name {
-  font-weight: 600;
-  font-size: 0.85rem;
-  flex: 1;
-  text-align: left;
 }
 
 /* ── Main chat area ───────────────────────────────────────────────────────── */
@@ -600,77 +524,8 @@ h1 {
   color: var(--color-error);
 }
 
-.tool-result-standalone {
-  align-self: flex-start;
-  max-width: 90%;
-}
-
 .tool-spinner {
   font-size: 0.75rem;
-}
-
-/* ── Copilot streaming block ──────────────────────────────────────────────── */
-
-.copilot-block {
-  align-self: flex-start;
-  max-width: 90%;
-  background: var(--color-surface-dark);
-  border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
-  font-size: 0.8rem;
-  overflow: hidden;
-  transition: border-color 0.2s ease;
-}
-
-.copilot-block[open] {
-  border-color: var(--color-info);
-}
-
-.copilot-summary {
-  padding: 0.4rem 0.7rem;
-  cursor: pointer;
-  color: var(--color-muted);
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  user-select: none;
-  list-style: none;
-}
-
-.copilot-summary::-webkit-details-marker {
-  display: none;
-}
-
-.copilot-summary::before {
-  content: "▸ ";
-  color: var(--color-info);
-}
-
-.copilot-block[open] > .copilot-summary::before {
-  content: "▾ ";
-}
-
-.copilot-spinner {
-  font-size: 0.75rem;
-}
-
-.copilot-done-label {
-  color: var(--color-ok);
-  font-size: 0.75rem;
-}
-
-.copilot-stream {
-  margin: 0;
-  padding: 0.5rem 0.7rem;
-  border-top: 1px solid var(--color-border);
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--color-text);
-  white-space: pre-wrap;
-  word-break: break-all;
-  max-height: 20rem;
-  overflow-y: auto;
-  line-height: 1.4;
-  background: var(--color-bg);
 }
 
 /* ── Tool confirmation prompt ─────────────────────────────────────────────── */
@@ -1065,33 +920,6 @@ h1 {
   color: var(--color-error);
 }
 
-.changeset-viewed-indicator {
-  font-size: 0.7rem;
-  color: var(--color-muted);
-  width: 1rem;
-  text-align: center;
-}
-
-.changeset-review-btn {
-  width: 100%;
-  margin: 0.5rem 0 0.25rem;
-  font-size: 0.85rem;
-}
-
-.changeset-status-line {
-  text-align: center;
-  font-size: 0.75rem;
-  color: var(--color-muted);
-}
-
-.changeset-approved {
-  color: var(--color-ok);
-}
-
-.changeset-changes-requested {
-  color: var(--color-warning);
-}
-
 /* ── Review Overlay (Layer 2) ─────────────────────────────────────────────── */
 
 .review-overlay {
@@ -1129,45 +957,12 @@ h1 {
   flex-shrink: 0;
 }
 
-.review-close-btn {
-  background: none;
-  border: none;
-  color: var(--color-muted);
-  font-size: 1.2rem;
-  cursor: pointer;
-  padding: 0.25rem;
-  line-height: 1;
-}
-
-.review-close-btn:hover {
-  color: var(--color-text);
-}
-
-.review-page-indicator {
-  flex: 1;
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.review-page-count {
-  color: var(--color-muted);
-  font-weight: 400;
-}
-
 /* Diff container */
 .review-diff-container {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   touch-action: pan-y;
-}
-
-.review-diff-scroll {
-  padding: 0.5rem;
 }
 
 /* Diff table styling (rendered from server HTML) */
@@ -1256,34 +1051,7 @@ h1 {
   background: transparent;
 }
 
-/* View mode toggle button */
-.review-view-toggle {
-  background: none;
-  border: 1px solid var(--color-border);
-  color: var(--color-muted);
-  font-size: 1rem;
-  cursor: pointer;
-  padding: 0.15rem 0.4rem;
-  border-radius: 0.25rem;
-  line-height: 1;
-  flex-shrink: 0;
-}
-
-.review-view-toggle:hover {
-  color: var(--color-text);
-  border-color: var(--color-text);
-}
-
-.review-view-toggle.active {
-  color: var(--color-accent);
-  border-color: var(--color-accent);
-}
-
 /* Full-text view */
-.review-fulltext-scroll {
-  padding: 0.5rem;
-}
-
 .fulltext-table {
   width: 100%;
   border-collapse: collapse;
@@ -1345,166 +1113,6 @@ h1 {
   border-top: 1px solid var(--color-border);
   padding: 0.5rem 0.75rem;
   padding-bottom: calc(0.5rem + var(--safe-bottom));
-}
-
-.review-bottom-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
-}
-
-.review-comment-count {
-  font-size: 0.8rem;
-  color: var(--color-muted);
-}
-
-.review-viewed-check {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-
-.review-viewed-check input {
-  accent-color: var(--color-accent);
-}
-
-.review-comments-list {
-  max-height: 6rem;
-  overflow-y: auto;
-  margin-bottom: 0.5rem;
-}
-
-.review-comment-item {
-  font-size: 0.75rem;
-  padding: 0.2rem 0;
-  color: var(--color-text);
-  border-bottom: 1px solid var(--color-diff-divider);
-}
-
-.review-comment-line {
-  color: var(--color-accent);
-  margin-right: 0.3rem;
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-}
-
-.review-comment-text {
-  color: var(--color-text);
-}
-
-.review-comment-input-row {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.review-comment-input {
-  flex: 1;
-  padding: 0.4rem 0.6rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.3rem;
-  background: var(--color-bg);
-  color: var(--color-text);
-  font-family: var(--font-sans);
-  font-size: 0.8rem;
-  outline: none;
-}
-
-.review-comment-input:focus {
-  border-color: var(--color-accent);
-}
-
-/* Review Summary Page */
-.review-summary-page {
-  flex: 1;
-  padding: 1rem;
-  overflow-y: auto;
-}
-
-.review-summary-page h2 {
-  text-align: center;
-  font-size: 1.1rem;
-  margin-bottom: 1rem;
-}
-
-.review-summary-files {
-  margin-bottom: 1rem;
-}
-
-.review-summary-file {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.3rem;
-  cursor: pointer;
-  font-size: 0.85rem;
-}
-
-.review-summary-file:hover {
-  background: var(--color-surface);
-}
-
-.review-summary-icon {
-  font-size: 0.9rem;
-}
-
-.review-summary-path {
-  flex: 1;
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.review-summary-status {
-  font-size: 0.75rem;
-  color: var(--color-muted);
-}
-
-.review-summary-comments {
-  margin: 0.75rem 0;
-  padding: 0.5rem 0.75rem;
-  background: var(--color-surface);
-  border-radius: 0.3rem;
-}
-
-.review-summary-comment {
-  font-size: 0.8rem;
-  padding: 0.2rem 0;
-  border-bottom: 1px solid var(--color-diff-divider);
-}
-
-.review-summary-comment-file {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--color-accent);
-}
-
-.review-summary-comment-line {
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  color: var(--color-muted);
-  margin-left: 0.3rem;
-}
-
-.review-summary-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
-
-.btn-secondary {
-  background: var(--color-border);
-  color: var(--color-text);
-}
-
-.btn-secondary:hover {
-  background: var(--color-border);
 }
 
 /* ── Toast notifications ──────────────────────────────────────────────────── */
