@@ -10,6 +10,7 @@
  */
 
 import type { ToolPart } from "@opencode-ai/sdk/v2/client";
+import { ArrowRight, GitCompareArrows, Loader, X } from "lucide-solid";
 import { createResource, For, Match, Show, Switch } from "solid-js";
 import { rpc } from "../rpc";
 import { setReviewFile } from "./ReviewOverlay";
@@ -60,7 +61,12 @@ export function ChangesetCard(props: Props) {
 
   const label = () => {
     const c = cache();
-    if (c) return `${c.fromRef} \u2192 ${c.toRef}`;
+    if (c)
+      return (
+        <>
+          {c.fromRef} <ArrowRight size={12} /> {c.toRef}
+        </>
+      );
     return "show_diff";
   };
 
@@ -77,13 +83,19 @@ export function ChangesetCard(props: Props) {
       <div class="changeset-header">
         <Switch>
           <Match when={isActive()}>
-            <span class="tool-spinner">{"\u23F3"}</span>
+            <span class="tool-spinner">
+              <Loader size={14} class="icon-spin" />
+            </span>
           </Match>
           <Match when={status() === "completed" && !errorOutput()}>
-            <span class="changeset-icon">{"\u{1F4CA}"}</span>
+            <span class="changeset-icon">
+              <GitCompareArrows size={14} />
+            </span>
           </Match>
           <Match when={status() === "error" || errorOutput()}>
-            <span class="changeset-icon">{"\u2717"}</span>
+            <span class="changeset-icon">
+              <X size={14} />
+            </span>
           </Match>
         </Switch>
         <span class="changeset-label">{label()}</span>

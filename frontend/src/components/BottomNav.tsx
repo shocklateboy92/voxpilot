@@ -2,6 +2,7 @@
  * Bottom navigation bar — session title (tap to open picker) and + button.
  */
 
+import { Plus } from "lucide-solid";
 import { handleNewSession } from "../sessions";
 import { activeSession, setPickerOpen } from "../store";
 
@@ -17,7 +18,7 @@ export function BottomNav() {
         onClick={() => void handleNewSession()}
         title="New chat"
       >
-        +
+        <Plus size={20} />
       </button>
     </nav>
   );

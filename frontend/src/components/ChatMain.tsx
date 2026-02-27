@@ -2,6 +2,7 @@
  * Main chat area — messages list with swipe gestures.
  */
 
+import { ChevronLeft, ChevronRight } from "lucide-solid";
 import {
   createEffect,
   createSignal,
@@ -114,14 +115,14 @@ export function ChatMain() {
         style={{ opacity: showLeftArrow() ? arrowOpacity() : 0 }}
         aria-hidden="true"
       >
-        ‹
+        <ChevronLeft size={24} />
       </div>
       <div
         class="swipe-arrow swipe-arrow-right"
         style={{ opacity: showRightArrow() ? arrowOpacity() : 0 }}
         aria-hidden="true"
       >
-        ›
+        <ChevronRight size={24} />
       </div>
       <div
         id="messages"

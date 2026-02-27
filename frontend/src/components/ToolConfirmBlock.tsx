@@ -2,6 +2,7 @@
  * Permission prompt — Allow once / Always allow / Reject buttons.
  */
 
+import { Lock } from "lucide-solid";
 import type { PendingPermission } from "../store";
 import { respondToConfirm } from "../streaming";
 
@@ -21,7 +22,8 @@ export function ToolConfirmBlock(props: Props) {
   return (
     <div class="tool-confirm">
       <div class="tool-confirm-header">
-        🔒 <strong>{props.permission.permission}</strong> requires approval
+        <Lock size={14} /> <strong>{props.permission.permission}</strong>{" "}
+        requires approval
       </div>
       <pre class="tool-confirm-args">{metadata()}</pre>
       <div class="tool-confirm-actions">
