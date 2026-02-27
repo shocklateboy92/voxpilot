@@ -157,24 +157,10 @@ function buildHunks(
         }
         flushHunk();
 
-        // Skip middle context lines
+        // Advance past remaining context lines (not included in any hunk)
         const remaining = contextLines.length - trailingContext.length;
-        if (remaining > 3) {
-          oldLine += remaining - 3;
-          newLine += remaining - 3;
-        }
-
-        // Leading context for next hunk (up to 3 lines from end)
-        if (remaining > 0) {
-          const leadingStart = Math.max(0, remaining - 3);
-          const leading = contextLines.slice(
-            trailingContext.length + leadingStart,
-          );
-          // Don't add leading context yet - it will be added when the next change starts
-          // But track the line numbers
-          oldLine += leading.length - (remaining > 3 ? 0 : remaining);
-          newLine += leading.length - (remaining > 3 ? 0 : remaining);
-        }
+        oldLine += remaining;
+        newLine += remaining;
       } else {
         // No accumulated changes, just advance line counters
         oldLine += contextLines.length;

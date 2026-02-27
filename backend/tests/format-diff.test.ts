@@ -59,4 +59,47 @@ describe("formatAndDiff", () => {
       result120.formattedAfter.split("\n").length,
     );
   });
+
+  it("fullTextLine matches actual line in formatted output for small context gaps", async () => {
+    // Regression: when two changes are separated by 4-6 context lines,
+    // the second change's fullTextLine was miscalculated, causing
+    // red/green highlights to land on the wrong lines.
+    for (const gapSize of [1, 4, 5, 6, 7, 10]) {
+      const beforeLines: string[] = [];
+      const afterLines: string[] = [];
+
+      for (let i = 1; i <= 4; i++) {
+        beforeLines.push(`const v${i} = ${i};`);
+        afterLines.push(`const v${i} = ${i};`);
+      }
+      beforeLines.push("const OLD_A = 0;");
+      afterLines.push("const NEW_A = 0;");
+      for (let i = 6; i <= 5 + gapSize; i++) {
+        beforeLines.push(`const v${i} = ${i};`);
+        afterLines.push(`const v${i} = ${i};`);
+      }
+      beforeLines.push("const OLD_B = 0;");
+      afterLines.push("const NEW_B = 0;");
+      for (let i = 5 + gapSize + 2; i <= 5 + gapSize + 5; i++) {
+        beforeLines.push(`const v${i} = ${i};`);
+        afterLines.push(`const v${i} = ${i};`);
+      }
+
+      const result = await formatAndDiff({
+        before: beforeLines.join("\n") + "\n",
+        after: afterLines.join("\n") + "\n",
+        filePath: "test.ts",
+        printWidth: 80,
+      });
+
+      const formattedLines = result.formattedAfter.split("\n");
+      for (const hunk of result.hunks) {
+        for (const line of hunk.lines) {
+          if (line.fullTextLine != null) {
+            expect(formattedLines[line.fullTextLine - 1]).toBe(line.content);
+          }
+        }
+      }
+    }
+  });
 });
