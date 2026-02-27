@@ -4,6 +4,7 @@
  */
 
 import type { ToolPart } from "@opencode-ai/sdk/v2/client";
+import { Check, Loader, Settings, X } from "lucide-solid";
 import { Match, Show, Switch } from "solid-js";
 
 interface Props {
@@ -32,13 +33,22 @@ export function ToolPartBlock(props: Props) {
   return (
     <details class="tool-block" open={isActive()}>
       <summary class="tool-summary">
-        ⚙ {props.part.tool}
+        <Settings size={14} /> {props.part.tool}
         <Switch>
           <Match when={isActive()}>
-            <span class="tool-spinner"> ⏳</span>
+            <span class="tool-spinner">
+              {" "}
+              <Loader size={14} class="icon-spin" />
+            </span>
           </Match>
-          <Match when={status() === "completed"}> ✓</Match>
-          <Match when={status() === "error"}> ✗</Match>
+          <Match when={status() === "completed"}>
+            {" "}
+            <Check size={14} />
+          </Match>
+          <Match when={status() === "error"}>
+            {" "}
+            <X size={14} />
+          </Match>
         </Switch>
       </summary>
       <div class="tool-arguments">{inputText()}</div>

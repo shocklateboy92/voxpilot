@@ -9,6 +9,7 @@
  * 5. Resize re-renders at correct width
  */
 
+import { X } from "lucide-solid";
 import { createEffect, createSignal, onCleanup, Show } from "solid-js";
 import { rpc } from "../rpc";
 
@@ -111,7 +112,7 @@ export function ReviewOverlay() {
             <div class="review-header">
               <span class="review-file-path">{req().filePath}</span>
               <button class="btn btn-ghost" onClick={close}>
-                {"\u2715"}
+                <X size={18} />
               </button>
             </div>
             <Show when={loading()}>

@@ -6,6 +6,7 @@
  * Triggered by tapping the session title in BottomNav.
  */
 
+import { Trash2, X } from "lucide-solid";
 import { createMemo, For, Show } from "solid-js";
 import {
   handleDeleteSession,
@@ -61,7 +62,7 @@ export function SessionPicker() {
           <div class="picker-header">
             <h2>Sessions</h2>
             <button class="btn btn-ghost" onClick={() => setPickerOpen(false)}>
-              ✕
+              <X size={18} />
             </button>
           </div>
           <div class="picker-list">
@@ -92,7 +93,7 @@ export function SessionPicker() {
                       }}
                       title="Delete"
                     >
-                      🗑
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 );

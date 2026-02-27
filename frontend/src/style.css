@@ -131,11 +131,6 @@ h1 {
   white-space: nowrap;
 }
 
-.status-bar-branch-icon {
-  flex-shrink: 0;
-  color: var(--color-muted);
-}
-
 .status-bar-branch-placeholder {
   width: 1px;
   height: 1rem;
@@ -500,6 +495,9 @@ h1 {
   font-size: 0.8rem;
   user-select: none;
   list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
 }
 
 .tool-summary::-webkit-details-marker {
@@ -551,6 +549,21 @@ h1 {
 
 .tool-spinner {
   font-size: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+}
+
+.icon-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ── Tool confirmation prompt ─────────────────────────────────────────────── */

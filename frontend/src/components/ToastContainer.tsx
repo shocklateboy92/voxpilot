@@ -4,6 +4,7 @@
  * Renders active toasts from the store signal as a fixed overlay.
  */
 
+import { X } from "lucide-solid";
 import { For } from "solid-js";
 import { setToasts, toasts } from "../store";
 
@@ -23,7 +24,7 @@ export function ToastContainer() {
               onClick={() => dismiss(toast.id)}
               aria-label="Dismiss"
             >
-              ✕
+              <X size={14} />
             </button>
           </div>
         )}
