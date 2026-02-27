@@ -22,15 +22,11 @@ function formatTokens(n: number): string {
 }
 
 export function ContextUsageBar() {
-  // Fetch provider data once to look up context window limits.
   const [providers] = createResource(async () => {
     const result = await client.provider.list();
     return result.data;
   });
 
-  // Single memo that iterates forward through messages to find the last
-  // assistant message with tokens, then resolves the context limit from
-  // provider data and computes total usage + percentage in one pass.
   const context = createMemo(() => {
     let lastAssistant: AssistantMessage | undefined;
     for (const msg of messages) {
