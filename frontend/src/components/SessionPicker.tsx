@@ -100,7 +100,7 @@ export function SessionPicker() {
             </For>
           </div>
           <button
-            class="btn btn-new-chat picker-new-chat"
+            class="btn picker-new-chat"
             onClick={() => {
               void handleNewSession();
               setPickerOpen(false);
