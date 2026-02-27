@@ -3,6 +3,7 @@
  */
 
 import type {
+  Agent,
   Message,
   Part,
   PermissionRequest,
@@ -14,6 +15,7 @@ import type {
 import { createOpencodeClient } from "@opencode-ai/sdk/v2/client";
 
 export type {
+  Agent,
   Session,
   Message,
   Part,
@@ -61,10 +63,12 @@ export async function fetchMessages(
 export async function sendPromptAsync(
   sessionID: string,
   text: string,
+  agent?: string,
 ): Promise<void> {
   await client.session.promptAsync({
     sessionID,
     parts: [{ type: "text", text }],
+    ...(agent ? { agent } : {}),
   });
 }
 
@@ -114,5 +118,14 @@ export async function fetchGitBranch(): Promise<string | null> {
     return result.data?.branch ?? null;
   } catch {
     return null;
+  }
+}
+
+export async function fetchAgents(): Promise<Agent[]> {
+  try {
+    const result = await client.app.agents();
+    return (result.data ?? []) as Agent[];
+  } catch {
+    return [];
   }
 }

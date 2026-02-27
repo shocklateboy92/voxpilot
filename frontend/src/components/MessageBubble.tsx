@@ -5,7 +5,11 @@
  * whose `time.completed` is not yet set.
  */
 
-import type { TextPart, ToolPart } from "@opencode-ai/sdk/v2/client";
+import type {
+  AssistantMessage,
+  TextPart,
+  ToolPart,
+} from "@opencode-ai/sdk/v2/client";
 import { For, Show } from "solid-js";
 import { renderMarkdown } from "../markdown";
 import type { MessageWithParts } from "../store";
@@ -28,6 +32,13 @@ export function MessageBubble(props: Props) {
 
   const role = () => props.msg.info.role;
 
+  /** The agent name that produced this assistant message, if available. */
+  const agentName = () => {
+    const info = props.msg.info;
+    if (info.role !== "assistant") return undefined;
+    return (info as AssistantMessage).agent;
+  };
+
   /** Whether this message is still being streamed (assistant, not yet completed). */
   const isInProgress = () => {
     const info = props.msg.info;
@@ -44,6 +55,17 @@ export function MessageBubble(props: Props) {
         streaming: isInProgress() && !!textContent(),
       }}
     >
+      <Show when={role() === "assistant" && agentName()}>
+        <span
+          class="agent-badge"
+          classList={{
+            "agent-badge-plan": agentName() === "plan",
+            "agent-badge-build": agentName() !== "plan",
+          }}
+        >
+          {agentName()}
+        </span>
+      </Show>
       <Show when={role() === "assistant" && textContent()}>
         <div class="markdown-body" innerHTML={renderMarkdown(textContent())} />
       </Show>

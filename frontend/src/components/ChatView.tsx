@@ -1,9 +1,10 @@
 /**
- * Main chat view — status bar + chat area + input + bottom nav with session picker.
+ * Main chat view — status bar + chat area + agent picker + input + bottom nav with session picker.
  */
 
 import { onMount } from "solid-js";
 import { initSessions } from "../sessions";
+import { AgentPicker } from "./AgentPicker";
 import { BottomNav } from "./BottomNav";
 import { ChatInput } from "./ChatInput";
 import { ChatMain } from "./ChatMain";
@@ -20,6 +21,7 @@ export function ChatView() {
     <main id="app">
       <StatusBar />
       <ChatMain />
+      <AgentPicker />
       <ChatInput />
       <BottomNav />
       <SessionPicker />

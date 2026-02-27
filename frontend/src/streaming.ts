@@ -23,6 +23,7 @@ import {
   ensureAssistantMessage,
   extractContextUsageFromMessages,
   replaceMessages,
+  selectedAgent,
   setContextUsage,
   setErrorMessage,
   setIsStreaming,
@@ -279,7 +280,8 @@ export async function sendUserMessage(content: string): Promise<boolean> {
   setErrorMessage(null);
 
   try {
-    await sendPromptAsync(sessionId, content);
+    const agent = selectedAgent();
+    await sendPromptAsync(sessionId, content, agent);
     return true;
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Unknown error";

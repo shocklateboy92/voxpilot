@@ -3,6 +3,7 @@
  */
 
 import type {
+  Agent,
   AssistantMessage,
   PermissionRequest,
   QuestionRequest,
@@ -210,6 +211,24 @@ export const [gitBranch, setGitBranch] = createSignal<string | null>(null);
 
 /** Toast notifications. */
 export const [toasts, setToasts] = createSignal<Toast[]>([]);
+
+// ── Agent/mode state ─────────────────────────────────────────────
+
+/** Available agents fetched from OpenCode (primary agents only). */
+export const [agents, setAgents] = createSignal<Agent[]>([]);
+
+const AGENT_STORAGE_KEY = "voxpilot-selected-agent";
+
+/** Currently selected agent name (persisted to localStorage). */
+export const [selectedAgent, setSelectedAgentRaw] = createSignal<string>(
+  localStorage.getItem(AGENT_STORAGE_KEY) ?? "build",
+);
+
+/** Set the selected agent and persist to localStorage. */
+export function setSelectedAgent(name: string): void {
+  setSelectedAgentRaw(name);
+  localStorage.setItem(AGENT_STORAGE_KEY, name);
+}
 
 // ── Toast helpers ────────────────────────────────────────────────
 
