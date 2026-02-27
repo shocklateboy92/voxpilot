@@ -2,8 +2,9 @@
  * Context window usage indicator.
  *
  * Shows "used / limit tokens (X%)" based on the last assistant message's
- * input token count (which represents the full conversation context the
- * model saw) and the model's context window limit from the provider API.
+ * total token count (input + output + reasoning + cache read/write) and
+ * the model's context window limit from the provider API. This matches
+ * the upstream OpenCode UI calculation.
  *
  * Uses createResource to fetch provider data once, and derives usage
  * reactively from the messages store.
@@ -56,31 +57,33 @@ export function ContextUsageBar() {
     return model?.limit.context;
   });
 
-  // The last assistant message's input tokens represent how much of the
-  // context window was consumed on the most recent turn.
-  const lastInputTokens = createMemo(() => {
+  // Total tokens consumed on the most recent turn, matching OpenCode's
+  // upstream calculation: input + output + reasoning + cache.read + cache.write.
+  const lastTotalTokens = createMemo(() => {
     const assistant = lastAssistant();
-    return assistant?.tokens.input ?? 0;
+    if (!assistant?.tokens) return 0;
+    const t = assistant.tokens;
+    return t.input + t.output + t.reasoning + t.cache.read + t.cache.write;
   });
 
   const percentage = createMemo(() => {
     const limit = contextLimit();
-    const used = lastInputTokens();
+    const used = lastTotalTokens();
     if (!limit || !used) return undefined;
     return Math.round((used / limit) * 100);
   });
 
   return (
-    <Show when={lastInputTokens() > 0}>
+    <Show when={lastTotalTokens() > 0}>
       <div class="context-usage">
         <span class="context-label">
           <Show
             when={contextLimit()}
-            fallback={<>{formatTokens(lastInputTokens())} tokens</>}
+            fallback={<>{formatTokens(lastTotalTokens())} tokens</>}
           >
             {(limit) => (
               <>
-                {formatTokens(lastInputTokens())} / {formatTokens(limit())}{" "}
+                {formatTokens(lastTotalTokens())} / {formatTokens(limit())}{" "}
                 tokens ({percentage()}%)
               </>
             )}
