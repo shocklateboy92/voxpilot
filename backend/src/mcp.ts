@@ -314,7 +314,17 @@ function createMcpServer(workDir: string) {
 
 // ── Stateful session management ─────────────────────────────────
 
-const transports = new Map<string, WebStandardStreamableHTTPServerTransport>();
+// Persist transports on globalThis so MCP sessions survive Bun hot reloads.
+// Without this, hot reload re-evaluates the module and creates a fresh Map,
+// orphaning any active sessions and causing 400 errors until the client
+// re-initializes.
+const _mcpGlobal = globalThis as typeof globalThis & {
+  __mcpTransports?: Map<string, WebStandardStreamableHTTPServerTransport>;
+};
+if (!_mcpGlobal.__mcpTransports) {
+  _mcpGlobal.__mcpTransports = new Map();
+}
+const transports = _mcpGlobal.__mcpTransports;
 
 export function createMcpRouter(workDir: string) {
   const router = new Hono();
