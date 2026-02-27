@@ -13,7 +13,7 @@ describe("formatAndDiff", () => {
     expect(result.formattedBefore).toBeDefined();
     expect(result.formattedAfter).toBeDefined();
     expect(result.hunks.length).toBeGreaterThan(0);
-    expect(result.html).toContain("diff-file");
+    expect(result.html).toContain("fulltext-file");
   });
 
   it("handles identical files with empty hunks", async () => {
@@ -35,7 +35,7 @@ describe("formatAndDiff", () => {
       printWidth: 80,
     });
 
-    expect(result.html).toContain("diff-file");
+    expect(result.html).toContain("fulltext-file");
   });
 
   it("respects printWidth for formatting", async () => {

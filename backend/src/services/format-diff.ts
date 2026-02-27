@@ -1,6 +1,6 @@
 import { diffLines } from "diff";
 import * as prettier from "prettier";
-import { renderDiffFileHtml } from "./diff-render";
+import { renderFullFileHtml } from "./diff-render";
 import type { DiffHunk, DiffLine } from "./diff-types";
 
 interface FormatDiffInput {
@@ -33,7 +33,12 @@ export async function formatAndDiff(
 
   // Use file path as a stable file ID
   const fileId = input.filePath.replace(/[^a-zA-Z0-9._/-]/g, "_");
-  const html = renderDiffFileHtml(fileId, input.filePath, hunks);
+  const html = renderFullFileHtml(
+    fileId,
+    input.filePath,
+    formattedAfter,
+    hunks,
+  );
 
   return { formattedBefore, formattedAfter, hunks, html };
 }
