@@ -26,7 +26,7 @@ function AppError(props: { error: unknown }) {
   };
 
   return (
-    <main id="app">
+    <main class="app">
       <h1>VoxPilot</h1>
       <div class="app-error">
         <p>Something went wrong:</p>

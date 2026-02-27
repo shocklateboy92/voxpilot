@@ -109,7 +109,7 @@ export function ChatMain() {
   const arrowOpacity = () => Math.min(Math.abs(swipeOffset()) / 60, 1);
 
   return (
-    <div id="chat-main">
+    <div class="chat-main">
       <div
         class="swipe-arrow swipe-arrow-left"
         style={{ opacity: showLeftArrow() ? arrowOpacity() : 0 }}
@@ -125,7 +125,7 @@ export function ChatMain() {
         <ChevronRight size={24} />
       </div>
       <div
-        id="messages"
+        class="messages"
         ref={messagesRef}
         style={{
           transform: `translateX(${swipeOffset()}px)`,
