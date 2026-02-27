@@ -80,7 +80,15 @@ export async function getFileAtRef(
 ): Promise<string> {
   if (ref === "WORKTREE") {
     try {
-      const file = Bun.file(`${workDir}/${filePath}`);
+      // filePath is relative to the git repo root (from `git diff --numstat`),
+      // which may differ from workDir. Resolve the repo root so the path is correct.
+      const rootResult = await runGit(
+        ["rev-parse", "--show-toplevel"],
+        workDir,
+      );
+      const repoRoot =
+        rootResult.exitCode === 0 ? rootResult.stdout.trim() : workDir;
+      const file = Bun.file(resolve(repoRoot, filePath));
       return await file.text();
     } catch {
       return "";
