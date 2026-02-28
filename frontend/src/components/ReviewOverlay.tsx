@@ -10,7 +10,13 @@
  */
 
 import { X } from "lucide-solid";
-import { createEffect, createSignal, onCleanup, Show } from "solid-js";
+import {
+  createEffect,
+  createResource,
+  createSignal,
+  onCleanup,
+  Show,
+} from "solid-js";
 import { rpc } from "../rpc";
 
 /** What the overlay needs to display a single file diff. */
@@ -28,54 +34,47 @@ export const [reviewFile, setReviewFile] = createSignal<ReviewRequest | null>(
 );
 
 export function ReviewOverlay() {
-  const [diffHtml, setDiffHtml] = createSignal<string | null>(null);
-  const [loading, setLoading] = createSignal(false);
   let containerRef: HTMLDivElement | undefined;
+  const [printWidth, setPrintWidth] = createSignal<number | undefined>();
 
-  async function loadDiff(req: ReviewRequest, printWidth: number): Promise<void> {
-    setLoading(true);
-    setDiffHtml(null);
-
-    try {
-      const res = await rpc.api.review["ref-diff"].$post({
-        json: {
-          fromRef: req.fromRef,
-          toRef: req.toRef,
-          filePath: req.filePath,
-          printWidth,
-          repoRoot: req.repoRoot,
-          cacheId: req.cacheId,
-        },
-      });
-
-      if (!res.ok) {
-        setDiffHtml(
-          `<div class="error">Failed to load diff: ${String(res.status)}</div>`,
-        );
-        return;
-      }
-
-      const data = await res.json();
-      setDiffHtml(data.html);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      setDiffHtml(`<div class="error">Error: ${msg}</div>`);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // Load diff when file changes
-  createEffect(() => {
+  // Derive a stable fetch key from the review request + print width.
+  // Returns undefined (skipping the fetch) until both are available.
+  const fetchKey = () => {
     const req = reviewFile();
-    if (!req || !containerRef) return;
-    void loadDiff(req, computePrintWidth(containerRef));
+    const pw = printWidth();
+    if (!req || !pw) return undefined;
+    return { req, printWidth: pw };
+  };
+
+  const [diffHtml] = createResource(fetchKey, async ({ req, printWidth }) => {
+    const res = await rpc.api.review["ref-diff"].$post({
+      json: {
+        fromRef: req.fromRef,
+        toRef: req.toRef,
+        filePath: req.filePath,
+        printWidth,
+        repoRoot: req.repoRoot,
+        cacheId: req.cacheId,
+      },
+    });
+
+    if (!res.ok) {
+      throw new Error(`Failed to load diff: ${String(res.status)}`);
+    }
+
+    const data = await res.json();
+    return data.html as string;
   });
 
-  // Re-fetch on resize (only when width actually changes)
+  // Compute initial printWidth once the overlay is visible
   createEffect(() => {
-    const req = reviewFile();
-    if (!req || !containerRef) return;
+    if (!reviewFile() || !containerRef) return;
+    setPrintWidth(computePrintWidth(containerRef));
+  });
+
+  // Update printWidth on resize (only when width actually changes)
+  createEffect(() => {
+    if (!reviewFile() || !containerRef) return;
 
     let lastWidth = containerRef.clientWidth;
     let resizeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -87,8 +86,8 @@ export function ReviewOverlay() {
 
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => {
-        if (containerRef && req) {
-          void loadDiff(req, computePrintWidth(containerRef));
+        if (containerRef) {
+          setPrintWidth(computePrintWidth(containerRef));
         }
       }, 500);
     });
@@ -99,7 +98,6 @@ export function ReviewOverlay() {
 
   function close(): void {
     setReviewFile(null);
-    setDiffHtml(null);
   }
 
   return (
@@ -117,8 +115,17 @@ export function ReviewOverlay() {
                 <X size={18} />
               </button>
             </div>
-            <Show when={loading()}>
+            <Show when={diffHtml.loading}>
               <div class="review-loading">Formatting...</div>
+            </Show>
+            <Show when={diffHtml.error}>
+              {(err) => (
+                <div class="review-diff-container">
+                  <div class="error">
+                    Error: {err() instanceof Error ? err().message : "Unknown error"}
+                  </div>
+                </div>
+              )}
             </Show>
             <Show when={diffHtml()}>
               {(html) => (
