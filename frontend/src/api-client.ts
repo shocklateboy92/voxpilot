@@ -64,13 +64,11 @@ export async function sendPromptAsync(
   sessionID: string,
   text: string,
   agent?: string,
-  messageID?: string,
 ): Promise<void> {
   await client.session.promptAsync({
     sessionID,
     parts: [{ type: "text", text }],
     agent,
-    messageID,
   });
 }
 

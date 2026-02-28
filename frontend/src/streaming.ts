@@ -5,13 +5,14 @@
  * requestAnimationFrame batching on the hot path (text parts).
  */
 
-import type { TextPart, UserMessage } from "@opencode-ai/sdk/v2/client";
+import type { TextPart } from "@opencode-ai/sdk/v2/client";
 import {
   fetchMessages,
   respondToPermission,
   sendPromptAsync,
 } from "./api-client";
 import type { MessageWithParts } from "./api-client";
+import type { Message } from "@opencode-ai/sdk/v2/client";
 import type { Event } from "./sse";
 import { subscribeToEvents, unsubscribeFromEvents } from "./sse";
 import { produce } from "solid-js/store";
@@ -212,29 +213,28 @@ export async function sendUserMessage(content: string): Promise<boolean> {
   setErrorMessage(null);
   setSessionError(false);
 
-  // Generate a client-side message ID for the optimistic message
-  const messageID = crypto.randomUUID();
-
-  // Inject optimistic user message immediately
+  // Inject optimistic user message immediately so the UI shows it before
+  // the server responds. Uses a temporary placeholder ID — the server will
+  // assign the real one and reconciliation will replace it.
   const optimistic: MessageWithParts = {
     info: {
-      id: messageID,
+      id: "__optimistic__",
       sessionID: sessionId,
       role: "user",
       time: { created: Date.now() },
-    } as UserMessage,
+    } as Message,
     parts: [],
   };
   setMessages(produce((msgs) => { msgs.push(optimistic); }));
 
   try {
     const agent = selectedAgent();
-    await sendPromptAsync(sessionId, content, agent, messageID);
+    await sendPromptAsync(sessionId, content, agent);
     return true;
   } catch (err: unknown) {
     // Remove the optimistic message on failure
     setMessages(produce((msgs) => {
-      const idx = msgs.findIndex((m) => m.info.id === messageID);
+      const idx = msgs.findIndex((m) => m.info.id === "__optimistic__");
       if (idx >= 0) msgs.splice(idx, 1);
     }));
     const msg = err instanceof Error ? err.message : "Unknown error";
