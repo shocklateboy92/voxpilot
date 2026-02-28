@@ -8,11 +8,11 @@
 import {
   createSession,
   deleteSession,
-  fetchSessions,
 } from "./api-client";
 import {
   activeRootIndex,
   activeSessionId,
+  refetchSessions,
   rootSessions,
   sessions,
   setActiveSessionId,
@@ -20,7 +20,6 @@ import {
   setIsStreaming,
   setPendingPermission,
   setPickerOpen,
-  setSessions,
 } from "./store";
 import { openStream } from "./streaming";
 
@@ -80,22 +79,21 @@ export function navigatePrev(): void {
 /** Create a new session and switch to it. */
 export async function handleNewSession(): Promise<void> {
   const session = await createSession();
-  const list = await fetchSessions();
-  setSessions(list);
+  await refetchSessions();
   switchToSession(session.id);
 }
 
 /** Delete a session and adjust navigation. */
 export async function handleDeleteSession(sessionId: string): Promise<void> {
   await deleteSession(sessionId);
-  let list = await fetchSessions();
+  await refetchSessions();
 
-  if (list.length === 0) {
-    const fresh = await createSession();
-    list = [fresh];
+  if (sessions().length === 0) {
+    await createSession();
+    await refetchSessions();
   }
 
-  setSessions(list);
+  const list = sessions();
 
   // If we deleted the active session, switch to the nearest one
   const currentId = activeSessionId();
@@ -118,14 +116,15 @@ export async function handleDeleteSession(sessionId: string): Promise<void> {
  * or falls back to the first session.
  */
 export async function initSessions(): Promise<void> {
-  let list = await fetchSessions();
-  if (list.length === 0) {
-    const fresh = await createSession();
-    list = [fresh];
+  await refetchSessions();
+
+  if (sessions().length === 0) {
+    await createSession();
+    await refetchSessions();
   }
-  setSessions(list);
 
   const hashId = activeSessionId();
+  const list = sessions();
   const target =
     hashId && list.some((s) => s.id === hashId) ? hashId : list[0]!.id;
 

@@ -11,7 +11,6 @@ import {
   fetchPendingPermissions,
   fetchPendingQuestions,
   fetchSessionStatus,
-  fetchSessions,
   respondToPermission,
   sendPromptAsync,
 } from "./api-client";
@@ -26,7 +25,7 @@ import {
   setIsStreaming,
   setPendingPermission,
   setPendingQuestion,
-  setSessions,
+  refetchSessions,
   upsertPart,
 } from "./store";
 
@@ -147,7 +146,7 @@ function handleEvent(event: Event): void {
 
     case "session.updated": {
       // Refresh session list (title may have changed)
-      void fetchSessions().then(setSessions);
+      void refetchSessions();
       break;
     }
 

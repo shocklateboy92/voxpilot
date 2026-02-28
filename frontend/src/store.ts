@@ -11,7 +11,7 @@ import type {
 import { createEffect, createResource, createSignal } from "solid-js";
 import { createStore, produce, reconcile } from "solid-js/store";
 import type { Message, MessageWithParts, Part, Session } from "./api-client";
-import { fetchAgents, fetchGitBranch } from "./api-client";
+import { fetchAgents, fetchGitBranch, fetchSessions } from "./api-client";
 
 export type { Session, Message, Part, MessageWithParts };
 
@@ -31,7 +31,8 @@ let nextToastId = 0;
 // ── Signals ──────────────────────────────────────────────────────
 
 /** All sessions, most-recently-updated first. */
-export const [sessions, setSessions] = createSignal<Session[]>([]);
+export const [sessions, { mutate: mutateSessions, refetch: refetchSessions }] =
+  createResource(fetchSessions, { initialValue: [] });
 
 /** ID of the currently active session. */
 export const [activeSessionId, setActiveSessionId] = createSignal<string | undefined>(
