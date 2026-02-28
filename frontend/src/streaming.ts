@@ -5,22 +5,24 @@
  * requestAnimationFrame batching on the hot path (text parts).
  */
 
-import type { TextPart } from "@opencode-ai/sdk/v2/client";
+import type { TextPart, UserMessage } from "@opencode-ai/sdk/v2/client";
 import {
   fetchMessages,
-  fetchSessionStatus,
   respondToPermission,
   sendPromptAsync,
 } from "./api-client";
+import type { MessageWithParts } from "./api-client";
 import type { Event } from "./sse";
 import { subscribeToEvents, unsubscribeFromEvents } from "./sse";
+import { produce } from "solid-js/store";
 import {
   activeSessionId,
   ensureAssistantMessage,
   replaceMessages,
   selectedAgent,
   setErrorMessage,
-  setIsStreaming,
+  setMessages,
+  setSessionError,
   mutatePermission,
   mutateQuestion,
   refetchSessions,
@@ -75,12 +77,10 @@ function handleEvent(event: Event): void {
           void fetchMessages(sid).then(replaceMessages);
           stopRafLoop();
           pendingTextPart = null;
-          setIsStreaming(false);
           mutatePermission(null);
         } else {
           // Ensure the in-progress message exists in the store
           ensureAssistantMessage(msg.id, sid, msg);
-          setIsStreaming(true);
         }
       }
       break;
@@ -107,7 +107,6 @@ function handleEvent(event: Event): void {
           break;
         }
         case "step-start": {
-          setIsStreaming(true);
           break;
         }
         case "step-finish": {
@@ -151,7 +150,7 @@ function handleEvent(event: Event): void {
     case "session.error": {
       const props = event.properties;
       if (props.sessionID !== sid) return;
-      setIsStreaming(false);
+      setSessionError(true);
       const err = props.error;
       let errorMsg = "An error occurred";
       if (
@@ -178,7 +177,7 @@ export function openStream(sessionId: string): void {
 
   currentSessionId = sessionId;
   replaceMessages([]);
-  setIsStreaming(false);
+  setSessionError(false);
   setErrorMessage(null);
   mutatePermission(null);
   mutateQuestion(null);
@@ -192,17 +191,6 @@ export function openStream(sessionId: string): void {
     if (err instanceof Error && err.name === "AbortError") return;
     const msg = err instanceof Error ? err.message : "Event stream error";
     setErrorMessage(msg);
-  });
-
-  // Poll for busy session status that may have been missed
-  void fetchSessionStatus(sessionId).catch((err: unknown) => {
-    console.warn("Failed to fetch session status:", err);
-    return undefined;
-  }).then((status) => {
-    if (currentSessionId !== sessionId) return;
-    if (status?.type === "busy") {
-      setIsStreaming(true);
-    }
   });
 }
 
@@ -221,17 +209,36 @@ export async function sendUserMessage(content: string): Promise<boolean> {
   const sessionId = activeSessionId();
   if (!sessionId) return false;
 
-  setIsStreaming(true);
   setErrorMessage(null);
+  setSessionError(false);
+
+  // Generate a client-side message ID for the optimistic message
+  const messageID = crypto.randomUUID();
+
+  // Inject optimistic user message immediately
+  const optimistic: MessageWithParts = {
+    info: {
+      id: messageID,
+      sessionID: sessionId,
+      role: "user",
+      time: { created: Date.now() },
+    } as UserMessage,
+    parts: [],
+  };
+  setMessages(produce((msgs) => { msgs.push(optimistic); }));
 
   try {
     const agent = selectedAgent();
-    await sendPromptAsync(sessionId, content, agent);
+    await sendPromptAsync(sessionId, content, agent, messageID);
     return true;
   } catch (err: unknown) {
+    // Remove the optimistic message on failure
+    setMessages(produce((msgs) => {
+      const idx = msgs.findIndex((m) => m.info.id === messageID);
+      if (idx >= 0) msgs.splice(idx, 1);
+    }));
     const msg = err instanceof Error ? err.message : "Unknown error";
     setErrorMessage(`Failed to send: ${msg}`);
-    setIsStreaming(false);
     return false;
   }
 }

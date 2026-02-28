@@ -17,7 +17,6 @@ import {
   sessions,
   setActiveSessionId,
   setErrorMessage,
-  setIsStreaming,
   setPickerOpen,
 } from "./store";
 import { openStream } from "./streaming";
@@ -44,7 +43,6 @@ export function switchToSession(sessionId: string): void {
   if (activeSessionId() === sessionId) return;
 
   setActiveSessionId(sessionId);
-  setIsStreaming(false);
   setErrorMessage(null);
 
   openStream(sessionId);
@@ -129,7 +127,6 @@ export async function initSessions(): Promise<void> {
   // Always open the stream on init — bypass switchToSession's same-ID guard,
   // which would skip openStream when the URL hash already matches (e.g. page reload).
   setActiveSessionId(target);
-  setIsStreaming(false);
   setErrorMessage(null);
   openStream(target);
 }

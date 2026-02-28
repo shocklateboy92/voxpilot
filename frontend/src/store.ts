@@ -7,7 +7,7 @@ import type {
   PermissionRequest,
   Part as SdkPart,
 } from "@opencode-ai/sdk/v2/client";
-import { createEffect, createResource, createSignal } from "solid-js";
+import { createEffect, createMemo, createResource, createSignal } from "solid-js";
 import { createStore, produce, reconcile } from "solid-js/store";
 import type { Message, MessageWithParts, Part, Session } from "./api-client";
 import {
@@ -135,8 +135,26 @@ export function upsertPart(part: SdkPart): void {
   }
 }
 
-/** Whether we're waiting for an assistant response. */
-export const [isStreaming, setIsStreaming] = createSignal(false);
+/** Session error flag — set on session.error SSE, cleared on new messages or session switch. */
+export const [sessionError, setSessionError] = createSignal(false);
+
+/** Whether we're waiting for an assistant response (derived from messages store). */
+export const isStreaming = createMemo(() => {
+  if (sessionError()) return false;
+
+  const len = messages.length;
+  if (len === 0) return false;
+  const last = messages[len - 1];
+  if (!last) return false;
+
+  // If the last message is a user message (optimistic), we're waiting for the assistant
+  if (last.info.role === "user") {
+    return true;
+  }
+
+  // Last message is an assistant message — still streaming until time.completed is set
+  return !last.info.time.completed;
+});
 
 /** Error message to display (null = no error). */
 export const [errorMessage, setErrorMessage] = createSignal<string | null>(
