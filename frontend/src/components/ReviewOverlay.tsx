@@ -72,13 +72,19 @@ export function ReviewOverlay() {
     void loadDiff(req, computePrintWidth(containerRef));
   });
 
-  // Re-fetch on resize
+  // Re-fetch on resize (only when width actually changes)
   createEffect(() => {
     const req = reviewFile();
     if (!req || !containerRef) return;
 
+    let lastWidth = containerRef.clientWidth;
     let resizeTimer: ReturnType<typeof setTimeout> | undefined;
     const observer = new ResizeObserver(() => {
+      if (!containerRef) return;
+      const newWidth = containerRef.clientWidth;
+      if (newWidth === lastWidth) return;
+      lastWidth = newWidth;
+
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => {
         if (containerRef && req) {
