@@ -8,6 +8,7 @@
 
 import {
   createSession,
+  createWorktree,
   deleteSession,
   sendPromptAsync,
 } from "./api-client";
@@ -134,12 +135,24 @@ export function navigateToNewSession(): void {
  *
  * Setting activeSessionId triggers the reactive message-loading effect
  * in streaming.ts — no explicit openStream needed.
+ *
+ * @param directory - Project directory to create the session in
+ * @param useWorktree - If true, create a new git worktree first and use its directory
  */
 export async function createSessionAndSend(
   content: string,
   agent: string,
+  directory?: string,
+  useWorktree?: boolean,
 ): Promise<void> {
-  const session = await createSession();
+  let sessionDir = directory;
+
+  if (useWorktree && directory) {
+    const worktree = await createWorktree(directory);
+    sessionDir = worktree.directory;
+  }
+
+  const session = await createSession(undefined, sessionDir);
   await refetchSessions();
   setActiveSessionId(session.id);
   await sendPromptAsync(session.id, content, agent);

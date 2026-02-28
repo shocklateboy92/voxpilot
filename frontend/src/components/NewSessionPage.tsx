@@ -1,24 +1,30 @@
 /**
  * New session page — shown when no session is active.
  *
- * Displays a centered heading with the agent picker and a chat input.
+ * Displays a centered heading with a project selector, agent picker,
+ * optional worktree checkbox, and a chat input.
  * When the user sends their first message, a session is created and
  * the view transitions instantly to the chat.
  *
  * Supports swipe-left to navigate to the most recent existing session.
- * Structured to support future workspace/worktree selection.
  */
 
 import ArrowUp from "lucide-solid/icons/arrow-up";
 import ChevronRight from "lucide-solid/icons/chevron-right";
-import { createSignal, onCleanup, onMount } from "solid-js";
+import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { attachSwipeHandler } from "../gestures";
 import { createSessionAndSend, navigateNext } from "../sessions";
 import {
+  createNewWorktree,
   extractErrorMessage,
+  projects,
   rootSessions,
   selectedAgent,
+  selectedProject,
+  selectedProjectDir,
+  setCreateNewWorktree,
   setErrorMessage,
+  setSelectedProjectDir,
   setSwipeOffset,
   showToast,
   swipeOffset,
@@ -32,6 +38,13 @@ export function NewSessionPage() {
   const [animateSnap, setAnimateSnap] = createSignal(false);
   const [sending, setSending] = createSignal(false);
   let pendingNav: (() => void) | null = null;
+
+  /** Display name for a project — use name if available, otherwise last path segment. */
+  function projectLabel(worktree: string, name?: string): string {
+    if (name) return name;
+    const parts = worktree.split("/");
+    return parts[parts.length - 1] ?? worktree;
+  }
 
   function handleTransitionEnd(): void {
     setAnimateSnap(false);
@@ -55,7 +68,12 @@ export function NewSessionPage() {
     setSending(true);
     setErrorMessage(null);
     try {
-      await createSessionAndSend(value, selectedAgent());
+      await createSessionAndSend(
+        value,
+        selectedAgent(),
+        selectedProjectDir(),
+        createNewWorktree(),
+      );
     } catch (err: unknown) {
       showToast(extractErrorMessage(err));
     } finally {
@@ -145,7 +163,37 @@ export function NewSessionPage() {
         <div class="new-session-content">
           <h1 class="new-session-heading">New Chat</h1>
 
-          {/* Future: workspace/worktree selector goes here */}
+          <Show when={projects().length > 1}>
+            <select
+              class="project-select"
+              value={selectedProjectDir() ?? ""}
+              onChange={(e) => {
+                setSelectedProjectDir(e.currentTarget.value || undefined);
+                setCreateNewWorktree(false);
+              }}
+              disabled={sending()}
+            >
+              <For each={projects()}>
+                {(project) => (
+                  <option value={project.worktree}>
+                    {projectLabel(project.worktree, project.name)}
+                  </option>
+                )}
+              </For>
+            </select>
+          </Show>
+
+          <Show when={selectedProject()?.vcs === "git"}>
+            <label class="worktree-checkbox">
+              <input
+                type="checkbox"
+                checked={createNewWorktree()}
+                onChange={(e) => setCreateNewWorktree(e.currentTarget.checked)}
+                disabled={sending()}
+              />
+              Create worktree
+            </label>
+          </Show>
 
           <AgentPicker />
 

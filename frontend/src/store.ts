@@ -9,16 +9,18 @@ import type {
 } from "@opencode-ai/sdk/v2/client";
 import { createEffect, createMemo, createResource, createSignal } from "solid-js";
 import { createStore, produce, reconcile } from "solid-js/store";
-import type { Message, MessageWithParts, Part, Session } from "./api-client";
+import type { Message, MessageWithParts, Part, Project, Session } from "./api-client";
 import {
   fetchAgents,
+  fetchCurrentProject,
   fetchGitBranch,
   fetchPendingPermissions,
   fetchPendingQuestions,
+  fetchProjects,
   fetchSessions,
 } from "./api-client";
 
-export type { Session, Message, Part, MessageWithParts };
+export type { Session, Message, Part, MessageWithParts, Project };
 
 // ── Streaming state types ──────────────────────────────────────
 
@@ -207,6 +209,36 @@ export const [selectedAgent, setSelectedAgent] = createSignal<string>(
 createEffect(() => {
   localStorage.setItem(AGENT_STORAGE_KEY, selectedAgent());
 });
+
+// ── Project/worktree state ───────────────────────────────────────
+
+/** All projects known to OpenCode. */
+export const [projects] = createResource(fetchProjects, { initialValue: [] });
+
+/** The current (default) project. */
+export const [currentProject] = createResource(fetchCurrentProject);
+
+/** Directory of the selected project for new session creation. */
+export const [selectedProjectDir, setSelectedProjectDir] = createSignal<string | undefined>(
+  undefined,
+);
+
+/** Initialize selectedProjectDir from current project once loaded. */
+createEffect(() => {
+  const cur = currentProject();
+  if (cur && selectedProjectDir() === undefined) {
+    setSelectedProjectDir(cur.worktree);
+  }
+});
+
+/** Whether to create a new worktree for the next session. */
+export const [createNewWorktree, setCreateNewWorktree] = createSignal(false);
+
+/** The selected project object (derived from selectedProjectDir). */
+export const selectedProject = () => {
+  const dir = selectedProjectDir();
+  return projects().find((p) => p.worktree === dir);
+};
 
 // ── Toast helpers ────────────────────────────────────────────────
 

@@ -7,21 +7,25 @@ import type {
   Message,
   Part,
   PermissionRequest,
+  Project,
   QuestionAnswer,
   QuestionRequest,
   Session,
   SessionStatus,
+  Worktree,
 } from "@opencode-ai/sdk/v2/client";
 import { createOpencodeClient } from "@opencode-ai/sdk/v2/client";
 
 export type {
   Agent,
+  Project,
   Session,
   Message,
   Part,
   PermissionRequest,
   QuestionRequest,
   QuestionAnswer,
+  Worktree,
 };
 
 export type MessageWithParts = {
@@ -40,8 +44,8 @@ export async function fetchSessions(): Promise<Session[]> {
   return result.data ?? [];
 }
 
-export async function createSession(title?: string): Promise<Session> {
-  const result = await client.session.create({ title });
+export async function createSession(title?: string, directory?: string): Promise<Session> {
+  const result = await client.session.create({ title, directory });
   if (!result.data)
     throw new Error(
       "Failed to create session: " + JSON.stringify(result.error),
@@ -128,4 +132,31 @@ export async function fetchAgents(): Promise<Agent[]> {
   } catch {
     return [];
   }
+}
+
+export async function fetchProjects(): Promise<Project[]> {
+  try {
+    const result = await client.project.list();
+    return result.data ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchCurrentProject(): Promise<Project | undefined> {
+  try {
+    const result = await client.project.current();
+    return result.data ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function createWorktree(directory: string): Promise<Worktree> {
+  const result = await client.worktree.create({ directory });
+  if (!result.data)
+    throw new Error(
+      "Failed to create worktree: " + JSON.stringify(result.error),
+    );
+  return result.data;
 }
