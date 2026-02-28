@@ -13,8 +13,10 @@ import {
   activeRootIndex,
   activeSession,
   activeSessionId,
+  clearScrollPosition,
   refetchSessions,
   rootSessions,
+  saveCurrentScrollPosition,
   sessions,
   setActiveSessionId,
   setErrorMessage,
@@ -43,6 +45,7 @@ export function switchToIndex(index: number): void {
 export function switchToSession(sessionId: string): void {
   if (activeSessionId() === sessionId) return;
 
+  saveCurrentScrollPosition();
   setActiveSessionId(sessionId);
   setErrorMessage(null);
 
@@ -128,6 +131,7 @@ export async function handleDeleteSession(sessionId: string): Promise<void> {
   }
 
   setPickerOpen(false);
+  clearScrollPosition(sessionId);
 }
 
 /**

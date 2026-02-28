@@ -15,10 +15,13 @@ import {
 import { attachSwipeHandler } from "../gestures";
 import { canNavigateNext, canNavigatePrev, navigateNext, navigatePrev } from "../sessions";
 import {
+  activeSessionId,
+  consumeScrollPosition,
   errorMessage,
   messages,
   pendingPermission,
   pendingQuestion,
+  registerScrollTopGetter,
   setSwipeOffset,
   swipeOffset,
 } from "../store";
@@ -42,13 +45,50 @@ export function ChatMain() {
     }
   }
 
-  // Auto-scroll when messages change or streaming updates
+  const AT_BOTTOM_THRESHOLD = 50;
+  const [isAtBottom, setIsAtBottom] = createSignal(true);
+
+  // While a scroll-position restore is in flight (waiting for rAF),
+  // suppress all auto-scrolling so later effect runs don't clobber it.
+  let restoring = false;
+
+  // Auto-scroll when messages change, respecting saved scroll position
+  // and whether the user has scrolled up.
   createEffect(() => {
-    void messages.length; // track store array changes
+    const len = messages.length;
     errorMessage();
     pendingPermission();
     pendingQuestion();
-    scrollSentinel?.scrollIntoView({ block: "end", behavior: "instant" });
+
+    if (restoring) return;
+
+    const id = activeSessionId();
+    if (id && len > 0) {
+      const saved = consumeScrollPosition(id);
+      if (saved !== undefined) {
+        if (saved.atBottom) {
+          scrollSentinel?.scrollIntoView({ block: "end", behavior: "instant" });
+          setIsAtBottom(true);
+        } else {
+          // Defer until the browser has laid out the new message content,
+          // otherwise scrollTop has no effect on a container that hasn't
+          // been sized yet.
+          restoring = true;
+          const top = saved.scrollTop;
+          requestAnimationFrame(() => {
+            messagesRef?.scrollTo({ top, behavior: "instant" });
+            setIsAtBottom(false);
+            restoring = false;
+          });
+        }
+        return;
+      }
+    }
+
+    // Default: only auto-scroll if the user is already at the bottom
+    if (isAtBottom()) {
+      scrollSentinel?.scrollIntoView({ block: "end", behavior: "instant" });
+    }
   });
 
   // Swipe gesture handling
@@ -58,6 +98,26 @@ export function ChatMain() {
         "Component mounted without messagesRef reference being set",
       );
     }
+
+    // Provide a read-only callback for the store to capture scroll state
+    registerScrollTopGetter(() => {
+      const el = messagesRef;
+      if (!el) return { scrollTop: 0, atBottom: true };
+      const atBottom =
+        el.scrollTop + el.clientHeight >= el.scrollHeight - AT_BOTTOM_THRESHOLD;
+      return { scrollTop: el.scrollTop, atBottom };
+    });
+
+    // Track whether the user is scrolled to the bottom
+    const handleScroll = () => {
+      const el = messagesRef;
+      if (!el) return;
+      const atBottom =
+        el.scrollTop + el.clientHeight >= el.scrollHeight - AT_BOTTOM_THRESHOLD;
+      setIsAtBottom(atBottom);
+    };
+    messagesRef.addEventListener("scroll", handleScroll, { passive: true });
+    onCleanup(() => messagesRef?.removeEventListener("scroll", handleScroll));
 
     const cleanup = attachSwipeHandler(messagesRef, {
       onSwipeMove(deltaX) {
