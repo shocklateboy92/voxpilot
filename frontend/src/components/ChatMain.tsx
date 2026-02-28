@@ -2,6 +2,7 @@
  * Main chat area — messages list with swipe gestures.
  */
 
+import ChevronDown from "lucide-solid/icons/chevron-down";
 import ChevronLeft from "lucide-solid/icons/chevron-left";
 import ChevronRight from "lucide-solid/icons/chevron-right";
 import {
@@ -31,7 +32,6 @@ import { ToolConfirmBlock } from "./ToolConfirmBlock";
 
 export function ChatMain() {
   let messagesRef: HTMLDivElement | undefined;
-  let scrollSentinel: HTMLDivElement | undefined;
 
   const [animateSnap, setAnimateSnap] = createSignal(false);
   let pendingNav: (() => void) | null = null;
@@ -67,7 +67,7 @@ export function ChatMain() {
       const saved = consumeScrollPosition(id);
       if (saved !== undefined) {
         if (saved.atBottom) {
-          scrollSentinel?.scrollIntoView({ block: "end", behavior: "instant" });
+          messagesRef?.scrollTo({ top: messagesRef.scrollHeight, behavior: "instant" });
           setIsAtBottom(true);
         } else {
           // Defer until the browser has laid out the new message content,
@@ -87,7 +87,7 @@ export function ChatMain() {
 
     // Default: only auto-scroll if the user is already at the bottom
     if (isAtBottom()) {
-      scrollSentinel?.scrollIntoView({ block: "end", behavior: "instant" });
+      messagesRef?.scrollTo({ top: messagesRef.scrollHeight, behavior: "instant" });
     }
   });
 
@@ -158,6 +158,12 @@ export function ChatMain() {
   };
   const arrowOpacity = () => Math.min(Math.abs(swipeOffset()) / 60, 1);
 
+  function scrollToBottom(): void {
+    if (messagesRef) {
+      messagesRef.scrollTo({ top: messagesRef.scrollHeight, behavior: "smooth" });
+    }
+  }
+
   return (
     <div class="chat-main">
       <div
@@ -174,6 +180,15 @@ export function ChatMain() {
       >
         <ChevronRight size={24} />
       </div>
+      <Show when={!isAtBottom()}>
+        <button
+          class="btn btn-icon scroll-to-bottom"
+          onClick={scrollToBottom}
+          aria-label="Scroll to bottom"
+        >
+          <ChevronDown size={20} />
+        </button>
+      </Show>
       <div
         class="messages"
         ref={messagesRef}
@@ -200,7 +215,7 @@ export function ChatMain() {
           {(msg) => <div class="message error">{msg()}</div>}
         </Show>
 
-        <div ref={scrollSentinel} class="scroll-sentinel" />
+        <div class="scroll-sentinel" />
       </div>
     </div>
   );
