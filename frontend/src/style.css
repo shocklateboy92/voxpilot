@@ -13,6 +13,12 @@
   --status-bar-height: 2rem;
   --status-bar-clearance: 3rem;
 
+  /* Code / diff layout — shared between CSS rules and JS (ReviewOverlay) */
+  --code-font-size: 0.75rem;
+  --code-line-height: 1.5;
+  --line-num-width: 2.5rem;
+  --cell-padding: 0.4rem;
+
   /* Dark theme (default) */
   --color-bg: #0f1117;
   --color-surface: #1a1d27;
@@ -1174,8 +1180,8 @@ h1 {
   width: 100%;
   border-collapse: collapse;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
-  line-height: 1.5;
+  font-size: var(--code-font-size);
+  line-height: var(--code-line-height);
 }
 
 .diff-line {
@@ -1183,10 +1189,10 @@ h1 {
 }
 
 .diff-line-num {
-  width: 2.5rem;
-  min-width: 2.5rem;
+  width: var(--line-num-width);
+  min-width: var(--line-num-width);
   text-align: right;
-  padding: 0 0.4rem;
+  padding: 0 var(--cell-padding);
   color: var(--color-muted);
   user-select: none;
   vertical-align: top;
@@ -1201,7 +1207,7 @@ h1 {
 }
 
 .diff-line-content {
-  padding: 0 0.4rem;
+  padding: 0 var(--cell-padding);
   white-space: pre-wrap;
   word-break: break-all;
 }
@@ -1238,15 +1244,15 @@ h1 {
   width: 100%;
   border-collapse: collapse;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
-  line-height: 1.5;
+  font-size: var(--code-font-size);
+  line-height: var(--code-line-height);
 }
 
 .fulltext-line-num {
-  width: 2.5rem;
-  min-width: 2.5rem;
+  width: var(--line-num-width);
+  min-width: var(--line-num-width);
   text-align: right;
-  padding: 0 0.4rem;
+  padding: 0 var(--cell-padding);
   color: var(--color-muted);
   user-select: none;
   vertical-align: top;
@@ -1254,7 +1260,7 @@ h1 {
 }
 
 .fulltext-line-content {
-  padding: 0 0.4rem;
+  padding: 0 var(--cell-padding);
   white-space: pre-wrap;
   word-break: break-all;
 }
