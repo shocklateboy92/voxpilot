@@ -4,6 +4,9 @@
 
 import type {
   Agent,
+  EventWorktreeFailed,
+  EventWorktreeReady,
+  GlobalEvent,
   Message,
   Part,
   PermissionRequest,
@@ -53,14 +56,15 @@ export async function createSession(title?: string, directory?: string): Promise
   return result.data;
 }
 
-export async function deleteSession(sessionID: string): Promise<void> {
-  await client.session.delete({ sessionID });
+export async function deleteSession(sessionID: string, directory?: string): Promise<void> {
+  await client.session.delete({ sessionID, directory });
 }
 
 export async function fetchMessages(
   sessionID: string,
+  directory?: string,
 ): Promise<MessageWithParts[]> {
-  const result = await client.session.messages({ sessionID });
+  const result = await client.session.messages({ sessionID, directory });
   return (result.data ?? []) as MessageWithParts[];
 }
 
@@ -68,57 +72,62 @@ export async function sendPromptAsync(
   sessionID: string,
   text: string,
   agent?: string,
+  directory?: string,
 ): Promise<void> {
   await client.session.promptAsync({
     sessionID,
     parts: [{ type: "text", text }],
     agent,
+    directory,
   });
 }
 
-export async function abortSession(sessionID: string): Promise<void> {
-  await client.session.abort({ sessionID });
+export async function abortSession(sessionID: string, directory?: string): Promise<void> {
+  await client.session.abort({ sessionID, directory });
 }
 
 export async function respondToPermission(
   requestID: string,
   reply: "once" | "always" | "reject",
+  directory?: string,
 ): Promise<void> {
-  await client.permission.reply({ requestID, reply });
+  await client.permission.reply({ requestID, reply, directory });
 }
 
 export async function replyToQuestion(
   requestID: string,
   answers: QuestionAnswer[],
+  directory?: string,
 ): Promise<void> {
-  await client.question.reply({ requestID, answers });
+  await client.question.reply({ requestID, answers, directory });
 }
 
-export async function rejectQuestion(requestID: string): Promise<void> {
-  await client.question.reject({ requestID });
+export async function rejectQuestion(requestID: string, directory?: string): Promise<void> {
+  await client.question.reject({ requestID, directory });
 }
 
-export async function fetchPendingPermissions(): Promise<PermissionRequest[]> {
-  const result = await client.permission.list();
+export async function fetchPendingPermissions(directory?: string): Promise<PermissionRequest[]> {
+  const result = await client.permission.list({ directory });
   return (result.data ?? []) as PermissionRequest[];
 }
 
-export async function fetchPendingQuestions(): Promise<QuestionRequest[]> {
-  const result = await client.question.list();
+export async function fetchPendingQuestions(directory?: string): Promise<QuestionRequest[]> {
+  const result = await client.question.list({ directory });
   return (result.data ?? []) as QuestionRequest[];
 }
 
 export async function fetchSessionStatus(
   sessionID: string,
+  directory?: string,
 ): Promise<SessionStatus | undefined> {
-  const result = await client.session.status();
+  const result = await client.session.status({ directory });
   const statuses = result.data as Record<string, SessionStatus> | undefined;
   return statuses?.[sessionID];
 }
 
-export async function fetchGitBranch(): Promise<string | null> {
+export async function fetchGitBranch(directory?: string): Promise<string | null> {
   try {
-    const result = await client.vcs.get();
+    const result = await client.vcs.get({ directory });
     return result.data?.branch ?? null;
   } catch {
     return null;
@@ -158,5 +167,84 @@ export async function createWorktree(directory: string): Promise<Worktree> {
     throw new Error(
       "Failed to create worktree: " + JSON.stringify(result.error),
     );
+
+  // The server populates the worktree asynchronously after returning.
+  // Wait for the worktree.ready SSE event before using it.
+  await waitForWorktreeReady(result.data.name);
+
   return result.data;
+}
+
+/** Default timeout for waiting for worktree.ready (30 seconds). */
+const WORKTREE_READY_TIMEOUT_MS = 30_000;
+
+/**
+ * Wait for a `worktree.ready` SSE event matching the given worktree name.
+ * Rejects if `worktree.failed` arrives or the timeout expires.
+ *
+ * Uses the `/global/event` SSE stream because `worktree.ready` is emitted
+ * via GlobalBus (not the per-instance Bus), so it only appears on the
+ * global event endpoint — not on the per-instance `/event` stream that
+ * VoxPilot normally subscribes to.
+ */
+function waitForWorktreeReady(worktreeName: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    let settled = false;
+    const abort = new AbortController();
+
+    function settle(fn: () => void): void {
+      if (settled) return;
+      settled = true;
+      abort.abort();
+      clearTimeout(timeoutId);
+      fn();
+    }
+
+    // Open a short-lived SSE connection to /global/event
+    void client.global
+      .event({ signal: abort.signal })
+      .then(async (result) => {
+        for await (const raw of result.stream) {
+          if (abort.signal.aborted) break;
+          const globalEvent = raw as GlobalEvent;
+          const event = globalEvent.payload;
+
+          if (event.type === "worktree.ready") {
+            const props = (event as EventWorktreeReady).properties;
+            if (props.name === worktreeName) {
+              settle(() => resolve());
+              break;
+            }
+          }
+
+          if (event.type === "worktree.failed") {
+            const props = (event as EventWorktreeFailed).properties;
+            settle(() =>
+              reject(new Error(`Worktree creation failed: ${props.message}`)),
+            );
+            break;
+          }
+        }
+      })
+      .catch((err: unknown) => {
+        if (abort.signal.aborted) return;
+        settle(() =>
+          reject(
+            err instanceof Error
+              ? err
+              : new Error("Global event stream failed"),
+          ),
+        );
+      });
+
+    const timeoutId = setTimeout(() => {
+      settle(() =>
+        reject(
+          new Error(
+            `Timed out waiting for worktree "${worktreeName}" to be ready`,
+          ),
+        ),
+      );
+    }, WORKTREE_READY_TIMEOUT_MS);
+  });
 }

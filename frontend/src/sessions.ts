@@ -155,12 +155,14 @@ export async function createSessionAndSend(
   const session = await createSession(undefined, sessionDir);
   await refetchSessions();
   setActiveSessionId(session.id);
-  await sendPromptAsync(session.id, content, agent);
+  await sendPromptAsync(session.id, content, agent, sessionDir);
 }
 
 /** Delete a session and adjust navigation. */
 export async function handleDeleteSession(sessionId: string): Promise<void> {
-  await deleteSession(sessionId);
+  // Look up the session's directory before deleting it
+  const session = sessions().find((s) => s.id === sessionId);
+  await deleteSession(sessionId, session?.directory);
   const list = (await refetchSessions()) ?? [];
 
   if (list.length === 0) {

@@ -174,19 +174,24 @@ export const [swipeOffset, setSwipeOffset] = createSignal(0);
 /** Pending permission request (null = none pending). */
 export const [pendingPermission, { mutate: mutatePermission }] =
   createResource(activeSessionId, async (sid) => {
-    const all = await fetchPendingPermissions();
+    const dir = sessions().find((s) => s.id === sid)?.directory;
+    const all = await fetchPendingPermissions(dir);
     return all.find((p) => p.sessionID === sid) ?? null;
   }, { initialValue: null });
 
 /** Pending question request (null = none pending). */
 export const [pendingQuestion, { mutate: mutateQuestion }] =
   createResource(activeSessionId, async (sid) => {
-    const all = await fetchPendingQuestions();
+    const dir = sessions().find((s) => s.id === sid)?.directory;
+    const all = await fetchPendingQuestions(dir);
     return all.find((q) => q.sessionID === sid) ?? null;
   }, { initialValue: null });
 
-/** Current git branch name. */
-export const [gitBranch] = createResource(fetchGitBranch);
+/** Current git branch name — re-fetches when the active session changes. */
+export const [gitBranch] = createResource(activeSessionId, (sid) => {
+  const dir = sessions().find((s) => s.id === sid)?.directory;
+  return fetchGitBranch(dir);
+});
 
 /** Toast notifications. */
 export const [toasts, setToasts] = createSignal<Toast[]>([]);

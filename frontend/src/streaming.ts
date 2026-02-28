@@ -22,6 +22,7 @@ import { subscribeToEvents } from "./sse";
 import { createEffect } from "solid-js";
 import { produce } from "solid-js/store";
 import {
+  activeSession,
   activeSessionId,
   ensureAssistantMessage,
   replaceMessages,
@@ -77,7 +78,8 @@ function handleEvent(event: Event): void {
         // Assistant message started or completed
         if ("time" in msg && msg.time.completed) {
           // Message is complete — reload full messages
-          void fetchMessages(sid).then((msgs) => {
+          const dir = activeSession()?.directory;
+          void fetchMessages(sid, dir).then((msgs) => {
             // Guard against stale fetch: only replace if still on the same session
             if (activeSessionId() === sid) replaceMessages(msgs);
           });
@@ -194,7 +196,8 @@ createEffect(() => {
   mutateQuestion(null);
 
   if (sid) {
-    void fetchMessages(sid).then((msgs) => {
+    const dir = activeSession()?.directory;
+    void fetchMessages(sid, dir).then((msgs) => {
       // Guard against rapid switches: only apply if still on this session
       if (activeSessionId() === sid) replaceMessages(msgs);
     });
@@ -239,7 +242,8 @@ export async function sendUserMessage(content: string): Promise<boolean> {
 
   try {
     const agent = selectedAgent();
-    await sendPromptAsync(sessionId, content, agent);
+    const dir = activeSession()?.directory;
+    await sendPromptAsync(sessionId, content, agent, dir);
     return true;
   } catch (err: unknown) {
     // Remove the optimistic message on failure
@@ -263,7 +267,8 @@ export async function respondToConfirm(
   mutatePermission(null);
 
   try {
-    await respondToPermission(requestID, reply);
+    const dir = activeSession()?.directory;
+    await respondToPermission(requestID, reply, dir);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     setErrorMessage(`Permission error: ${msg}`);
