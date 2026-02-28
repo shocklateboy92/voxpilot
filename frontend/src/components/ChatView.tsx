@@ -19,15 +19,11 @@ import { StatusBar } from "./StatusBar";
 export function ChatView() {
   return (
     <main class="app">
-      <Show when={isNewSessionPage()} fallback={
-        <>
-          <StatusBar />
-          <ChatMain />
-          <AgentPicker />
-          <ChatInput />
-        </>
-      }>
-        <NewSessionPage />
+      <Show when={!isNewSessionPage()} fallback={<NewSessionPage />}>
+        <StatusBar />
+        <ChatMain />
+        <AgentPicker />
+        <ChatInput />
       </Show>
       <BottomNav />
       <SessionPicker />
