@@ -13,6 +13,25 @@ import { agents } from "../store";
 import { ChangesetCard } from "./ChangesetCard";
 import { ToolPartBlock } from "./ToolPartBlock";
 
+/**
+ * Attach a touchstart listener that stops propagation when the touch
+ * originates inside a `.scroll-wrapper`.  This prevents the parent
+ * swipe-navigation handler from hijacking horizontal scrolls inside
+ * code blocks and tables.
+ */
+function guardScrollWrappers(el: HTMLElement): void {
+  el.addEventListener(
+    "touchstart",
+    (e: TouchEvent) => {
+      const target = e.target;
+      if (target instanceof Element && target.closest(".scroll-wrapper")) {
+        e.stopPropagation();
+      }
+    },
+    { passive: true },
+  );
+}
+
 interface Props {
   msg: MessageWithParts;
 }
@@ -76,7 +95,7 @@ export function MessageBubble(props: Props) {
         </span>
       </Show>
       <Show when={role() === "assistant" && textContent()}>
-        <div class="markdown-body" innerHTML={renderMarkdown(textContent())} />
+        <div class="markdown-body" ref={guardScrollWrappers} innerHTML={renderMarkdown(textContent())} />
       </Show>
       <Show when={role() === "user" && textContent()}>
         <p>{textContent()}</p>

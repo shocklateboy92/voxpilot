@@ -4,6 +4,10 @@
  * Framework-agnostic — returns a cleanup function.
  * Detects horizontal swipes on an element, excluding
  * touches near screen edges (to avoid Safari back/forward).
+ *
+ * Touches inside horizontally-scrollable children (code blocks,
+ * tables) are handled separately — those elements call
+ * stopPropagation() on touchstart so this handler never sees them.
  */
 
 export interface SwipeCallbacks {

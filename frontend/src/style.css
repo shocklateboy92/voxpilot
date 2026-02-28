@@ -213,7 +213,6 @@ h1 {
   padding: 0.75em 1em;
   background: var(--color-code-block-bg);
   border-radius: 0.4em;
-  overflow-x: auto;
   line-height: 1.45;
 }
 
@@ -222,6 +221,11 @@ h1 {
   padding: 0;
   font-size: 0.85em;
   white-space: pre;
+}
+
+.scroll-wrapper {
+  overflow-x: scroll;
+  -webkit-overflow-scrolling: touch;
 }
 
 .message.markdown-body blockquote {
@@ -515,6 +519,7 @@ h1 {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   padding-top: var(--status-bar-clearance);
   padding-bottom: 4rem;
   touch-action: pan-y;
@@ -561,6 +566,7 @@ h1 {
   font-size: 0.9rem;
   white-space: pre-wrap;
   word-wrap: break-word;
+  min-width: 0;
 }
 
 .message.user {

@@ -161,3 +161,4 @@ Test both themes. The `color-scheme: light dark` declaration on `:root` tells th
 - **No `@media` breakpoints.** This is a mobile-only app.
 - **Max 1 blank line** between selectors within a section.
 - New selectors go in the appropriate numbered section.
+- **Wide content scrolls independently.** `<pre>` and `<table>` elements in markdown are wrapped in a `.scroll-wrapper` div with `overflow-x: auto`. Touches inside these wrappers call `stopPropagation()` so the swipe gesture handler never sees them.
