@@ -8,16 +8,14 @@
 import {
   createSession,
   deleteSession,
-  fetchAgents,
   fetchSessions,
 } from "./api-client";
 import {
   activeRootIndex,
   activeSessionId,
-  notifySessionChanged,
   rootSessions,
   sessions,
-  setAgents,
+  setActiveSessionId,
   setErrorMessage,
   setIsStreaming,
   setPendingPermission,
@@ -25,20 +23,6 @@ import {
   setSessions,
 } from "./store";
 import { openStream } from "./streaming";
-
-// ── URL hash helpers ──────────────────────────────────────────────
-
-/** Read session ID from the URL hash (e.g. "#abc123" → "abc123"). */
-export function sessionIdFromHash(): string | undefined {
-  const hash = window.location.hash.slice(1);
-  return hash || undefined;
-}
-
-/** Write session ID to the URL hash without triggering navigation. */
-function setSessionHash(sessionId: string): void {
-  history.replaceState(null, "", `#${sessionId}`);
-  notifySessionChanged();
-}
 
 /**
  * Switch to the session at the given index.
@@ -61,7 +45,7 @@ export function switchToIndex(index: number): void {
 export function switchToSession(sessionId: string): void {
   if (activeSessionId() === sessionId) return;
 
-  setSessionHash(sessionId);
+  setActiveSessionId(sessionId);
   setIsStreaming(false);
   setErrorMessage(null);
   setPendingPermission(null);
@@ -141,22 +125,13 @@ export async function initSessions(): Promise<void> {
   }
   setSessions(list);
 
-  // Fetch available agents (non-blocking — runs in parallel with session setup)
-  void fetchAgents().then((allAgents) => {
-    // Only show primary agents (not subagents) and non-hidden agents
-    const primaryAgents = allAgents.filter(
-      (a) => (a.mode === "primary" || a.mode === "all") && !a.hidden,
-    );
-    setAgents(primaryAgents);
-  });
-
-  const hashId = sessionIdFromHash();
+  const hashId = activeSessionId();
   const target =
     hashId && list.some((s) => s.id === hashId) ? hashId : list[0]!.id;
 
   // Always open the stream on init — bypass switchToSession's same-ID guard,
   // which would skip openStream when the URL hash already matches (e.g. page reload).
-  setSessionHash(target);
+  setActiveSessionId(target);
   setIsStreaming(false);
   setErrorMessage(null);
   setPendingPermission(null);

@@ -3,15 +3,15 @@
  */
 
 import type {
-  Agent,
   AssistantMessage,
   PermissionRequest,
   QuestionRequest,
   Part as SdkPart,
 } from "@opencode-ai/sdk/v2/client";
-import { createEffect, createSignal } from "solid-js";
+import { createEffect, createResource, createSignal } from "solid-js";
 import { createStore, produce, reconcile } from "solid-js/store";
 import type { Message, MessageWithParts, Part, Session } from "./api-client";
+import { fetchAgents, fetchGitBranch } from "./api-client";
 
 export type { Session, Message, Part, MessageWithParts };
 
@@ -33,23 +33,24 @@ let nextToastId = 0;
 /** All sessions, most-recently-updated first. */
 export const [sessions, setSessions] = createSignal<Session[]>([]);
 
-/**
- * Reactive version counter — bumped whenever the active session changes.
- * Used to make activeSessionId() reactive despite reading from the URL hash.
- */
-const [hashVersion, setHashVersion] = createSignal(0);
+/** ID of the currently active session. */
+export const [activeSessionId, setActiveSessionId] = createSignal<string | undefined>(
+  window.location.hash.slice(1) || undefined
+);
 
-/** Bump the hash version to notify reactive consumers. */
-export function notifySessionChanged(): void {
-  setHashVersion((v) => v + 1);
-}
+// Sync signal → URL hash
+createEffect(() => {
+  const id = activeSessionId();
+  if (id) {
+    history.replaceState(null, "", `#${id}`);
+  }
+});
 
-/** ID of the currently active session, read from the URL hash. */
-export const activeSessionId = (): string | undefined => {
-  hashVersion(); // subscribe to changes
+// Sync URL hash → signal (browser back/forward, manual edits)
+window.addEventListener("hashchange", () => {
   const hash = window.location.hash.slice(1);
-  return hash || undefined;
-};
+  setActiveSessionId(hash || undefined);
+});
 
 /** Messages for the active session — single source of truth for both history and streaming. */
 export const [messages, setMessages] = createStore<MessageWithParts[]>([]);
@@ -151,7 +152,7 @@ export const [pendingQuestion, setPendingQuestion] =
   createSignal<QuestionRequest | null>(null);
 
 /** Current git branch name. */
-export const [gitBranch, setGitBranch] = createSignal<string | null>(null);
+export const [gitBranch] = createResource(fetchGitBranch);
 
 /** Toast notifications. */
 export const [toasts, setToasts] = createSignal<Toast[]>([]);
@@ -159,7 +160,10 @@ export const [toasts, setToasts] = createSignal<Toast[]>([]);
 // ── Agent/mode state ─────────────────────────────────────────────
 
 /** Available agents fetched from OpenCode (primary agents only). */
-export const [agents, setAgents] = createSignal<Agent[]>([]);
+export const [agents] = createResource(async () => {
+  const all = await fetchAgents();
+  return all.filter(a => (a.mode === "primary" || a.mode === "all") && !a.hidden);
+}, { initialValue: [] });
 
 const AGENT_STORAGE_KEY = "voxpilot-selected-agent";
 
