@@ -1,84 +1,43 @@
 # VoxPilot
 
-FastAPI backend + vanilla HTML/CSS/TypeScript frontend monorepo.
+Self-hosted, web-based AI coding assistant. Wraps the [OpenCode](https://opencode.ai) agent runtime with a mobile-first SolidJS frontend and an interactive diff review system. Runs on local hardware, accessible from any device on the network.
 
 ## Prerequisites
 
-- [Python 3.13+](https://www.python.org/)
-- [uv](https://docs.astral.sh/uv/) — Python package manager
-- [Node.js 22+](https://nodejs.org/) — frontend toolchain
-- [just](https://github.com/casey/just) — command runner
-
-### Arch Linux
-
-```bash
-sudo pacman -S python uv nodejs npm just
-```
+- [Bun 1.3+](https://bun.sh/)
+- [Node.js 22+](https://nodejs.org/)
+- [just](https://github.com/casey/just)
+- An OpenAI-compatible inference server (e.g. [Ollama](https://ollama.ai/))
 
 ## Quick Start
 
 ```bash
-# Install all dependencies
-just install
-
-# Run backend dev server (http://localhost:8000)
-just dev-backend
-
-# In another terminal, run frontend watcher
-just dev-frontend
+cp .env.example .env        # Configure LLM endpoint and model
+just install                 # Install dependencies
+just dev                     # Start backend (:8000) + frontend (:3000)
 ```
 
-## Available Recipes
+## Commands
 
 | Recipe | Description |
 |---|---|
 | `just install` | Install all dependencies (backend + frontend) |
-| `just dev-backend` | Start FastAPI dev server with hot reload on :8000 |
-| `just dev-frontend` | Start esbuild watcher for frontend |
+| `just dev` | Run both servers concurrently |
+| `just dev-backend` | Backend only (Bun with hot reload on :8000) |
+| `just dev-frontend` | Frontend only (Vite on :3000, proxies to :8000) |
 | `just test` | Run backend tests |
-| `just lint` | Lint backend (Ruff) + frontend (tsc) |
-| `just typecheck` | Type check backend (Pyright strict) + frontend (tsc strict) |
-| `just format` | Format backend code with Ruff |
-| `just build` | Build frontend for production |
-| `just clean` | Remove build artifacts |
-| `just check` | Run install + lint + typecheck + test |
+| `just lint` | Biome + tsc type checking |
+| `just typecheck` | tsc --noEmit for both packages |
+| `just format` | Biome auto-fix |
+| `just build` | Production frontend build |
+| `just build-static` | Build + copy to backend/static/ |
+| `just check` | install + lint + typecheck + test |
 
-## Project Structure
+## Stack
 
-```
-voxpilot/
-├── backend/
-│   ├── src/voxpilot/       # Python source (src layout)
-│   │   ├── api/routes/      # FastAPI route handlers
-│   │   ├── models/          # Pydantic v2 schemas
-│   │   ├── services/        # Business logic
-│   │   ├── core/            # Core utilities
-│   │   ├── main.py          # FastAPI app entry point
-│   │   ├── config.py        # Settings (pydantic-settings)
-│   │   └── dependencies.py  # Shared FastAPI dependencies
-│   ├── tests/               # pytest tests
-│   └── pyproject.toml       # Python project config
-├── frontend/
-│   ├── src/                 # TypeScript + CSS source
-│   ├── public/              # Static HTML
-│   ├── dist/                # Build output (gitignored)
-│   ├── tsconfig.json        # TypeScript strict config
-│   └── package.json         # Node project config
-├── Justfile                 # Task runner
-└── .editorconfig            # Editor settings
-```
+- **Backend**: TypeScript, Bun, Hono, Drizzle ORM, SQLite
+- **Frontend**: SolidJS, TypeScript, Vite
+- **Agent**: OpenCode SDK (embedded server)
+- **Tools**: MCP server (show_diff)
 
-## Tech Stack
-
-| Layer | Tool | Purpose |
-|---|---|---|
-| Backend | FastAPI 0.115+ | Web framework |
-| Backend | Pydantic v2 | Data validation |
-| Backend | Uvicorn | ASGI server |
-| Backend | Pyright (strict) | Static type checking |
-| Backend | Ruff | Linting + formatting |
-| Backend | uv | Package management |
-| Backend | pytest | Testing |
-| Frontend | TypeScript 5.7+ (strict) | Type-safe JavaScript |
-| Frontend | esbuild | Fast bundling |
-| Task runner | just | Command runner |
+See [ARCHITECTURE.md](ARCHITECTURE.md) for full details.

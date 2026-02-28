@@ -1,72 +1,58 @@
-# VoxPilot — Copilot Instructions
+# VoxPilot -- Copilot Instructions
 
-VoxPilot is a **self-hosted, web-based AI coding assistant** built with a TypeScript/Bun backend and a SolidJS frontend. It enables remote development from mobile devices by exposing a local web UI over the network.
+VoxPilot is a **self-hosted, web-based AI coding assistant** built with a TypeScript/Bun backend and a SolidJS frontend. It wraps the OpenCode agent runtime, adding a mobile-first web UI and an interactive diff review system.
+
+See [ARCHITECTURE.md](../ARCHITECTURE.md) for full architecture details.
 
 ## Repository Structure
 
 ```
-backend/          TypeScript + Bun backend (Hono, Drizzle ORM, SQLite)
-  src/
-    config.ts     Environment variable configuration (VOXPILOT_* prefix)
-    db.ts         SQLite database initialization, migrations, getDb()
-    index.ts      Hono app entry point, server startup
-    schema.ts     Drizzle ORM schema (sessions, messages tables)
-    middleware/   Auth middleware (GitHub token cookie)
-    routes/       Hono route handlers (auth, sessions/chat)
-    schemas/      TypeScript interfaces for DB row types
-    services/     Business logic (agent loop, markdown, SSE streams)
-    tools/        Tool framework (read_file, grep_search, etc.)
-  tests/          Bun tests with in-memory SQLite
-  drizzle/        Auto-generated Drizzle migration SQL files
-frontend/         SolidJS + Vite frontend
-  src/
-    components/   UI components (ChatView, MessageBubble, Sidebar, etc.)
-    store.ts      SolidJS signals for app state
-    sessions.ts   Session management logic
-    streaming.ts  rAF-batched SSE text-delta handling
-    gestures.ts   Touch swipe detection for mobile
-    sse.ts        Framework-agnostic EventSource wrapper
-Justfile          Task runner recipes (install, dev, test, lint, build)
-ARCHITECTURE.md   Detailed architecture documentation
+backend/src/
+  index.ts          Hono app, OpenCode server startup, /oc/* proxy, static serving
+  db.ts             SQLite + Drizzle, auto-migration
+  schema.ts         Drizzle schema (diff_entries, diff_entry_files)
+  proxy.ts          HTTP proxy helper
+  mcp.ts            MCP server with show_diff tool
+  routes/review.ts  Diff review API endpoints
+  schemas/api.ts    Zod v4 request schemas
+  services/         git-utils, format-diff, diff-render, diff-types
+  tests/            format-diff + diff-render tests
+frontend/src/
+  store.ts          All reactive state (signals, stores, resources)
+  api-client.ts     OpenCode SDK client wrapper
+  rpc.ts            Hono RPC client (hc<AppType>)
+  sse.ts            Event stream subscription
+  streaming.ts      rAF-batched event handler, optimistic messages
+  sessions.ts       Session orchestration
+  gestures.ts       Touch swipe detection
+  components/       15 SolidJS components (see ARCHITECTURE.md for full list)
+  style.css         Single stylesheet with CSS custom properties
+  DESIGN_SYSTEM.md  CSS conventions and design tokens
 ```
 
 ## Development Commands
 
-All commands are run from the **repository root** using `just`:
+All commands run from the repository root using `just`:
 
 ```bash
-just install       # Install all dependencies (bun + npm)
-just dev-backend   # Run backend dev server (hot reload)
-just dev-frontend  # Run frontend dev server (Vite)
-just test          # Run backend tests (bun test)
-just lint          # Lint backend (Biome) + typecheck frontend (tsc)
-just typecheck     # Type-check backend and frontend (tsc --noEmit)
-just format        # Auto-fix formatting (Biome --write)
-just build         # Build frontend for production (vite build)
-just check         # Full CI: install + lint + typecheck + test
-```
-
-Individual commands (from their directories):
-
-```bash
-# Backend
-cd backend && bun install
-cd backend && bun test
-cd backend && bunx tsc --noEmit
-cd backend && bunx @biomejs/biome check --write src tests
-
-# Frontend
-cd frontend && npm install
-cd frontend && npx tsc --noEmit
-cd frontend && npm run build
+just install       # bun install (backend) + npm install (frontend)
+just dev           # Run both servers (backend :8000, frontend :3000)
+just test          # bun test (backend)
+just lint          # Biome check + tsc --noEmit
+just typecheck     # tsc --noEmit (both packages)
+just format        # Biome --write
+just build         # vite build (frontend)
+just check         # install + lint + typecheck + test
 ```
 
 ## Tech Stack
 
-- **Backend**: TypeScript 5.9, Bun 1.3, Hono 4, Zod v4, Drizzle ORM, `markdown-it`, Biome linter
-- **Frontend**: SolidJS 1.9 + TypeScript 5.7, Vite
-- **Database**: SQLite via `bun:sqlite` + Drizzle ORM (WAL mode, foreign keys enabled)
-- **Tests**: `bun test` with `mock.module()`, in-memory SQLite via `initDb(":memory:")`
+- **Backend**: TypeScript 5.9, Bun 1.3, Hono 4, Zod v4, Drizzle ORM, `markdown-it`, Biome
+- **Frontend**: SolidJS 1.9, TypeScript 5.7, Vite 7, `lucide-solid`
+- **Database**: SQLite via `bun:sqlite` + Drizzle ORM (WAL mode, foreign keys)
+- **Agent**: OpenCode SDK (`@opencode-ai/sdk`) -- embedded server proxied at `/oc/*`
+- **Tools**: MCP server (`@modelcontextprotocol/sdk`) -- exposes `show_diff`
+- **Tests**: `bun test`
 
 ## Coding Standards
 
@@ -75,40 +61,40 @@ cd frontend && npm run build
 - **Never** use the null forgiving operator (`!`)
 - **Never** use `any`; use proper types or `unknown`
 - Use Zod v4 schemas for runtime validation (import from `"zod/v4"`)
+- Prefer type narrowing over casting
 
 ### Backend Patterns
 
-- Routes live in `backend/src/routes/`, services in `backend/src/services/`
-- Use `getDb()` from `db.ts` to access the Drizzle instance in route handlers
-- Config values are accessed via `getConfig()` from `config.ts` (env vars with `VOXPILOT_` prefix)
-- Auth is enforced via `authMiddleware` which reads the `gh_token` `HttpOnly` cookie
-- Tool implementations go in `backend/src/tools/` and must implement the `Tool` interface from `base.ts`
-- Schema changes: edit `schema.ts`, run `just db-generate` to create a migration in `backend/drizzle/`
-
-### Dependencies
-
-- Always use the latest version of any new dependency introduced
-- Backend uses `bun install`; frontend uses `npm install`
-
-### Testing
-
-- Each test file calls `setupTestDb()` from `helpers.ts` to get a fresh in-memory database
-- Mock the OpenAI SDK with `mock.module("openai")` when testing the agent loop
-- Test files live in `backend/tests/`
+- Routes in `backend/src/routes/`, services in `backend/src/services/`
+- Use `getDb()` from `db.ts` for the Drizzle instance
+- Schema changes: edit `schema.ts`, run `bunx drizzle-kit generate`
+- No authentication -- single-user self-hosted, all routes public
+- Services are pure/async functions, no classes or DI
+- Git operations go through `runGit()` in `git-utils.ts`
+- Refs validated against `SAFE_REF_PATTERN` to prevent injection
 
 ### Frontend Patterns
 
-- Use SolidJS signals and stores from `store.ts` for shared state
-- The frontend talks to the backend via `hc<AppType>()` (Hono RPC client) — no manual fetch calls
-- The `AppType` is imported via the `@backend/*` tsconfig path alias
-- Use `innerHTML` only on assistant message bubbles (server-rendered HTML from `markdown-it`)
+- SolidJS signals and stores from `store.ts` for all shared state
+- Two API clients: OpenCode SDK client (`api-client.ts`) for agent features, Hono RPC client (`rpc.ts`) for VoxPilot endpoints
+- `AppType` imported via `@backend/*` tsconfig path alias for type-safe RPC
+- `innerHTML` only on assistant message bubbles (markdown-it rendered HTML)
+- Mobile-first, no media breakpoints -- see `frontend/DESIGN_SYSTEM.md`
+- No client-side router; active session tracked in URL hash
+
+### Dependencies
+
+- Always use the latest version of any new dependency
+- Backend: `bun install` / Frontend: `npm install`
+
+### Testing
+
+- Tests in `backend/tests/`
+- `bun test` runner
 
 ## Key Conventions
 
-- **API contract**: Backend exports `AppType`; frontend imports and uses `hc<AppType>()` for type-safe RPC. No codegen needed.
-- **Auth**: GitHub OAuth token stored as `HttpOnly` cookie (`gh_token`). No JWT.
-- **SSE streaming**: Frontend opens `EventSource` on `GET /api/sessions/{id}/stream`; messages sent via `POST /api/sessions/{id}/messages`.
-- **Agent loop**: `runAgentLoop()` in `services/agent.ts` is an async generator yielding SSE event objects.
-- **Tool confirmation**: Tools with `requiresConfirmation = true` pause execution and await `POST /api/sessions/{id}/confirm`.
-- **Path safety**: All tool file access uses `resolvePath()` which validates paths stay inside `workDir`.
-- **Markdown**: Server-side rendering via `markdown-it`; the `done` SSE event carries pre-rendered HTML.
+- **Type-safe RPC**: Backend exports `AppType`; frontend uses `hc<AppType>()`. No codegen.
+- **Streaming**: SSE via OpenCode SDK event stream. Frontend uses rAF batching for text tokens.
+- **Diff review flow**: MCP `show_diff` tool caches diff data in SQLite, returns `[ref:UUID]`. Frontend `ChangesetCard` detects the UUID, fetches cache, renders interactive diff via `ReviewOverlay`.
+- **Optimistic UI**: User messages appear immediately with id `__optimistic__`, replaced on confirmation.
