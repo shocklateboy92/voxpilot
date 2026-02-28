@@ -57,22 +57,22 @@ function isChildSession(): boolean {
   return Boolean(activeSession()?.parentID);
 }
 
-/** Whether a swipe-next gesture has somewhere to go (includes new session page). */
+/** Whether a swipe-next gesture has somewhere to go (toward older sessions, or from new session page to most recent). */
 export function canNavigateNext(): boolean {
   if (isChildSession()) return true;
+  if (isNewSessionPage()) return rootSessions().length > 0;
   const idx = activeRootIndex();
-  // Allow navigating to the new session page (one past the last root)
-  return idx >= 0 && idx < rootSessions().length;
+  return idx >= 0 && idx < rootSessions().length - 1;
 }
 
-/** Whether a swipe-prev gesture has somewhere to go (includes back from new session page). */
+/** Whether a swipe-prev gesture has somewhere to go (toward newer sessions / new session page). */
 export function canNavigatePrev(): boolean {
   if (isChildSession()) return true;
-  if (isNewSessionPage()) return rootSessions().length > 0;
-  return activeRootIndex() > 0;
+  if (isNewSessionPage()) return false; // already at the leftmost position
+  return true; // can always swipe prev to the new session page or a newer session
 }
 
-/** Navigate to the next root session or the new session page, or to the parent if in a sub-agent session. */
+/** Navigate to the next root session (toward older), or from the new session page to the most recent session. */
 export function navigateNext(): void {
   if (isChildSession()) {
     const parentId = activeSession()?.parentID;
@@ -80,32 +80,29 @@ export function navigateNext(): void {
     return;
   }
   const roots = rootSessions();
+  if (isNewSessionPage()) {
+    // From new session page → most recent session
+    const first = roots[0];
+    if (first) switchToSession(first.id);
+    return;
+  }
   const idx = activeRootIndex();
   if (idx < 0) return;
   const next = idx + 1;
   if (next < roots.length) {
     const target = roots[next];
     if (target) switchToSession(target.id);
-  } else if (next === roots.length) {
-    // Navigate past the last session → new session page
-    navigateToNewSession();
   }
 }
 
-/** Navigate to the previous root session, or to the parent if in a sub-agent session. */
+/** Navigate to the previous root session (toward newer) or the new session page, or to the parent if in a sub-agent session. */
 export function navigatePrev(): void {
   if (isChildSession()) {
     const parentId = activeSession()?.parentID;
     if (parentId) switchToSession(parentId);
     return;
   }
-  // If on the new session page, go back to the last root session
-  if (isNewSessionPage()) {
-    const roots = rootSessions();
-    const last = roots[roots.length - 1];
-    if (last) switchToSession(last.id);
-    return;
-  }
+  if (isNewSessionPage()) return; // already at the leftmost position
   const roots = rootSessions();
   const idx = activeRootIndex();
   if (idx < 0) return;
@@ -113,6 +110,9 @@ export function navigatePrev(): void {
   if (prev >= 0) {
     const target = roots[prev];
     if (target) switchToSession(target.id);
+  } else {
+    // Swipe prev from the most recent session → new session page
+    navigateToNewSession();
   }
 }
 

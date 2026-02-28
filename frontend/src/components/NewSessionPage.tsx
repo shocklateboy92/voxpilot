@@ -5,15 +5,15 @@
  * When the user sends their first message, a session is created and
  * the view transitions instantly to the chat.
  *
- * Supports swipe-right to navigate back to the last existing session.
+ * Supports swipe-left to navigate to the most recent existing session.
  * Structured to support future workspace/worktree selection.
  */
 
 import ArrowUp from "lucide-solid/icons/arrow-up";
-import ChevronLeft from "lucide-solid/icons/chevron-left";
+import ChevronRight from "lucide-solid/icons/chevron-right";
 import { createSignal, onCleanup, onMount } from "solid-js";
 import { attachSwipeHandler } from "../gestures";
-import { createSessionAndSend, navigatePrev } from "../sessions";
+import { createSessionAndSend, navigateNext } from "../sessions";
 import {
   extractErrorMessage,
   rootSessions,
@@ -79,7 +79,7 @@ export function NewSessionPage() {
     inputEl.style.height = `${inputEl.scrollHeight}px`;
   }
 
-  // Swipe gesture handling — only supports swipe-right to go back
+  // Swipe gesture handling — only supports swipe-left to go to most recent session
   onMount(() => {
     if (!pageRef) {
       throw new Error(
@@ -98,14 +98,14 @@ export function NewSessionPage() {
         setSwipeOffset(damped);
       },
       onSwipeLeft() {
-        // No further sessions past the new session page
+        if (rootSessions().length > 0) {
+          pendingNav = navigateNext;
+        }
         setAnimateSnap(true);
         setSwipeOffset(0);
       },
       onSwipeRight() {
-        if (rootSessions().length > 0) {
-          pendingNav = navigatePrev;
-        }
+        // No further pages past the new session page
         setAnimateSnap(true);
         setSwipeOffset(0);
       },
@@ -118,20 +118,20 @@ export function NewSessionPage() {
     onCleanup(cleanup);
   });
 
-  const showLeftArrow = () => {
+  const showRightArrow = () => {
     const off = swipeOffset();
-    return off > 0 && rootSessions().length > 0;
+    return off < 0 && rootSessions().length > 0;
   };
   const arrowOpacity = () => Math.min(Math.abs(swipeOffset()) / 60, 1);
 
   return (
     <div class="chat-main">
       <div
-        class="swipe-arrow swipe-arrow-left"
-        style={{ opacity: showLeftArrow() ? arrowOpacity() : 0 }}
+        class="swipe-arrow swipe-arrow-right"
+        style={{ opacity: showRightArrow() ? arrowOpacity() : 0 }}
         aria-hidden="true"
       >
-        <ChevronLeft size={24} />
+        <ChevronRight size={24} />
       </div>
       <div
         ref={pageRef}

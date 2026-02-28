@@ -303,10 +303,15 @@ export const rootSessions = () => {
 /** Whether we're on the "new session" page (no active session selected). */
 export const isNewSessionPage = () => activeSessionId() === undefined;
 
-/** Index of the active session within rootSessions(), or roots.length if on the new session page. */
+/**
+ * Index of the active session within rootSessions(), or -1 if on the new session page.
+ * Layout: [new session page (-1)] [0: most recent] [1] ... [N-1: oldest]
+ * Swiping left (next) from the most recent session reaches the new session page.
+ * Swiping right (prev) from the new session page returns to the most recent session.
+ */
 export const activeRootIndex = () => {
   const id = activeSessionId();
-  if (!id) return rootSessions().length; // past the end = new session page
+  if (!id) return -1; // new session page is before the first (most recent) session
   const idx = rootSessions().findIndex((s) => s.id === id);
   return idx >= 0 ? idx : -1;
 };
