@@ -8,8 +8,6 @@
 import type { TextPart } from "@opencode-ai/sdk/v2/client";
 import {
   fetchMessages,
-  fetchPendingPermissions,
-  fetchPendingQuestions,
   fetchSessionStatus,
   respondToPermission,
   sendPromptAsync,
@@ -23,8 +21,8 @@ import {
   selectedAgent,
   setErrorMessage,
   setIsStreaming,
-  setPendingPermission,
-  setPendingQuestion,
+  mutatePermission,
+  mutateQuestion,
   refetchSessions,
   upsertPart,
 } from "./store";
@@ -78,7 +76,7 @@ function handleEvent(event: Event): void {
           stopRafLoop();
           pendingTextPart = null;
           setIsStreaming(false);
-          setPendingPermission(null);
+          mutatePermission(null);
         } else {
           // Ensure the in-progress message exists in the store
           ensureAssistantMessage(msg.id, sid, msg);
@@ -122,25 +120,25 @@ function handleEvent(event: Event): void {
     case "permission.asked": {
       const perm = event.properties;
       if (perm.sessionID !== sid) return;
-      setPendingPermission(perm);
+      mutatePermission(perm);
       break;
     }
 
     case "permission.replied": {
-      setPendingPermission(null);
+      mutatePermission(null);
       break;
     }
 
     case "question.asked": {
       const req = event.properties;
       if (req.sessionID !== sid) return;
-      setPendingQuestion(req);
+      mutateQuestion(req);
       break;
     }
 
     case "question.replied":
     case "question.rejected": {
-      setPendingQuestion(null);
+      mutateQuestion(null);
       break;
     }
 
@@ -182,8 +180,8 @@ export function openStream(sessionId: string): void {
   replaceMessages([]);
   setIsStreaming(false);
   setErrorMessage(null);
-  setPendingPermission(null);
-  setPendingQuestion(null);
+  mutatePermission(null);
+  mutateQuestion(null);
   pendingTextPart = null;
 
   // Load existing messages
@@ -196,36 +194,12 @@ export function openStream(sessionId: string): void {
     setErrorMessage(msg);
   });
 
-  // Poll for pending state that may have been missed (permissions, questions, session status)
-  void Promise.all([
-    fetchPendingPermissions().catch((err: unknown) => {
-      console.warn("Failed to fetch pending permissions:", err);
-      return [] as Awaited<ReturnType<typeof fetchPendingPermissions>>;
-    }),
-    fetchPendingQuestions().catch((err: unknown) => {
-      console.warn("Failed to fetch pending questions:", err);
-      return [] as Awaited<ReturnType<typeof fetchPendingQuestions>>;
-    }),
-    fetchSessionStatus(sessionId).catch((err: unknown) => {
-      console.warn("Failed to fetch session status:", err);
-      return undefined;
-    }),
-  ]).then(([permissions, questions, status]) => {
-    // Only apply if we're still on the same session
+  // Poll for busy session status that may have been missed
+  void fetchSessionStatus(sessionId).catch((err: unknown) => {
+    console.warn("Failed to fetch session status:", err);
+    return undefined;
+  }).then((status) => {
     if (currentSessionId !== sessionId) return;
-
-    const sessionPermission = permissions.find(
-      (p) => p.sessionID === sessionId,
-    );
-    if (sessionPermission) {
-      setPendingPermission(sessionPermission);
-    }
-
-    const sessionQuestion = questions.find((q) => q.sessionID === sessionId);
-    if (sessionQuestion) {
-      setPendingQuestion(sessionQuestion);
-    }
-
     if (status?.type === "busy") {
       setIsStreaming(true);
     }
@@ -269,7 +243,7 @@ export async function respondToConfirm(
   requestID: string,
   reply: "once" | "always" | "reject",
 ): Promise<void> {
-  setPendingPermission(null);
+  mutatePermission(null);
 
   try {
     await respondToPermission(requestID, reply);

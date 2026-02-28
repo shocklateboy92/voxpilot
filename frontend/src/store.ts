@@ -5,13 +5,18 @@
 import type {
   AssistantMessage,
   PermissionRequest,
-  QuestionRequest,
   Part as SdkPart,
 } from "@opencode-ai/sdk/v2/client";
 import { createEffect, createResource, createSignal } from "solid-js";
 import { createStore, produce, reconcile } from "solid-js/store";
 import type { Message, MessageWithParts, Part, Session } from "./api-client";
-import { fetchAgents, fetchGitBranch, fetchSessions } from "./api-client";
+import {
+  fetchAgents,
+  fetchGitBranch,
+  fetchPendingPermissions,
+  fetchPendingQuestions,
+  fetchSessions,
+} from "./api-client";
 
 export type { Session, Message, Part, MessageWithParts };
 
@@ -145,12 +150,18 @@ export const [pickerOpen, setPickerOpen] = createSignal(false);
 export const [swipeOffset, setSwipeOffset] = createSignal(0);
 
 /** Pending permission request (null = none pending). */
-export const [pendingPermission, setPendingPermission] =
-  createSignal<PendingPermission | null>(null);
+export const [pendingPermission, { mutate: mutatePermission }] =
+  createResource(activeSessionId, async (sid) => {
+    const all = await fetchPendingPermissions();
+    return all.find((p) => p.sessionID === sid) ?? null;
+  }, { initialValue: null });
 
 /** Pending question request (null = none pending). */
-export const [pendingQuestion, setPendingQuestion] =
-  createSignal<QuestionRequest | null>(null);
+export const [pendingQuestion, { mutate: mutateQuestion }] =
+  createResource(activeSessionId, async (sid) => {
+    const all = await fetchPendingQuestions();
+    return all.find((q) => q.sessionID === sid) ?? null;
+  }, { initialValue: null });
 
 /** Current git branch name. */
 export const [gitBranch] = createResource(fetchGitBranch);

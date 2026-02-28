@@ -18,7 +18,6 @@ import {
   setActiveSessionId,
   setErrorMessage,
   setIsStreaming,
-  setPendingPermission,
   setPickerOpen,
 } from "./store";
 import { openStream } from "./streaming";
@@ -47,7 +46,6 @@ export function switchToSession(sessionId: string): void {
   setActiveSessionId(sessionId);
   setIsStreaming(false);
   setErrorMessage(null);
-  setPendingPermission(null);
 
   openStream(sessionId);
 }
@@ -133,6 +131,5 @@ export async function initSessions(): Promise<void> {
   setActiveSessionId(target);
   setIsStreaming(false);
   setErrorMessage(null);
-  setPendingPermission(null);
   openStream(target);
 }
