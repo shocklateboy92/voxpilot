@@ -1,12 +1,10 @@
----
-applyTo: '**/*.ts, **/*.tsx'
----
+# VoxPilot
 
-<!-- Canonical source: /AGENTS.md — keep in sync. -->
+## TypeScript
 
 Never use the null forgiving operator (`!`). Never use `any`. Avoid casting and use type narrowing instead.
 
-## End-to-End Type Safety
+### End-to-End Type Safety
 
 Type safety is very important. Types should flow across boundaries with no manual syncing:
 
@@ -17,3 +15,11 @@ Type safety is very important. Types should flow across boundaries with no manua
 5. **Frontend -> UI**: Component props should be derived from API response types, not redeclared.
 
 Prefer letting types propagate through inference rather than duplicating type definitions across layers.
+
+## Frontend
+
+When working on UI components or design, read and follow `frontend/DESIGN_SYSTEM.md`.
+
+## Dependencies
+
+Always use the latest version of any new dependencies you introduce.
