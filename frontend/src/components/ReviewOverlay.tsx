@@ -32,13 +32,9 @@ export function ReviewOverlay() {
   const [loading, setLoading] = createSignal(false);
   let containerRef: HTMLDivElement | undefined;
 
-  const CHAR_WIDTH = 7.2;
-
-  async function loadDiff(req: ReviewRequest, width: number): Promise<void> {
+  async function loadDiff(req: ReviewRequest, printWidth: number): Promise<void> {
     setLoading(true);
     setDiffHtml(null);
-
-    const printWidth = Math.max(40, Math.floor(width / CHAR_WIDTH));
 
     try {
       const res = await rpc.api.review["ref-diff"].$post({
@@ -73,7 +69,7 @@ export function ReviewOverlay() {
   createEffect(() => {
     const req = reviewFile();
     if (!req || !containerRef) return;
-    void loadDiff(req, containerRef.clientWidth);
+    void loadDiff(req, computePrintWidth(containerRef));
   });
 
   // Re-fetch on resize
@@ -86,7 +82,7 @@ export function ReviewOverlay() {
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => {
         if (containerRef && req) {
-          void loadDiff(req, containerRef.clientWidth);
+          void loadDiff(req, computePrintWidth(containerRef));
         }
       }, 500);
     });
@@ -128,4 +124,93 @@ export function ReviewOverlay() {
       )}
     </Show>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Helpers — print-width measurement
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse a CSS length value (e.g. "2.5rem", "40px") to pixels.
+ * Supports rem and px units; falls back to parseFloat for unknown units.
+ */
+function cssToPx(value: string, rootFontSize: number): number {
+  const num = parseFloat(value);
+  if (value.endsWith("rem")) return num * rootFontSize;
+  return num; // px or unitless
+}
+
+/**
+ * Measure the width of a single monospace character in pixels using the
+ * browser's own font metrics.  Uses a Canvas measureText() call with the
+ * resolved font from getComputedStyle(), so it works regardless of which
+ * font in the stack the browser actually picked.
+ *
+ * A hidden probe element styled with the same CSS custom properties as
+ * `.fulltext-table` is temporarily inserted to obtain the correct
+ * computed font.
+ */
+function measureCharWidth(container: HTMLElement): number {
+  // Create a probe element that inherits the same font as .fulltext-table
+  const probe = document.createElement("span");
+  probe.style.cssText =
+    "position:absolute;visibility:hidden;white-space:pre;" +
+    "font-family:var(--font-mono);" +
+    "font-size:var(--code-font-size);" +
+    "line-height:var(--code-line-height);";
+  container.appendChild(probe);
+
+  const style = getComputedStyle(probe);
+  const font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+
+  container.removeChild(probe);
+
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    // Fallback: shouldn't happen in any real browser
+    return 7.2;
+  }
+  ctx.font = font;
+  // Measure a representative character — "M" is conventional but for
+  // monospace any character yields the same width.  Use "0" which is
+  // guaranteed present in every font.
+  return ctx.measureText("0").width;
+}
+
+/**
+ * Compute how many characters fit on a single code line given the
+ * container's pixel width, accounting for the line-number gutter and
+ * cell padding.
+ *
+ * All layout values are read from CSS custom properties defined in
+ * style.css (:root), so CSS and JS stay in sync automatically:
+ *   --line-num-width, --cell-padding
+ */
+function computePrintWidth(container: HTMLElement): number {
+  const charWidth = measureCharWidth(container);
+
+  const rootFontSize = parseFloat(
+    getComputedStyle(document.documentElement).fontSize,
+  );
+  const rootStyles = getComputedStyle(document.documentElement);
+
+  const lineNumWidth = cssToPx(
+    rootStyles.getPropertyValue("--line-num-width").trim() || "2.5rem",
+    rootFontSize,
+  );
+  const cellPadding = cssToPx(
+    rootStyles.getPropertyValue("--cell-padding").trim() || "0.4rem",
+    rootFontSize,
+  );
+
+  // Line-number column: fixed width + padding on each side
+  const gutterWidth = lineNumWidth + 2 * cellPadding;
+  // Code-content cell: padding on each side
+  const contentPadding = 2 * cellPadding;
+
+  const availableWidth =
+    container.clientWidth - gutterWidth - contentPadding;
+
+  return Math.max(40, Math.floor(availableWidth / charWidth));
 }
