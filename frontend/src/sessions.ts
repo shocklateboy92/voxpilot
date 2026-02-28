@@ -2,7 +2,8 @@
  * Session orchestration.
  *
  * Coordinates session switching, creation, deletion with
- * the store signals and streaming manager.
+ * the store signals. Message loading and SSE streaming are
+ * handled reactively by streaming.ts based on activeSessionId.
  */
 
 import {
@@ -24,11 +25,9 @@ import {
   setErrorMessage,
   setPickerOpen,
 } from "./store";
-import { openStream } from "./streaming";
 
 /**
  * Switch to the session at the given index.
- * Closes any existing stream and opens a new one.
  */
 export function switchToIndex(index: number): void {
   const list = sessions();
@@ -42,7 +41,8 @@ export function switchToIndex(index: number): void {
 
 /**
  * Switch to a session by ID.
- * Updates the URL hash, resets streaming state, and opens the event stream.
+ * Updates the URL hash and resets error state.
+ * The reactive effect in streaming.ts handles message loading and stream filtering.
  */
 export function switchToSession(sessionId: string): void {
   if (activeSessionId() === sessionId) return;
@@ -50,8 +50,6 @@ export function switchToSession(sessionId: string): void {
   saveCurrentScrollPosition();
   setActiveSessionId(sessionId);
   setErrorMessage(null);
-
-  openStream(sessionId);
 }
 
 /** Whether the active session is a child (sub-agent) with a parent to navigate to. */
@@ -133,6 +131,9 @@ export function navigateToNewSession(): void {
 /**
  * Create a new session, send the first message, and switch to it.
  * Used by NewSessionPage when the user types their first message.
+ *
+ * Setting activeSessionId triggers the reactive message-loading effect
+ * in streaming.ts — no explicit openStream needed.
  */
 export async function createSessionAndSend(
   content: string,
@@ -140,7 +141,7 @@ export async function createSessionAndSend(
 ): Promise<void> {
   const session = await createSession();
   await refetchSessions();
-  switchToSession(session.id);
+  setActiveSessionId(session.id);
   await sendPromptAsync(session.id, content, agent);
 }
 
@@ -170,33 +171,4 @@ export async function handleDeleteSession(sessionId: string): Promise<void> {
 
   setPickerOpen(false);
   clearScrollPosition(sessionId);
-}
-
-/**
- * Initialize sessions on login.
- * Fetches the session list. If empty, shows the new session page.
- * Otherwise restores the previously selected session from the URL hash,
- * or falls back to the first session.
- */
-export async function initSessions(): Promise<void> {
-  const list = (await refetchSessions()) ?? [];
-
-  if (list.length === 0) {
-    // No sessions — show the new session page
-    setActiveSessionId(undefined);
-    return;
-  }
-
-  const hashId = activeSessionId();
-  const first = list[0];
-  if (!first) return;
-
-  const target =
-    hashId && list.some((s) => s.id === hashId) ? hashId : first.id;
-
-  // Always open the stream on init — bypass switchToSession's same-ID guard,
-  // which would skip openStream when the URL hash already matches (e.g. page reload).
-  setActiveSessionId(target);
-  setErrorMessage(null);
-  openStream(target);
 }

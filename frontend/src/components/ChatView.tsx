@@ -5,8 +5,7 @@
  * the user navigated past the newest one). Otherwise renders the normal chat.
  */
 
-import { onMount, Show } from "solid-js";
-import { initSessions } from "../sessions";
+import { Show } from "solid-js";
 import { isNewSessionPage } from "../store";
 import { AgentPicker } from "./AgentPicker";
 import { BottomNav } from "./BottomNav";
@@ -18,10 +17,6 @@ import { SessionPicker } from "./SessionPicker";
 import { StatusBar } from "./StatusBar";
 
 export function ChatView() {
-  onMount(() => {
-    void initSessions();
-  });
-
   return (
     <main class="app">
       <Show when={isNewSessionPage()} fallback={

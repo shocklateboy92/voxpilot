@@ -277,6 +277,24 @@ export const activeSession = () => {
   return sessions().find((s) => s.id === id);
 };
 
+// ── Session validation ──────────────────────────────────────────
+
+/**
+ * Reactive session validation: if sessions have loaded and activeSessionId
+ * points to a session that doesn't exist, redirect to the new session page.
+ * Handles deep-link-to-deleted-session and initial load with no sessions.
+ */
+createEffect(() => {
+  if (sessions.loading) return; // Don't make decisions while loading
+  const id = activeSessionId();
+  if (id === undefined) return; // Already on new session page — nothing to validate
+  const list = sessions();
+  if (!list.some((s) => s.id === id)) {
+    // Active session not found in the list — redirect to new session page
+    setActiveSessionId(undefined);
+  }
+});
+
 /** Top-level (root) sessions only — sessions without a parentID. */
 export const rootSessions = () => {
   return sessions().filter((s) => !s.parentID);

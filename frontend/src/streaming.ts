@@ -3,6 +3,10 @@
  *
  * Bridges the OpenCode global event stream to SolidJS store with
  * requestAnimationFrame batching on the hot path (text parts).
+ *
+ * The SSE stream and reactive message loading are initialized at module
+ * level — just importing this module activates them. Message history
+ * loading is driven reactively by `activeSessionId`.
  */
 
 import type { TextPart } from "@opencode-ai/sdk/v2/client";
@@ -14,7 +18,8 @@ import {
 import type { MessageWithParts } from "./api-client";
 import type { Message } from "@opencode-ai/sdk/v2/client";
 import type { Event } from "./sse";
-import { subscribeToEvents, unsubscribeFromEvents } from "./sse";
+import { subscribeToEvents } from "./sse";
+import { createEffect } from "solid-js";
 import { produce } from "solid-js/store";
 import {
   activeSessionId,
@@ -58,16 +63,13 @@ function stopRafLoop(): void {
   }
 }
 
-/** Active session ID tracker for filtering events. */
-let currentSessionId: string | null = null;
-
 /** Handle a single event from the global stream. */
 function handleEvent(event: Event): void {
-  const sid = currentSessionId;
-  if (!sid) return;
+  const sid = activeSessionId();
 
   switch (event.type) {
     case "message.updated": {
+      if (!sid) return;
       const msg = event.properties.info;
       if (msg.sessionID !== sid) return;
 
@@ -75,7 +77,10 @@ function handleEvent(event: Event): void {
         // Assistant message started or completed
         if ("time" in msg && msg.time.completed) {
           // Message is complete — reload full messages
-          void fetchMessages(sid).then(replaceMessages);
+          void fetchMessages(sid).then((msgs) => {
+            // Guard against stale fetch: only replace if still on the same session
+            if (activeSessionId() === sid) replaceMessages(msgs);
+          });
           stopRafLoop();
           pendingTextPart = null;
           mutatePermission(null);
@@ -88,6 +93,7 @@ function handleEvent(event: Event): void {
     }
 
     case "message.part.updated": {
+      if (!sid) return;
       const part = event.properties.part;
       if (part.sessionID !== sid) return;
 
@@ -118,6 +124,7 @@ function handleEvent(event: Event): void {
     }
 
     case "permission.asked": {
+      if (!sid) return;
       const perm = event.properties;
       if (perm.sessionID !== sid) return;
       mutatePermission(perm);
@@ -130,6 +137,7 @@ function handleEvent(event: Event): void {
     }
 
     case "question.asked": {
+      if (!sid) return;
       const req = event.properties;
       if (req.sessionID !== sid) return;
       mutateQuestion(req);
@@ -149,6 +157,7 @@ function handleEvent(event: Event): void {
     }
 
     case "session.error": {
+      if (!sid) return;
       const props = event.properties;
       if (props.sessionID !== sid) return;
       setSessionError(true);
@@ -170,37 +179,38 @@ function handleEvent(event: Event): void {
   }
 }
 
-/**
- * Connect to the OpenCode event stream and load session history.
- */
-export function openStream(sessionId: string): void {
-  closeStream();
+// ── Reactive message loading ────────────────────────────────────
+// Loads/clears messages when `activeSessionId` changes.
 
-  currentSessionId = sessionId;
-  replaceMessages([]);
+createEffect(() => {
+  const sid = activeSessionId();
+
+  // Reset streaming state on every switch
+  stopRafLoop();
+  pendingTextPart = null;
   setSessionError(false);
   setErrorMessage(null);
   mutatePermission(null);
   mutateQuestion(null);
-  pendingTextPart = null;
 
-  // Load existing messages
-  void fetchMessages(sessionId).then(replaceMessages);
+  if (sid) {
+    void fetchMessages(sid).then((msgs) => {
+      // Guard against rapid switches: only apply if still on this session
+      if (activeSessionId() === sid) replaceMessages(msgs);
+    });
+  } else {
+    replaceMessages([]);
+  }
+});
 
-  // Subscribe to global events (do this before polling so we don't miss events)
-  void subscribeToEvents(handleEvent).catch((err: unknown) => {
-    if (err instanceof Error && err.name === "AbortError") return;
-    const msg = err instanceof Error ? err.message : "Event stream error";
-    setErrorMessage(msg);
-  });
-}
+// ── Global SSE subscription ─────────────────────────────────────
+// Single persistent connection opened at module load.
 
-/** Close the current event stream. */
-export function closeStream(): void {
-  stopRafLoop();
-  currentSessionId = null;
-  unsubscribeFromEvents();
-}
+void subscribeToEvents(handleEvent).catch((err: unknown) => {
+  if (err instanceof Error && err.name === "AbortError") return;
+  const msg = err instanceof Error ? err.message : "Event stream error";
+  setErrorMessage(msg);
+});
 
 /**
  * Send a user message on the current session.
