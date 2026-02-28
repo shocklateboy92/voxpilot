@@ -517,11 +517,14 @@ h1 {
   overflow-y: auto;
   padding-top: var(--status-bar-clearance);
   padding-bottom: 4rem;
+  touch-action: pan-y;
+  will-change: transform;
+}
+
+.messages-content {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  touch-action: pan-y;
-  will-change: transform;
 }
 
 .scroll-sentinel {

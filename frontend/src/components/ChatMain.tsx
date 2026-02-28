@@ -32,6 +32,7 @@ import { ToolConfirmBlock } from "./ToolConfirmBlock";
 
 export function ChatMain() {
   let messagesRef: HTMLDivElement | undefined;
+  let contentRef: HTMLDivElement | undefined;
 
   const [animateSnap, setAnimateSnap] = createSignal(false);
   let pendingNav: (() => void) | null = null;
@@ -119,6 +120,23 @@ export function ChatMain() {
     messagesRef.addEventListener("scroll", handleScroll, { passive: true });
     onCleanup(() => messagesRef?.removeEventListener("scroll", handleScroll));
 
+    // Auto-scroll when content height grows (e.g. tool parts updating,
+    // streaming text filling in) while the user is at the bottom.
+    // The reactive effect only fires on messages.length changes; this
+    // catches in-place content growth that doesn't add new messages.
+    let lastScrollHeight = messagesRef.scrollHeight;
+    const resizeObserver = new ResizeObserver(() => {
+      const el = messagesRef;
+      if (!el || restoring) return;
+      const grew = el.scrollHeight > lastScrollHeight;
+      lastScrollHeight = el.scrollHeight;
+      if (grew && isAtBottom()) {
+        el.scrollTo({ top: el.scrollHeight, behavior: "instant" });
+      }
+    });
+    if (contentRef) resizeObserver.observe(contentRef);
+    onCleanup(() => resizeObserver.disconnect());
+
     const cleanup = attachSwipeHandler(messagesRef, {
       onSwipeMove(deltaX) {
         setAnimateSnap(false);
@@ -198,24 +216,26 @@ export function ChatMain() {
         }}
         onTransitionEnd={handleTransitionEnd}
       >
-        <For each={messages}>{(msg) => <MessageBubble msg={msg} />}</For>
+        <div ref={contentRef} class="messages-content">
+          <For each={messages}>{(msg) => <MessageBubble msg={msg} />}</For>
 
-        {/* Permission prompt */}
-        <Show when={pendingPermission()}>
-          {(perm) => <ToolConfirmBlock permission={perm()} />}
-        </Show>
+          {/* Permission prompt */}
+          <Show when={pendingPermission()}>
+            {(perm) => <ToolConfirmBlock permission={perm()} />}
+          </Show>
 
-        {/* Question prompt */}
-        <Show when={pendingQuestion()}>
-          {(req) => <QuestionBlock request={req()} />}
-        </Show>
+          {/* Question prompt */}
+          <Show when={pendingQuestion()}>
+            {(req) => <QuestionBlock request={req()} />}
+          </Show>
 
-        {/* Error display */}
-        <Show when={errorMessage()}>
-          {(msg) => <div class="message error">{msg()}</div>}
-        </Show>
+          {/* Error display */}
+          <Show when={errorMessage()}>
+            {(msg) => <div class="message error">{msg()}</div>}
+          </Show>
 
-        <div class="scroll-sentinel" />
+          <div class="scroll-sentinel" />
+        </div>
       </div>
     </div>
   );
