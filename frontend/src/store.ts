@@ -49,6 +49,8 @@ createEffect(() => {
   const id = activeSessionId();
   if (id) {
     history.replaceState(null, "", `#${id}`);
+  } else {
+    history.replaceState(null, "", window.location.pathname);
   }
 });
 
@@ -280,10 +282,13 @@ export const rootSessions = () => {
   return sessions().filter((s) => !s.parentID);
 };
 
-/** Index of the active session within rootSessions(), or -1 if it's a child. */
+/** Whether we're on the "new session" page (no active session selected). */
+export const isNewSessionPage = () => activeSessionId() === undefined;
+
+/** Index of the active session within rootSessions(), or roots.length if on the new session page. */
 export const activeRootIndex = () => {
   const id = activeSessionId();
-  if (!id) return 0;
+  if (!id) return rootSessions().length; // past the end = new session page
   const idx = rootSessions().findIndex((s) => s.id === id);
   return idx >= 0 ? idx : -1;
 };

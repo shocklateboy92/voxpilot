@@ -104,7 +104,7 @@ export function SessionPicker() {
           <button
             class="btn picker-new-chat"
             onClick={() => {
-              void handleNewSession();
+              handleNewSession();
               setPickerOpen(false);
             }}
           >

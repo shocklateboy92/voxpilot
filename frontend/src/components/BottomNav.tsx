@@ -4,7 +4,7 @@
 
 import Plus from "lucide-solid/icons/plus";
 import { handleNewSession } from "../sessions";
-import { activeSession, setPickerOpen } from "../store";
+import { activeSession, isNewSessionPage, setPickerOpen } from "../store";
 
 export function BottomNav() {
   return (
@@ -14,8 +14,9 @@ export function BottomNav() {
       </button>
       <button
         class="new-chat-btn btn btn-icon"
-        onClick={() => void handleNewSession()}
+        onClick={() => handleNewSession()}
         title="New chat"
+        disabled={isNewSessionPage()}
       >
         <Plus size={20} />
       </button>

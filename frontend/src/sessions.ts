@@ -8,12 +8,14 @@
 import {
   createSession,
   deleteSession,
+  sendPromptAsync,
 } from "./api-client";
 import {
   activeRootIndex,
   activeSession,
   activeSessionId,
   clearScrollPosition,
+  isNewSessionPage,
   refetchSessions,
   rootSessions,
   saveCurrentScrollPosition,
@@ -57,23 +59,26 @@ function isChildSession(): boolean {
   return Boolean(activeSession()?.parentID);
 }
 
-/** Whether a swipe-next gesture has somewhere to go. */
+/** Whether a swipe-next gesture has somewhere to go (includes new session page). */
 export function canNavigateNext(): boolean {
   if (isChildSession()) return true;
   const idx = activeRootIndex();
-  return idx >= 0 && idx < rootSessions().length - 1;
+  // Allow navigating to the new session page (one past the last root)
+  return idx >= 0 && idx < rootSessions().length;
 }
 
-/** Whether a swipe-prev gesture has somewhere to go. */
+/** Whether a swipe-prev gesture has somewhere to go (includes back from new session page). */
 export function canNavigatePrev(): boolean {
   if (isChildSession()) return true;
+  if (isNewSessionPage()) return rootSessions().length > 0;
   return activeRootIndex() > 0;
 }
 
-/** Navigate to the next root session, or to the parent if in a sub-agent session. */
+/** Navigate to the next root session or the new session page, or to the parent if in a sub-agent session. */
 export function navigateNext(): void {
   if (isChildSession()) {
-    switchToSession(activeSession()!.parentID!);
+    const parentId = activeSession()?.parentID;
+    if (parentId) switchToSession(parentId);
     return;
   }
   const roots = rootSessions();
@@ -83,13 +88,24 @@ export function navigateNext(): void {
   if (next < roots.length) {
     const target = roots[next];
     if (target) switchToSession(target.id);
+  } else if (next === roots.length) {
+    // Navigate past the last session → new session page
+    navigateToNewSession();
   }
 }
 
 /** Navigate to the previous root session, or to the parent if in a sub-agent session. */
 export function navigatePrev(): void {
   if (isChildSession()) {
-    switchToSession(activeSession()!.parentID!);
+    const parentId = activeSession()?.parentID;
+    if (parentId) switchToSession(parentId);
+    return;
+  }
+  // If on the new session page, go back to the last root session
+  if (isNewSessionPage()) {
+    const roots = rootSessions();
+    const last = roots[roots.length - 1];
+    if (last) switchToSession(last.id);
     return;
   }
   const roots = rootSessions();
@@ -102,21 +118,43 @@ export function navigatePrev(): void {
   }
 }
 
-/** Create a new session and switch to it. */
-export async function handleNewSession(): Promise<void> {
+/** Navigate to the new session page. */
+export function handleNewSession(): void {
+  navigateToNewSession();
+}
+
+/** Navigate to the new session page (clears active session). */
+export function navigateToNewSession(): void {
+  saveCurrentScrollPosition();
+  setActiveSessionId(undefined);
+  setErrorMessage(null);
+}
+
+/**
+ * Create a new session, send the first message, and switch to it.
+ * Used by NewSessionPage when the user types their first message.
+ */
+export async function createSessionAndSend(
+  content: string,
+  agent: string,
+): Promise<void> {
   const session = await createSession();
   await refetchSessions();
   switchToSession(session.id);
+  await sendPromptAsync(session.id, content, agent);
 }
 
 /** Delete a session and adjust navigation. */
 export async function handleDeleteSession(sessionId: string): Promise<void> {
   await deleteSession(sessionId);
-  let list = (await refetchSessions()) ?? [];
+  const list = (await refetchSessions()) ?? [];
 
   if (list.length === 0) {
-    await createSession();
-    list = (await refetchSessions()) ?? [];
+    // No sessions left — show the new session page
+    navigateToNewSession();
+    setPickerOpen(false);
+    clearScrollPosition(sessionId);
+    return;
   }
 
   // If we deleted the active session, switch to the nearest one
@@ -136,21 +174,25 @@ export async function handleDeleteSession(sessionId: string): Promise<void> {
 
 /**
  * Initialize sessions on login.
- * Fetches the session list, creates one if empty.
- * Restores the previously selected session from the URL hash,
+ * Fetches the session list. If empty, shows the new session page.
+ * Otherwise restores the previously selected session from the URL hash,
  * or falls back to the first session.
  */
 export async function initSessions(): Promise<void> {
-  let list = (await refetchSessions()) ?? [];
+  const list = (await refetchSessions()) ?? [];
 
   if (list.length === 0) {
-    await createSession();
-    list = (await refetchSessions()) ?? [];
+    // No sessions — show the new session page
+    setActiveSessionId(undefined);
+    return;
   }
 
   const hashId = activeSessionId();
+  const first = list[0];
+  if (!first) return;
+
   const target =
-    hashId && list.some((s) => s.id === hashId) ? hashId : list[0]!.id;
+    hashId && list.some((s) => s.id === hashId) ? hashId : first.id;
 
   // Always open the stream on init — bypass switchToSession's same-ID guard,
   // which would skip openStream when the URL hash already matches (e.g. page reload).

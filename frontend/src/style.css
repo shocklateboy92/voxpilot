@@ -668,6 +668,43 @@ h1 {
   opacity: 0.5;
 }
 
+/* ── New Session Page ── */
+
+.new-session-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+  min-height: 0;
+}
+
+.new-session-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  width: 100%;
+  max-width: 32rem;
+}
+
+.new-session-heading {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.new-session-page .agent-segmented {
+  position: static;
+}
+
+.new-session-page .chat-form {
+  position: static;
+  width: 100%;
+}
+
 /* ═══════════════════════════════════════════════
    7. AGENT PICKER
    ═══════════════════════════════════════════════ */
