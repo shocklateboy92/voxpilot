@@ -2,7 +2,7 @@
  * Permission prompt — Allow once / Always allow / Reject buttons.
  */
 
-import { Lock } from "lucide-solid";
+import Lock from "lucide-solid/icons/lock";
 import type { PendingPermission } from "../store";
 import { respondToConfirm } from "../streaming";
 

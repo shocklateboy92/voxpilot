@@ -10,7 +10,10 @@
  */
 
 import type { ToolPart } from "@opencode-ai/sdk/v2/client";
-import { ArrowRight, GitCompareArrows, Loader, X } from "lucide-solid";
+import ArrowRight from "lucide-solid/icons/arrow-right";
+import GitCompareArrows from "lucide-solid/icons/git-compare-arrows";
+import Loader from "lucide-solid/icons/loader";
+import X from "lucide-solid/icons/x";
 import { createResource, For, Match, Show, Switch } from "solid-js";
 import { rpc } from "../rpc";
 import { setReviewFile } from "./ReviewOverlay";

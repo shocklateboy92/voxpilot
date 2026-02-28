@@ -9,7 +9,7 @@
  * 5. Resize re-renders at correct width
  */
 
-import { X } from "lucide-solid";
+import X from "lucide-solid/icons/x";
 import {
   createEffect,
   createResource,

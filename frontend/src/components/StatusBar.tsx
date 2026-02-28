@@ -2,7 +2,7 @@
  * Floating status bar — git branch on the left, context usage on the right.
  */
 
-import { GitBranch } from "lucide-solid";
+import GitBranch from "lucide-solid/icons/git-branch";
 import { Show } from "solid-js";
 import { gitBranch } from "../store";
 import { ContextUsageBar } from "./ContextUsageBar";

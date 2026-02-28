@@ -4,7 +4,10 @@
  */
 
 import type { ToolPart } from "@opencode-ai/sdk/v2/client";
-import { Check, Loader, Settings, X } from "lucide-solid";
+import Check from "lucide-solid/icons/check";
+import Loader from "lucide-solid/icons/loader";
+import Settings from "lucide-solid/icons/settings";
+import X from "lucide-solid/icons/x";
 import { Match, Show, Switch } from "solid-js";
 
 interface Props {

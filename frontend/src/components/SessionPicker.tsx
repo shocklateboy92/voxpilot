@@ -6,7 +6,8 @@
  * Triggered by tapping the session title in BottomNav.
  */
 
-import { Trash2, X } from "lucide-solid";
+import Trash2 from "lucide-solid/icons/trash-2";
+import X from "lucide-solid/icons/x";
 import { createMemo, For, Show } from "solid-js";
 import {
   handleDeleteSession,

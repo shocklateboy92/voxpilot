@@ -2,7 +2,7 @@
  * Bottom navigation bar — session title (tap to open picker) and + button.
  */
 
-import { Plus } from "lucide-solid";
+import Plus from "lucide-solid/icons/plus";
 import { handleNewSession } from "../sessions";
 import { activeSession, setPickerOpen } from "../store";
 

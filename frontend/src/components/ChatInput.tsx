@@ -2,7 +2,7 @@
  * Chat input form — message textarea + send button.
  */
 
-import { ArrowUp } from "lucide-solid";
+import ArrowUp from "lucide-solid/icons/arrow-up";
 import { createEffect } from "solid-js";
 import { isStreaming } from "../store";
 import { sendUserMessage } from "../streaming";

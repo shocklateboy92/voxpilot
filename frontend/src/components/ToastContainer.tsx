@@ -4,7 +4,7 @@
  * Renders active toasts from the store signal as a fixed overlay.
  */
 
-import { X } from "lucide-solid";
+import X from "lucide-solid/icons/x";
 import { For } from "solid-js";
 import { setToasts, toasts } from "../store";
 

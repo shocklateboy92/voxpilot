@@ -2,7 +2,8 @@
  * Main chat area — messages list with swipe gestures.
  */
 
-import { ChevronLeft, ChevronRight } from "lucide-solid";
+import ChevronLeft from "lucide-solid/icons/chevron-left";
+import ChevronRight from "lucide-solid/icons/chevron-right";
 import {
   createEffect,
   createSignal,
