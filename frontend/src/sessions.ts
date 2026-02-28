@@ -82,14 +82,12 @@ export async function handleNewSession(): Promise<void> {
 /** Delete a session and adjust navigation. */
 export async function handleDeleteSession(sessionId: string): Promise<void> {
   await deleteSession(sessionId);
-  await refetchSessions();
+  let list = (await refetchSessions()) ?? [];
 
-  if (sessions().length === 0) {
+  if (list.length === 0) {
     await createSession();
-    await refetchSessions();
+    list = (await refetchSessions()) ?? [];
   }
-
-  const list = sessions();
 
   // If we deleted the active session, switch to the nearest one
   const currentId = activeSessionId();
@@ -112,15 +110,14 @@ export async function handleDeleteSession(sessionId: string): Promise<void> {
  * or falls back to the first session.
  */
 export async function initSessions(): Promise<void> {
-  await refetchSessions();
+  let list = (await refetchSessions()) ?? [];
 
-  if (sessions().length === 0) {
+  if (list.length === 0) {
     await createSession();
-    await refetchSessions();
+    list = (await refetchSessions()) ?? [];
   }
 
   const hashId = activeSessionId();
-  const list = sessions();
   const target =
     hashId && list.some((s) => s.id === hashId) ? hashId : list[0]!.id;
 
