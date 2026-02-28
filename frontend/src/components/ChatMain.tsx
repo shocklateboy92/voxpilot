@@ -13,14 +13,12 @@ import {
   Show,
 } from "solid-js";
 import { attachSwipeHandler } from "../gestures";
-import { navigateNext, navigatePrev } from "../sessions";
+import { canNavigateNext, canNavigatePrev, navigateNext, navigatePrev } from "../sessions";
 import {
-  activeRootIndex,
   errorMessage,
   messages,
   pendingPermission,
   pendingQuestion,
-  rootSessions,
   setSwipeOffset,
   swipeOffset,
 } from "../store";
@@ -70,17 +68,14 @@ export function ChatMain() {
         setSwipeOffset(damped);
       },
       onSwipeLeft() {
-        if (
-          activeRootIndex() >= 0 &&
-          activeRootIndex() < rootSessions().length - 1
-        ) {
+        if (canNavigateNext()) {
           pendingNav = navigateNext;
         }
         setAnimateSnap(true);
         setSwipeOffset(0);
       },
       onSwipeRight() {
-        if (activeRootIndex() > 0) {
+        if (canNavigatePrev()) {
           pendingNav = navigatePrev;
         }
         setAnimateSnap(true);
@@ -96,16 +91,10 @@ export function ChatMain() {
   });
 
   const showLeftArrow = () => {
-    const off = swipeOffset();
-    return off > 0 && activeRootIndex() > 0;
+    return swipeOffset() > 0 && canNavigatePrev();
   };
   const showRightArrow = () => {
-    const off = swipeOffset();
-    return (
-      off < 0 &&
-      activeRootIndex() >= 0 &&
-      activeRootIndex() < rootSessions().length - 1
-    );
+    return swipeOffset() < 0 && canNavigateNext();
   };
   const arrowOpacity = () => Math.min(Math.abs(swipeOffset()) / 60, 1);
 

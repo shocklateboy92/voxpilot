@@ -11,6 +11,7 @@ import {
 } from "./api-client";
 import {
   activeRootIndex,
+  activeSession,
   activeSessionId,
   refetchSessions,
   rootSessions,
@@ -48,8 +49,30 @@ export function switchToSession(sessionId: string): void {
   openStream(sessionId);
 }
 
-/** Navigate to the next root session (if any). */
+/** Whether the active session is a child (sub-agent) with a parent to navigate to. */
+function isChildSession(): boolean {
+  return Boolean(activeSession()?.parentID);
+}
+
+/** Whether a swipe-next gesture has somewhere to go. */
+export function canNavigateNext(): boolean {
+  if (isChildSession()) return true;
+  const idx = activeRootIndex();
+  return idx >= 0 && idx < rootSessions().length - 1;
+}
+
+/** Whether a swipe-prev gesture has somewhere to go. */
+export function canNavigatePrev(): boolean {
+  if (isChildSession()) return true;
+  return activeRootIndex() > 0;
+}
+
+/** Navigate to the next root session, or to the parent if in a sub-agent session. */
 export function navigateNext(): void {
+  if (isChildSession()) {
+    switchToSession(activeSession()!.parentID!);
+    return;
+  }
   const roots = rootSessions();
   const idx = activeRootIndex();
   if (idx < 0) return;
@@ -60,8 +83,12 @@ export function navigateNext(): void {
   }
 }
 
-/** Navigate to the previous root session (if any). */
+/** Navigate to the previous root session, or to the parent if in a sub-agent session. */
 export function navigatePrev(): void {
+  if (isChildSession()) {
+    switchToSession(activeSession()!.parentID!);
+    return;
+  }
   const roots = rootSessions();
   const idx = activeRootIndex();
   if (idx < 0) return;
