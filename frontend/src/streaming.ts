@@ -10,15 +10,14 @@
  */
 
 import type { TextPart } from "@opencode-ai/sdk/v2/client";
+import type { Event, MessageWithParts } from "./api-client";
 import {
+  addEventListener,
   fetchMessages,
   respondToPermission,
   sendPromptAsync,
 } from "./api-client";
-import type { MessageWithParts } from "./api-client";
 import type { Message } from "@opencode-ai/sdk/v2/client";
-import type { Event } from "./sse";
-import { subscribeToEvents } from "./sse";
 import { createEffect } from "solid-js";
 import { produce } from "solid-js/store";
 import {
@@ -207,13 +206,9 @@ createEffect(() => {
 });
 
 // ── Global SSE subscription ─────────────────────────────────────
-// Single persistent connection opened at module load.
+// The stream starts automatically in api-client.ts; just register our handler.
 
-void subscribeToEvents(handleEvent).catch((err: unknown) => {
-  if (err instanceof Error && err.name === "AbortError") return;
-  const msg = err instanceof Error ? err.message : "Event stream error";
-  setErrorMessage(msg);
-});
+addEventListener(handleEvent);
 
 /**
  * Send a user message on the current session.

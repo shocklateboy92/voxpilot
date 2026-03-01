@@ -1,9 +1,15 @@
 /**
- * API client using OpenCode SDK.
+ * API client and global SSE event stream.
+ *
+ * Uses the `/global/event` SSE endpoint so VoxPilot receives events from
+ * ALL instances (including worktree sessions that run in a different
+ * directory/instance). Consumers register listeners via addEventListener /
+ * removeEventListener.
  */
 
 import type {
   Agent,
+  Event,
   EventWorktreeFailed,
   EventWorktreeReady,
   GlobalEvent,
@@ -19,17 +25,7 @@ import type {
 } from "@opencode-ai/sdk/v2/client";
 import { createOpencodeClient } from "@opencode-ai/sdk/v2/client";
 
-export type {
-  Agent,
-  Project,
-  Session,
-  Message,
-  Part,
-  PermissionRequest,
-  QuestionRequest,
-  QuestionAnswer,
-  Worktree,
-};
+export type { Event, Agent, Project, Session, Message, Part, PermissionRequest, QuestionRequest, QuestionAnswer, Worktree };
 
 export type MessageWithParts = {
   info: Message;
@@ -41,6 +37,39 @@ const client = createOpencodeClient({
 });
 
 export { client };
+
+// ── Global SSE event stream ─────────────────────────────────────
+
+export type EventListener = (event: Event) => void;
+
+const listeners = new Set<EventListener>();
+
+export function addEventListener(listener: EventListener): void {
+  listeners.add(listener);
+}
+
+export function removeEventListener(listener: EventListener): void {
+  listeners.delete(listener);
+}
+
+/** Start the global SSE stream. Called once at app startup (from streaming.ts). */
+// Start the global SSE stream immediately. It runs for the lifetime of the app.
+void (async () => {
+  try {
+    const result = await client.global.event();
+    for await (const raw of result.stream) {
+      const globalEvent = raw as GlobalEvent;
+      for (const listener of listeners) {
+        listener(globalEvent.payload);
+      }
+    }
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === "AbortError") return;
+    console.error("Global event stream error:", err);
+  }
+})();
+
+// ── Session API ─────────────────────────────────────────────────
 
 export async function fetchSessions(): Promise<Session[]> {
   const result = await client.session.list();
@@ -161,6 +190,11 @@ export async function fetchCurrentProject(): Promise<Project | undefined> {
   }
 }
 
+// ── Worktree API ────────────────────────────────────────────────
+
+/** Default timeout for waiting for worktree.ready (30 seconds). */
+const WORKTREE_READY_TIMEOUT_MS = 30_000;
+
 export async function createWorktree(directory: string): Promise<Worktree> {
   const result = await client.worktree.create({ directory });
   if (!result.data)
@@ -169,82 +203,33 @@ export async function createWorktree(directory: string): Promise<Worktree> {
     );
 
   // The server populates the worktree asynchronously after returning.
-  // Wait for the worktree.ready SSE event before using it.
-  await waitForWorktreeReady(result.data.name);
+  // Listen for the worktree.ready/failed event on the main global stream.
+  const worktreeName = result.data.name;
 
-  return result.data;
-}
+  await new Promise<void>((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      removeEventListener(listener);
+      reject(new Error(`Timed out waiting for worktree "${worktreeName}" to be ready`));
+    }, WORKTREE_READY_TIMEOUT_MS);
 
-/** Default timeout for waiting for worktree.ready (30 seconds). */
-const WORKTREE_READY_TIMEOUT_MS = 30_000;
-
-/**
- * Wait for a `worktree.ready` SSE event matching the given worktree name.
- * Rejects if `worktree.failed` arrives or the timeout expires.
- *
- * Uses the `/global/event` SSE stream because `worktree.ready` is emitted
- * via GlobalBus (not the per-instance Bus), so it only appears on the
- * global event endpoint — not on the per-instance `/event` stream that
- * VoxPilot normally subscribes to.
- */
-function waitForWorktreeReady(worktreeName: string): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    let settled = false;
-    const abort = new AbortController();
-
-    function settle(fn: () => void): void {
-      if (settled) return;
-      settled = true;
-      abort.abort();
-      clearTimeout(timeoutId);
-      fn();
+    function listener(event: Event): void {
+      if (event.type === "worktree.ready") {
+        const props = (event as EventWorktreeReady).properties;
+        if (props.name !== worktreeName) return;
+        removeEventListener(listener);
+        clearTimeout(timeoutId);
+        resolve();
+      }
+      if (event.type === "worktree.failed") {
+        const props = (event as EventWorktreeFailed).properties;
+        removeEventListener(listener);
+        clearTimeout(timeoutId);
+        reject(new Error(`Worktree creation failed: ${props.message}`));
+      }
     }
 
-    // Open a short-lived SSE connection to /global/event
-    void client.global
-      .event({ signal: abort.signal })
-      .then(async (result) => {
-        for await (const raw of result.stream) {
-          if (abort.signal.aborted) break;
-          const globalEvent = raw as GlobalEvent;
-          const event = globalEvent.payload;
-
-          if (event.type === "worktree.ready") {
-            const props = (event as EventWorktreeReady).properties;
-            if (props.name === worktreeName) {
-              settle(() => resolve());
-              break;
-            }
-          }
-
-          if (event.type === "worktree.failed") {
-            const props = (event as EventWorktreeFailed).properties;
-            settle(() =>
-              reject(new Error(`Worktree creation failed: ${props.message}`)),
-            );
-            break;
-          }
-        }
-      })
-      .catch((err: unknown) => {
-        if (abort.signal.aborted) return;
-        settle(() =>
-          reject(
-            err instanceof Error
-              ? err
-              : new Error("Global event stream failed"),
-          ),
-        );
-      });
-
-    const timeoutId = setTimeout(() => {
-      settle(() =>
-        reject(
-          new Error(
-            `Timed out waiting for worktree "${worktreeName}" to be ready`,
-          ),
-        ),
-      );
-    }, WORKTREE_READY_TIMEOUT_MS);
+    addEventListener(listener);
   });
+
+  return result.data;
 }
