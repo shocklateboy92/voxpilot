@@ -32,6 +32,8 @@ export interface SwipeablePaneProps {
    * scroll position tracking).
    */
   onMount?: (el: HTMLDivElement) => void;
+  /** Optional scroll event handler forwarded to the scrollable container. */
+  onScroll?: (e: Event) => void;
 }
 
 export function SwipeablePane(props: SwipeablePaneProps) {
@@ -119,6 +121,7 @@ export function SwipeablePane(props: SwipeablePaneProps) {
           transition: animateSnap() ? "transform 200ms ease-out" : "none",
         }}
         onTransitionEnd={handleTransitionEnd}
+        onScroll={props.onScroll}
       >
         {props.children}
       </div>

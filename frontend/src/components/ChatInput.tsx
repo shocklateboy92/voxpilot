@@ -1,9 +1,12 @@
 /**
  * Chat input form — message textarea + send button.
+ *
+ * The textarea is never disabled so it retains focus across streaming.
+ * The submit handler guards on `isStreaming()` to prevent sending while
+ * the agent is responding; the send button is visually disabled as a cue.
  */
 
 import ArrowUp from "lucide-solid/icons/arrow-up";
-import { createEffect } from "solid-js";
 import { isStreaming } from "../store";
 import { sendUserMessage } from "../streaming";
 
@@ -12,57 +15,40 @@ export interface ChatInputProps {
   onSend?: () => void;
 }
 
-/** Shared ref so other components (ChatMain) can focus the input. */
-let inputEl: HTMLTextAreaElement | undefined;
-
-export function focusChatInput(): void {
-  inputEl?.focus();
-}
-
 export function ChatInput(props: ChatInputProps) {
-  function handleSubmit(e: SubmitEvent): void {
+  function handleSubmit(e: SubmitEvent & { currentTarget: HTMLFormElement }): void {
     e.preventDefault();
-    const value = inputEl?.value.trim();
+    const textarea = e.currentTarget.elements.namedItem("message");
+    if (!(textarea instanceof HTMLTextAreaElement)) return;
+    const value = textarea.value.trim();
     if (!value || isStreaming()) return;
-    if (inputEl) {
-      inputEl.value = "";
-      inputEl.style.height = "auto";
-    }
+
+    textarea.value = "";
+    textarea.style.height = "auto";
     void sendUserMessage(value);
     props.onSend?.();
   }
 
-  function handleKeyDown(e: KeyboardEvent): void {
+  function handleKeyDown(e: KeyboardEvent & { currentTarget: HTMLTextAreaElement }): void {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      const target = e.currentTarget;
-      if (target instanceof HTMLTextAreaElement) {
-        target.form?.requestSubmit();
-      }
+      e.currentTarget.form?.requestSubmit();
     }
   }
 
-  function handleAutoResize(): void {
-    if (!inputEl) return;
-    inputEl.style.height = "auto";
-    inputEl.style.height = `${inputEl.scrollHeight}px`;
+  function handleAutoResize(e: InputEvent & { currentTarget: HTMLTextAreaElement }): void {
+    e.currentTarget.style.height = "auto";
+    e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
   }
-
-  // Focus input when streaming finishes
-  createEffect(() => {
-    if (!isStreaming()) {
-      inputEl?.focus();
-    }
-  });
 
   return (
     <form class="chat-form" onSubmit={handleSubmit}>
       <textarea
-        ref={inputEl}
+        name="message"
         class="chat-input"
         placeholder="Send a message..."
         autocomplete="off"
-        disabled={isStreaming()}
+        autofocus
         rows={1}
         onKeyDown={handleKeyDown}
         onInput={handleAutoResize}

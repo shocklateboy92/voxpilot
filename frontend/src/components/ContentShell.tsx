@@ -29,6 +29,8 @@ export interface ContentShellProps {
   paneClass?: string;
   /** Ref callback — receives the SwipeablePane's container element after mount. */
   onPaneMount?: (el: HTMLDivElement) => void;
+  /** Scroll event handler forwarded to the SwipeablePane's scrollable container. */
+  onScroll?: (e: Event) => void;
 
   /**
    * Optional floating elements rendered inside content-shell-body but
@@ -62,6 +64,7 @@ export function ContentShell(props: ContentShellProps) {
           onSwipeLeft={props.onSwipeLeft}
           onSwipeRight={props.onSwipeRight}
           onMount={props.onPaneMount}
+          onScroll={props.onScroll}
         >
           {props.children}
         </SwipeablePane>

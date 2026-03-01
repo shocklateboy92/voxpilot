@@ -18,7 +18,12 @@ import {
 import { gitBranch, isNewSessionPage } from "../store";
 import { AgentPicker } from "./AgentPicker";
 import { BottomNav } from "./BottomNav";
-import { ChatMain, chatPaneMount, ChatScrollButton } from "./ChatMain";
+import {
+  anchor,
+  ChatMain,
+  chatPaneMount,
+  ChatScrollButton,
+} from "./ChatMain";
 import { ContentShell } from "./ContentShell";
 import { ContextUsageBar } from "./ContextUsageBar";
 import { NewSessionPage } from "./NewSessionPage";
@@ -50,6 +55,7 @@ export function ChatView() {
           onSwipeRight={navigatePrev}
           paneClass="messages"
           onPaneMount={chatPaneMount}
+          onScroll={anchor.onScroll}
           overlay={<ChatScrollButton />}
           aboveInput={<AgentPicker />}
         >

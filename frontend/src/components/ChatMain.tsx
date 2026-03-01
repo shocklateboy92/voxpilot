@@ -1,22 +1,17 @@
 /**
  * Main chat area — messages list with scroll management.
  *
- * SwipeablePane is now owned by ContentShell; ChatMain receives
- * the scrollable container ref via the exported `chatPaneMount`
- * callback that the parent passes to ContentShell's onPaneMount.
+ * Scroll behaviour is driven by `useScrollAnchor` (a reactive primitive).
+ * The anchor instance is created at module level and exported so ChatView
+ * can wire `onPaneMount` / `onScroll` into ContentShell.
  *
- * The scroll-to-bottom button is exposed separately via
- * `ChatScrollButton` for ContentShell's overlay slot.
+ * The scroll-to-bottom button is exported as `ChatScrollButton` for
+ * ContentShell's overlay slot.
  */
 
 import ChevronDown from "lucide-solid/icons/chevron-down";
-import {
-  createEffect,
-  createSignal,
-  For,
-  onCleanup,
-  Show,
-} from "solid-js";
+import { createEffect, For, Show } from "solid-js";
+import { useScrollAnchor } from "../scroll-anchor";
 import {
   activeSessionId,
   consumeScrollPosition,
@@ -31,32 +26,39 @@ import { QuestionBlock } from "./QuestionBlock";
 import { ToolConfirmBlock } from "./ToolConfirmBlock";
 
 /**
- * Signal holding the SwipeablePane's scrollable container element.
- * Set by `chatPaneMount` (passed to ContentShell's `onPaneMount`),
- * consumed reactively inside ChatMain.
+ * Shared scroll-anchor instance for the chat pane.
+ * ChatView wires `anchor.onPaneMount` and `anchor.onScroll` to ContentShell.
  */
-const [paneEl, setPaneEl] = createSignal<HTMLDivElement | undefined>();
+export const anchor = useScrollAnchor();
 
-/** Pass to ContentShell's `onPaneMount` when rendering ChatMain. */
+/**
+ * Module-level ref to the pane element, set by `chatPaneMount`.
+ * Used for scroll-position restore (which needs a specific scrollTop,
+ * not just "scroll to bottom").
+ */
+let paneElRef: HTMLDivElement | undefined;
+
+/**
+ * Thin wrapper around anchor.onPaneMount that also captures the element
+ * for scroll-position restore and registers the scroll-top getter.
+ * Pass to ContentShell's `onPaneMount`.
+ */
 export function chatPaneMount(el: HTMLDivElement): void {
-  setPaneEl(el);
+  paneElRef = el;
+  anchor.onPaneMount(el);
+  registerScrollTopGetter(() => ({
+    scrollTop: el.scrollTop,
+    atBottom: anchor.isAtBottom(),
+  }));
 }
-
-const AT_BOTTOM_THRESHOLD = 50;
-const [isAtBottom, setIsAtBottom] = createSignal(true);
 
 /** Floating scroll-to-bottom button — render in ContentShell's overlay slot. */
 export function ChatScrollButton() {
-  function scrollToBottom(): void {
-    const el = paneEl();
-    el?.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  }
-
   return (
-    <Show when={!isAtBottom()}>
+    <Show when={!anchor.isAtBottom()}>
       <button
         class="btn btn-icon scroll-to-bottom"
-        onClick={scrollToBottom}
+        onClick={anchor.scrollToBottom}
         aria-label="Scroll to bottom"
       >
         <ChevronDown size={20} />
@@ -68,76 +70,45 @@ export function ChatScrollButton() {
 export function ChatMain() {
   let contentRef: HTMLDivElement | undefined;
 
-  // While a scroll-position restore is in flight (waiting for rAF),
-  // suppress all auto-scrolling so later effect runs don't clobber it.
-  let restoring = false;
-
-  // Auto-scroll when messages change, respecting saved scroll position
-  // and whether the user has scrolled up.
+  // Auto-scroll / restore when messages change or session switches.
   createEffect(() => {
-    const el = paneEl();
+    // Reactive dependencies: track message count & prompt state so we
+    // re-run whenever content changes.
     const len = messages.length;
     errorMessage();
     pendingPermission();
     pendingQuestion();
 
-    if (!el || restoring) return;
+    if (anchor.suppressed()) return;
 
     const id = activeSessionId();
     if (id && len > 0) {
       const saved = consumeScrollPosition(id);
       if (saved !== undefined) {
         if (saved.atBottom) {
-          el.scrollTo({ top: el.scrollHeight, behavior: "instant" });
-          setIsAtBottom(true);
+          anchor.scrollToBottomInstant();
         } else {
-          restoring = true;
+          anchor.setSuppressed(true);
           const top = saved.scrollTop;
           requestAnimationFrame(() => {
-            el.scrollTo({ top, behavior: "instant" });
-            setIsAtBottom(false);
-            restoring = false;
+            paneElRef?.scrollTo({ top, behavior: "instant" });
+            anchor.setSuppressed(false);
           });
         }
         return;
       }
     }
 
-    if (isAtBottom()) {
-      el.scrollTo({ top: el.scrollHeight, behavior: "instant" });
+    if (anchor.isAtBottom()) {
+      anchor.scrollToBottomInstant();
     }
   });
 
-  // Wire up scroll tracking and resize observer when pane element is available.
+  // Wire up the content element for the ResizeObserver once mounted.
   createEffect(() => {
-    const el = paneEl();
-    if (!el) return;
-
-    registerScrollTopGetter(() => {
-      const atBottom =
-        el.scrollTop + el.clientHeight >= el.scrollHeight - AT_BOTTOM_THRESHOLD;
-      return { scrollTop: el.scrollTop, atBottom };
-    });
-
-    const handleScroll = () => {
-      const atBottom =
-        el.scrollTop + el.clientHeight >= el.scrollHeight - AT_BOTTOM_THRESHOLD;
-      setIsAtBottom(atBottom);
-    };
-    el.addEventListener("scroll", handleScroll, { passive: true });
-    onCleanup(() => el.removeEventListener("scroll", handleScroll));
-
-    let lastScrollHeight = el.scrollHeight;
-    const resizeObserver = new ResizeObserver(() => {
-      if (restoring) return;
-      const grew = el.scrollHeight > lastScrollHeight;
-      lastScrollHeight = el.scrollHeight;
-      if (grew && isAtBottom()) {
-        el.scrollTo({ top: el.scrollHeight, behavior: "instant" });
-      }
-    });
-    if (contentRef) resizeObserver.observe(contentRef);
-    onCleanup(() => resizeObserver.disconnect());
+    if (contentRef) {
+      anchor.observeContent(contentRef);
+    }
   });
 
   return (
