@@ -1,8 +1,8 @@
 /**
  * New session page — shown when no session is active.
  *
- * Displays a centered heading with a project selector, agent picker,
- * optional worktree checkbox, and a chat input.
+ * Displays a centered heading with a project selector, worktree picker
+ * (with inline creation), agent picker, and a chat input.
  * When the user sends their first message, a session is created and
  * the view transitions instantly to the chat.
  *
@@ -10,20 +10,23 @@
  */
 
 import ArrowUp from "lucide-solid/icons/arrow-up";
+import Plus from "lucide-solid/icons/plus";
 import { createSignal, For, onMount, Show } from "solid-js";
+import { createWorktree } from "../api-client";
 import { createSessionAndSend, navigateNext } from "../sessions";
 import {
-  createNewWorktree,
   extractErrorMessage,
   projects,
+  refetchWorktrees,
   rootSessions,
   selectedAgent,
   selectedProject,
   selectedProjectDir,
-  setCreateNewWorktree,
-  setErrorMessage,
+  selectedWorktreeDir,
   setSelectedProjectDir,
+  setSelectedWorktreeDir,
   showToast,
+  worktrees,
 } from "../store";
 import { AgentPicker } from "./AgentPicker";
 import { SwipeablePane } from "./SwipeablePane";
@@ -34,12 +37,20 @@ export function NewSessionPage() {
   let inputEl: HTMLTextAreaElement | undefined;
 
   const [sending, setSending] = createSignal(false);
+  const [creatingWorktree, setCreatingWorktree] = createSignal(false);
+  const [worktreeName, setWorktreeName] = createSignal("");
 
   /** Display name for a project — use name if available, otherwise last path segment. */
   function projectLabel(worktree: string, name?: string): string {
     if (name) return name;
     const parts = worktree.split("/");
     return parts[parts.length - 1] ?? worktree;
+  }
+
+  /** Display name for a worktree directory — last path segment. */
+  function worktreeLabel(dir: string): string {
+    const parts = dir.split("/");
+    return parts[parts.length - 1] ?? dir;
   }
 
   onMount(() => {
@@ -56,15 +67,12 @@ export function NewSessionPage() {
       inputEl.style.height = "auto";
     }
 
+    // Use the selected worktree directory, falling back to the project root
+    const directory = selectedWorktreeDir() ?? selectedProjectDir();
+
     setSending(true);
-    setErrorMessage(null);
     try {
-      await createSessionAndSend(
-        value,
-        selectedAgent(),
-        selectedProjectDir(),
-        createNewWorktree(),
-      );
+      await createSessionAndSend(value, selectedAgent(), directory);
     } catch (err: unknown) {
       showToast(extractErrorMessage(err));
     } finally {
@@ -72,12 +80,30 @@ export function NewSessionPage() {
     }
   }
 
+  async function handleCreateWorktree(): Promise<void> {
+    const dir = selectedProjectDir();
+    if (!dir || creatingWorktree()) return;
+
+    const name = worktreeName().trim() || undefined;
+    setCreatingWorktree(true);
+    try {
+      const wt = await createWorktree(dir, name);
+      await refetchWorktrees();
+      setSelectedWorktreeDir(wt.directory);
+      setWorktreeName("");
+    } catch (err: unknown) {
+      showToast(extractErrorMessage(err));
+    } finally {
+      setCreatingWorktree(false);
+    }
+  }
+
   function handleKeyDown(e: KeyboardEvent): void {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      const form = inputEl?.closest("form");
-      if (form) {
-        form.requestSubmit();
+      const target = e.currentTarget;
+      if (target instanceof HTMLTextAreaElement) {
+        target.form?.requestSubmit();
       }
     }
   }
@@ -89,6 +115,7 @@ export function NewSessionPage() {
   }
 
   const canSwipeLeft = () => rootSessions().length > 0;
+  const busy = () => sending() || creatingWorktree();
 
   return (
     <div class="chat-main">
@@ -107,9 +134,9 @@ export function NewSessionPage() {
               value={selectedProjectDir() ?? ""}
               onChange={(e) => {
                 setSelectedProjectDir(e.currentTarget.value || undefined);
-                setCreateNewWorktree(false);
+                setSelectedWorktreeDir(undefined);
               }}
-              disabled={sending()}
+              disabled={busy()}
             >
               <For each={projects()}>
                 {(project) => (
@@ -122,15 +149,43 @@ export function NewSessionPage() {
           </Show>
 
           <Show when={selectedProject()?.vcs === "git"}>
-            <label class="worktree-checkbox">
-              <input
-                type="checkbox"
-                checked={createNewWorktree()}
-                onChange={(e) => setCreateNewWorktree(e.currentTarget.checked)}
-                disabled={sending()}
-              />
-              Create worktree
-            </label>
+            <div class="worktree-section">
+              <select
+                class="project-select"
+                value={selectedWorktreeDir() ?? ""}
+                onChange={(e) => {
+                  setSelectedWorktreeDir(e.currentTarget.value || undefined);
+                }}
+                disabled={busy()}
+              >
+                <option value="">Main worktree</option>
+                <For each={worktrees()}>
+                  {(dir) => (
+                    <option value={dir}>{worktreeLabel(dir)}</option>
+                  )}
+                </For>
+              </select>
+
+              <div class="worktree-create">
+                <input
+                  type="text"
+                  class="worktree-name-input"
+                  placeholder="Worktree name (optional)"
+                  value={worktreeName()}
+                  onInput={(e) => setWorktreeName(e.currentTarget.value)}
+                  disabled={busy()}
+                />
+                <button
+                  type="button"
+                  class="btn"
+                  onClick={() => void handleCreateWorktree()}
+                  disabled={busy()}
+                >
+                  <Plus size={14} />
+                  {creatingWorktree() ? "Creating..." : "New worktree"}
+                </button>
+              </div>
+            </div>
           </Show>
 
           <AgentPicker />
@@ -141,7 +196,7 @@ export function NewSessionPage() {
               class="chat-input"
               placeholder="Send a message..."
               autocomplete="off"
-              disabled={sending()}
+              disabled={busy()}
               rows={1}
               onKeyDown={handleKeyDown}
               onInput={handleAutoResize}
@@ -149,7 +204,7 @@ export function NewSessionPage() {
             <button
               type="submit"
               class="btn btn-icon"
-              disabled={sending()}
+              disabled={busy()}
               aria-label="Send"
             >
               <ArrowUp size={18} />

@@ -24,6 +24,7 @@ import type {
   Worktree,
 } from "@opencode-ai/sdk/v2/client";
 import { createOpencodeClient } from "@opencode-ai/sdk/v2/client";
+import { refetchWorktrees } from "./store";
 
 export type { Event, Agent, Project, Session, Message, Part, PermissionRequest, QuestionRequest, QuestionAnswer, Worktree };
 
@@ -208,8 +209,16 @@ export async function fetchCurrentProject(): Promise<Project | undefined> {
 /** Default timeout for waiting for worktree.ready (30 seconds). */
 const WORKTREE_READY_TIMEOUT_MS = 30_000;
 
-export async function createWorktree(directory: string): Promise<Worktree> {
-  const result = await client.worktree.create({ directory });
+export async function fetchWorktrees(directory: string): Promise<string[]> {
+  const result = await client.worktree.list({ directory });
+  return result.data ?? [];
+}
+
+export async function createWorktree(directory: string, name?: string): Promise<Worktree> {
+  const result = await client.worktree.create({
+    directory,
+    worktreeCreateInput: name ? { name } : undefined,
+  });
   if (!result.data)
     throw new Error(
       "Failed to create worktree: " + JSON.stringify(result.error),

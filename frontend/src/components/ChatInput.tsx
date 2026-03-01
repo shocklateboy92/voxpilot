@@ -29,9 +29,9 @@ export function ChatInput() {
   function handleKeyDown(e: KeyboardEvent): void {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      const form = inputEl?.closest("form");
-      if (form) {
-        form.requestSubmit();
+      const target = e.currentTarget;
+      if (target instanceof HTMLTextAreaElement) {
+        target.form?.requestSubmit();
       }
     }
   }

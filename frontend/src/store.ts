@@ -18,6 +18,7 @@ import {
   fetchPendingQuestions,
   fetchProjects,
   fetchSessions,
+  fetchWorktrees,
 } from "./api-client";
 
 export type { Session, Message, Part, MessageWithParts, Project };
@@ -236,14 +237,27 @@ createEffect(() => {
   }
 });
 
-/** Whether to create a new worktree for the next session. */
-export const [createNewWorktree, setCreateNewWorktree] = createSignal(false);
-
 /** The selected project object (derived from selectedProjectDir). */
 export const selectedProject = () => {
   const dir = selectedProjectDir();
   return projects().find((p) => p.worktree === dir);
 };
+
+/** Worktree directories for the selected project (only fetched for git projects). */
+export const [worktrees, { refetch: refetchWorktrees }] = createResource(
+  () => {
+    const proj = selectedProject();
+    if (proj?.vcs !== "git") return undefined;
+    return proj.worktree;
+  },
+  (dir) => fetchWorktrees(dir),
+  { initialValue: [] },
+);
+
+/** The selected worktree directory for new session creation (undefined = use project root). */
+export const [selectedWorktreeDir, setSelectedWorktreeDir] = createSignal<string | undefined>(
+  undefined,
+);
 
 // ── Toast helpers ────────────────────────────────────────────────
 

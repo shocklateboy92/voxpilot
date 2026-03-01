@@ -727,24 +727,45 @@ h1 {
   cursor: not-allowed;
 }
 
-.worktree-checkbox {
+.worktree-section {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 0.5rem;
-  color: var(--color-muted);
+  width: 100%;
+}
+
+.worktree-create {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.worktree-create .btn {
+  border: 1px solid transparent;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.worktree-name-input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  background: var(--color-option-bg);
+  border: 1px solid var(--color-option-border);
+  border-radius: 0.5rem;
+  color: var(--color-text);
   font-family: var(--font-mono);
   font-size: 0.8rem;
-  cursor: pointer;
-  user-select: none;
 }
 
-.worktree-checkbox input[type="checkbox"] {
-  accent-color: var(--color-accent);
-  cursor: pointer;
-}
-
-.worktree-checkbox input[type="checkbox"]:disabled {
+.worktree-name-input:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
+}
+
+.worktree-name-input::placeholder {
+  color: var(--color-muted);
 }
 
 /* ═══════════════════════════════════════════════
