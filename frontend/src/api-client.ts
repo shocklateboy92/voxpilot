@@ -42,7 +42,17 @@ export { client };
 
 export type EventListener = (event: Event) => void;
 
+const sseAbort = new AbortController();
 const listeners = new Set<EventListener>();
+
+// Clean up on HMR: abort the SSE connection and clear listeners
+// before the new module instance re-executes and starts a fresh one.
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    sseAbort.abort();
+    listeners.clear();
+  });
+}
 
 export function addEventListener(listener: EventListener): void {
   listeners.add(listener);
@@ -52,19 +62,22 @@ export function removeEventListener(listener: EventListener): void {
   listeners.delete(listener);
 }
 
-/** Start the global SSE stream. Called once at app startup (from streaming.ts). */
-// Start the global SSE stream immediately. It runs for the lifetime of the app.
+/** Start the global SSE stream. Runs for the lifetime of the app (or until HMR). */
 void (async () => {
+  const signal = sseAbort.signal;
   try {
     const result = await client.global.event();
     for await (const raw of result.stream) {
+      if (signal.aborted) break;
       const globalEvent = raw as GlobalEvent;
+      const payload = globalEvent.payload;
       for (const listener of listeners) {
-        listener(globalEvent.payload);
+        listener(payload);
       }
     }
   } catch (err: unknown) {
     if (err instanceof Error && err.name === "AbortError") return;
+    if (signal.aborted) return;
     console.error("Global event stream error:", err);
   }
 })();

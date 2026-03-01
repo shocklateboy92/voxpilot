@@ -14,6 +14,7 @@ import type { Event, MessageWithParts } from "./api-client";
 import {
   addEventListener,
   fetchMessages,
+  removeEventListener,
   respondToPermission,
   sendPromptAsync,
 } from "./api-client";
@@ -65,6 +66,8 @@ function stopRafLoop(): void {
 
 /** Handle a single event from the global stream. */
 function handleEvent(event: Event): void {
+  if (!event) return;
+
   const sid = activeSessionId();
 
   switch (event.type) {
@@ -100,7 +103,8 @@ function handleEvent(event: Event): void {
 
       switch (part.type) {
         case "text": {
-          // Hot path: accumulate text part, rAF flushes to store
+          // Initialize the text part for rAF-batched streaming.
+          // Actual content arrives via message.part.delta events below.
           ensureAssistantMessage(part.messageID, sid);
           pendingTextPart = part;
           if (!isRafLoopRunning) {
@@ -120,6 +124,33 @@ function handleEvent(event: Event): void {
         case "step-finish": {
           break;
         }
+      }
+      break;
+    }
+
+    case "message.part.delta": {
+      if (!sid) return;
+      const { sessionID, messageID, partID, field, delta } = event.properties;
+      if (sessionID !== sid) return;
+      if (field !== "text") return;
+
+      // Append streamed token to the pending text part.
+      // If we already have a matching pendingTextPart, just concatenate.
+      // Otherwise create a minimal TextPart so the rAF loop can flush it.
+      if (pendingTextPart && pendingTextPart.id === partID) {
+        pendingTextPart = { ...pendingTextPart, text: pendingTextPart.text + delta };
+      } else {
+        ensureAssistantMessage(messageID, sid);
+        pendingTextPart = {
+          id: partID,
+          sessionID,
+          messageID,
+          type: "text",
+          text: delta,
+        };
+      }
+      if (!isRafLoopRunning) {
+        startRafLoop();
       }
       break;
     }
@@ -207,6 +238,14 @@ createEffect(() => {
 
 // ── Global SSE subscription ─────────────────────────────────────
 // The stream starts automatically in api-client.ts; just register our handler.
+// On HMR, remove the previous listener so we don't accumulate duplicates.
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    removeEventListener(handleEvent);
+    stopRafLoop();
+  });
+}
 
 addEventListener(handleEvent);
 
