@@ -3,8 +3,6 @@
  */
 
 import ChevronDown from "lucide-solid/icons/chevron-down";
-import ChevronLeft from "lucide-solid/icons/chevron-left";
-import ChevronRight from "lucide-solid/icons/chevron-right";
 import {
   createEffect,
   createSignal,
@@ -13,7 +11,6 @@ import {
   onMount,
   Show,
 } from "solid-js";
-import { attachSwipeHandler } from "../gestures";
 import { canNavigateNext, canNavigatePrev, navigateNext, navigatePrev } from "../sessions";
 import {
   activeSessionId,
@@ -23,28 +20,15 @@ import {
   pendingPermission,
   pendingQuestion,
   registerScrollTopGetter,
-  setSwipeOffset,
-  swipeOffset,
 } from "../store";
 import { MessageBubble } from "./MessageBubble";
 import { QuestionBlock } from "./QuestionBlock";
+import { SwipeablePane } from "./SwipeablePane";
 import { ToolConfirmBlock } from "./ToolConfirmBlock";
 
 export function ChatMain() {
   let messagesRef: HTMLDivElement | undefined;
   let contentRef: HTMLDivElement | undefined;
-
-  const [animateSnap, setAnimateSnap] = createSignal(false);
-  let pendingNav: (() => void) | null = null;
-
-  function handleTransitionEnd(): void {
-    setAnimateSnap(false);
-    if (pendingNav) {
-      const nav = pendingNav;
-      pendingNav = null;
-      nav();
-    }
-  }
 
   const AT_BOTTOM_THRESHOLD = 50;
   const [isAtBottom, setIsAtBottom] = createSignal(true);
@@ -92,29 +76,22 @@ export function ChatMain() {
     }
   });
 
-  // Swipe gesture handling
-  onMount(() => {
-    if (!messagesRef) {
-      throw new Error(
-        "Component mounted without messagesRef reference being set",
-      );
-    }
+  function handlePaneMount(el: HTMLDivElement): void {
+    messagesRef = el;
 
     // Provide a read-only callback for the store to capture scroll state
     registerScrollTopGetter(() => {
-      const el = messagesRef;
-      if (!el) return { scrollTop: 0, atBottom: true };
+      if (!messagesRef) return { scrollTop: 0, atBottom: true };
       const atBottom =
-        el.scrollTop + el.clientHeight >= el.scrollHeight - AT_BOTTOM_THRESHOLD;
-      return { scrollTop: el.scrollTop, atBottom };
+        messagesRef.scrollTop + messagesRef.clientHeight >= messagesRef.scrollHeight - AT_BOTTOM_THRESHOLD;
+      return { scrollTop: messagesRef.scrollTop, atBottom };
     });
 
     // Track whether the user is scrolled to the bottom
     const handleScroll = () => {
-      const el = messagesRef;
-      if (!el) return;
+      if (!messagesRef) return;
       const atBottom =
-        el.scrollTop + el.clientHeight >= el.scrollHeight - AT_BOTTOM_THRESHOLD;
+        messagesRef.scrollTop + messagesRef.clientHeight >= messagesRef.scrollHeight - AT_BOTTOM_THRESHOLD;
       setIsAtBottom(atBottom);
     };
     messagesRef.addEventListener("scroll", handleScroll, { passive: true });
@@ -126,55 +103,16 @@ export function ChatMain() {
     // catches in-place content growth that doesn't add new messages.
     let lastScrollHeight = messagesRef.scrollHeight;
     const resizeObserver = new ResizeObserver(() => {
-      const el = messagesRef;
-      if (!el || restoring) return;
-      const grew = el.scrollHeight > lastScrollHeight;
-      lastScrollHeight = el.scrollHeight;
+      if (!messagesRef || restoring) return;
+      const grew = messagesRef.scrollHeight > lastScrollHeight;
+      lastScrollHeight = messagesRef.scrollHeight;
       if (grew && isAtBottom()) {
-        el.scrollTo({ top: el.scrollHeight, behavior: "instant" });
+        messagesRef.scrollTo({ top: messagesRef.scrollHeight, behavior: "instant" });
       }
     });
     if (contentRef) resizeObserver.observe(contentRef);
     onCleanup(() => resizeObserver.disconnect());
-
-    const cleanup = attachSwipeHandler(messagesRef, {
-      onSwipeMove(deltaX) {
-        setAnimateSnap(false);
-        pendingNav = null;
-        const damped =
-          Math.sign(deltaX) * Math.min(Math.sqrt(Math.abs(deltaX)) * 5, 100);
-        setSwipeOffset(damped);
-      },
-      onSwipeLeft() {
-        if (canNavigateNext()) {
-          pendingNav = navigateNext;
-        }
-        setAnimateSnap(true);
-        setSwipeOffset(0);
-      },
-      onSwipeRight() {
-        if (canNavigatePrev()) {
-          pendingNav = navigatePrev;
-        }
-        setAnimateSnap(true);
-        setSwipeOffset(0);
-      },
-      onSwipeCancel() {
-        setAnimateSnap(true);
-        setSwipeOffset(0);
-      },
-    });
-
-    onCleanup(cleanup);
-  });
-
-  const showLeftArrow = () => {
-    return swipeOffset() > 0 && canNavigatePrev();
-  };
-  const showRightArrow = () => {
-    return swipeOffset() < 0 && canNavigateNext();
-  };
-  const arrowOpacity = () => Math.min(Math.abs(swipeOffset()) / 60, 1);
+  }
 
   function scrollToBottom(): void {
     if (messagesRef) {
@@ -184,20 +122,6 @@ export function ChatMain() {
 
   return (
     <div class="chat-main">
-      <div
-        class="swipe-arrow swipe-arrow-left"
-        style={{ opacity: showLeftArrow() ? arrowOpacity() : 0 }}
-        aria-hidden="true"
-      >
-        <ChevronLeft size={24} />
-      </div>
-      <div
-        class="swipe-arrow swipe-arrow-right"
-        style={{ opacity: showRightArrow() ? arrowOpacity() : 0 }}
-        aria-hidden="true"
-      >
-        <ChevronRight size={24} />
-      </div>
       <Show when={!isAtBottom()}>
         <button
           class="btn btn-icon scroll-to-bottom"
@@ -207,14 +131,13 @@ export function ChatMain() {
           <ChevronDown size={20} />
         </button>
       </Show>
-      <div
+      <SwipeablePane
         class="messages"
-        ref={messagesRef}
-        style={{
-          transform: `translateX(${swipeOffset()}px)`,
-          transition: animateSnap() ? "transform 200ms ease-out" : "none",
-        }}
-        onTransitionEnd={handleTransitionEnd}
+        canSwipeLeft={canNavigateNext}
+        canSwipeRight={canNavigatePrev}
+        onSwipeLeft={navigateNext}
+        onSwipeRight={navigatePrev}
+        onMount={handlePaneMount}
       >
         <div ref={contentRef} class="messages-content">
           <For each={messages}>{(msg) => <MessageBubble msg={msg} />}</For>
@@ -236,7 +159,7 @@ export function ChatMain() {
 
           <div class="scroll-sentinel" />
         </div>
-      </div>
+      </SwipeablePane>
     </div>
   );
 }

@@ -10,9 +10,7 @@
  */
 
 import ArrowUp from "lucide-solid/icons/arrow-up";
-import ChevronRight from "lucide-solid/icons/chevron-right";
-import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import { attachSwipeHandler } from "../gestures";
+import { createSignal, For, onMount, Show } from "solid-js";
 import { createSessionAndSend, navigateNext } from "../sessions";
 import {
   createNewWorktree,
@@ -25,19 +23,17 @@ import {
   setCreateNewWorktree,
   setErrorMessage,
   setSelectedProjectDir,
-  setSwipeOffset,
   showToast,
-  swipeOffset,
 } from "../store";
 import { AgentPicker } from "./AgentPicker";
+import { SwipeablePane } from "./SwipeablePane";
+
+const ALWAYS_FALSE = () => false as const;
 
 export function NewSessionPage() {
-  let pageRef: HTMLDivElement | undefined;
   let inputEl: HTMLTextAreaElement | undefined;
 
-  const [animateSnap, setAnimateSnap] = createSignal(false);
   const [sending, setSending] = createSignal(false);
-  let pendingNav: (() => void) | null = null;
 
   /** Display name for a project — use name if available, otherwise last path segment. */
   function projectLabel(worktree: string, name?: string): string {
@@ -46,14 +42,9 @@ export function NewSessionPage() {
     return parts[parts.length - 1] ?? worktree;
   }
 
-  function handleTransitionEnd(): void {
-    setAnimateSnap(false);
-    if (pendingNav) {
-      const nav = pendingNav;
-      pendingNav = null;
-      nav();
-    }
-  }
+  onMount(() => {
+    inputEl?.focus();
+  });
 
   async function handleSubmit(e: SubmitEvent): Promise<void> {
     e.preventDefault();
@@ -97,68 +88,15 @@ export function NewSessionPage() {
     inputEl.style.height = `${inputEl.scrollHeight}px`;
   }
 
-  // Swipe gesture handling — only supports swipe-left to go to most recent session
-  onMount(() => {
-    if (!pageRef) {
-      throw new Error(
-        "Component mounted without pageRef reference being set",
-      );
-    }
-
-    inputEl?.focus();
-
-    const cleanup = attachSwipeHandler(pageRef, {
-      onSwipeMove(deltaX) {
-        setAnimateSnap(false);
-        pendingNav = null;
-        const damped =
-          Math.sign(deltaX) * Math.min(Math.sqrt(Math.abs(deltaX)) * 5, 100);
-        setSwipeOffset(damped);
-      },
-      onSwipeLeft() {
-        if (rootSessions().length > 0) {
-          pendingNav = navigateNext;
-        }
-        setAnimateSnap(true);
-        setSwipeOffset(0);
-      },
-      onSwipeRight() {
-        // No further pages past the new session page
-        setAnimateSnap(true);
-        setSwipeOffset(0);
-      },
-      onSwipeCancel() {
-        setAnimateSnap(true);
-        setSwipeOffset(0);
-      },
-    });
-
-    onCleanup(cleanup);
-  });
-
-  const showRightArrow = () => {
-    const off = swipeOffset();
-    return off < 0 && rootSessions().length > 0;
-  };
-  const arrowOpacity = () => Math.min(Math.abs(swipeOffset()) / 60, 1);
+  const canSwipeLeft = () => rootSessions().length > 0;
 
   return (
     <div class="chat-main">
-      <div
-        class="swipe-arrow swipe-arrow-right"
-        style={{ opacity: showRightArrow() ? arrowOpacity() : 0 }}
-        aria-hidden="true"
-      >
-        <ChevronRight size={24} />
-      </div>
-      <div
-        ref={pageRef}
+      <SwipeablePane
         class="new-session-page"
-        style={{
-          transform: `translateX(${swipeOffset()}px)`,
-          transition: animateSnap() ? "transform 200ms ease-out" : "none",
-        }}
-        onTransitionEnd={handleTransitionEnd}
+        canSwipeLeft={canSwipeLeft}
+        canSwipeRight={ALWAYS_FALSE}
+        onSwipeLeft={navigateNext}
       >
         <div class="new-session-content">
           <h1 class="new-session-heading">New Chat</h1>
@@ -218,7 +156,7 @@ export function NewSessionPage() {
             </button>
           </form>
         </div>
-      </div>
+      </SwipeablePane>
     </div>
   );
 }
