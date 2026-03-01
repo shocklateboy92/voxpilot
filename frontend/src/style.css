@@ -527,7 +527,7 @@ h1 {
   overflow-y: auto;
   overflow-x: clip;
   padding-top: var(--status-bar-clearance);
-  padding-bottom: 4rem;
+  padding-bottom: 8rem;
   touch-action: pan-y;
 }
 
