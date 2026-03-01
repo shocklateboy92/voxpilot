@@ -1,5 +1,12 @@
 /**
- * Main chat area — messages list with swipe gestures.
+ * Main chat area — messages list with scroll management.
+ *
+ * SwipeablePane is now owned by ContentShell; ChatMain receives
+ * the scrollable container ref via the exported `chatPaneMount`
+ * callback that the parent passes to ContentShell's onPaneMount.
+ *
+ * The scroll-to-bottom button is exposed separately via
+ * `ChatScrollButton` for ContentShell's overlay slot.
  */
 
 import ChevronDown from "lucide-solid/icons/chevron-down";
@@ -8,10 +15,8 @@ import {
   createSignal,
   For,
   onCleanup,
-  onMount,
   Show,
 } from "solid-js";
-import { canNavigateNext, canNavigatePrev, navigateNext, navigatePrev } from "../sessions";
 import {
   activeSessionId,
   consumeScrollPosition,
@@ -23,15 +28,45 @@ import {
 } from "../store";
 import { MessageBubble } from "./MessageBubble";
 import { QuestionBlock } from "./QuestionBlock";
-import { SwipeablePane } from "./SwipeablePane";
 import { ToolConfirmBlock } from "./ToolConfirmBlock";
 
-export function ChatMain() {
-  let messagesRef: HTMLDivElement | undefined;
-  let contentRef: HTMLDivElement | undefined;
+/**
+ * Signal holding the SwipeablePane's scrollable container element.
+ * Set by `chatPaneMount` (passed to ContentShell's `onPaneMount`),
+ * consumed reactively inside ChatMain.
+ */
+const [paneEl, setPaneEl] = createSignal<HTMLDivElement | undefined>();
 
-  const AT_BOTTOM_THRESHOLD = 50;
-  const [isAtBottom, setIsAtBottom] = createSignal(true);
+/** Pass to ContentShell's `onPaneMount` when rendering ChatMain. */
+export function chatPaneMount(el: HTMLDivElement): void {
+  setPaneEl(el);
+}
+
+const AT_BOTTOM_THRESHOLD = 50;
+const [isAtBottom, setIsAtBottom] = createSignal(true);
+
+/** Floating scroll-to-bottom button — render in ContentShell's overlay slot. */
+export function ChatScrollButton() {
+  function scrollToBottom(): void {
+    const el = paneEl();
+    el?.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }
+
+  return (
+    <Show when={!isAtBottom()}>
+      <button
+        class="btn btn-icon scroll-to-bottom"
+        onClick={scrollToBottom}
+        aria-label="Scroll to bottom"
+      >
+        <ChevronDown size={20} />
+      </button>
+    </Show>
+  );
+}
+
+export function ChatMain() {
+  let contentRef: HTMLDivElement | undefined;
 
   // While a scroll-position restore is in flight (waiting for rAF),
   // suppress all auto-scrolling so later effect runs don't clobber it.
@@ -40,28 +75,26 @@ export function ChatMain() {
   // Auto-scroll when messages change, respecting saved scroll position
   // and whether the user has scrolled up.
   createEffect(() => {
+    const el = paneEl();
     const len = messages.length;
     errorMessage();
     pendingPermission();
     pendingQuestion();
 
-    if (restoring) return;
+    if (!el || restoring) return;
 
     const id = activeSessionId();
     if (id && len > 0) {
       const saved = consumeScrollPosition(id);
       if (saved !== undefined) {
         if (saved.atBottom) {
-          messagesRef?.scrollTo({ top: messagesRef.scrollHeight, behavior: "instant" });
+          el.scrollTo({ top: el.scrollHeight, behavior: "instant" });
           setIsAtBottom(true);
         } else {
-          // Defer until the browser has laid out the new message content,
-          // otherwise scrollTop has no effect on a container that hasn't
-          // been sized yet.
           restoring = true;
           const top = saved.scrollTop;
           requestAnimationFrame(() => {
-            messagesRef?.scrollTo({ top, behavior: "instant" });
+            el.scrollTo({ top, behavior: "instant" });
             setIsAtBottom(false);
             restoring = false;
           });
@@ -70,96 +103,63 @@ export function ChatMain() {
       }
     }
 
-    // Default: only auto-scroll if the user is already at the bottom
     if (isAtBottom()) {
-      messagesRef?.scrollTo({ top: messagesRef.scrollHeight, behavior: "instant" });
+      el.scrollTo({ top: el.scrollHeight, behavior: "instant" });
     }
   });
 
-  function handlePaneMount(el: HTMLDivElement): void {
-    messagesRef = el;
+  // Wire up scroll tracking and resize observer when pane element is available.
+  createEffect(() => {
+    const el = paneEl();
+    if (!el) return;
 
-    // Provide a read-only callback for the store to capture scroll state
     registerScrollTopGetter(() => {
-      if (!messagesRef) return { scrollTop: 0, atBottom: true };
       const atBottom =
-        messagesRef.scrollTop + messagesRef.clientHeight >= messagesRef.scrollHeight - AT_BOTTOM_THRESHOLD;
-      return { scrollTop: messagesRef.scrollTop, atBottom };
+        el.scrollTop + el.clientHeight >= el.scrollHeight - AT_BOTTOM_THRESHOLD;
+      return { scrollTop: el.scrollTop, atBottom };
     });
 
-    // Track whether the user is scrolled to the bottom
     const handleScroll = () => {
-      if (!messagesRef) return;
       const atBottom =
-        messagesRef.scrollTop + messagesRef.clientHeight >= messagesRef.scrollHeight - AT_BOTTOM_THRESHOLD;
+        el.scrollTop + el.clientHeight >= el.scrollHeight - AT_BOTTOM_THRESHOLD;
       setIsAtBottom(atBottom);
     };
-    messagesRef.addEventListener("scroll", handleScroll, { passive: true });
-    onCleanup(() => messagesRef?.removeEventListener("scroll", handleScroll));
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    onCleanup(() => el.removeEventListener("scroll", handleScroll));
 
-    // Auto-scroll when content height grows (e.g. tool parts updating,
-    // streaming text filling in) while the user is at the bottom.
-    // The reactive effect only fires on messages.length changes; this
-    // catches in-place content growth that doesn't add new messages.
-    let lastScrollHeight = messagesRef.scrollHeight;
+    let lastScrollHeight = el.scrollHeight;
     const resizeObserver = new ResizeObserver(() => {
-      if (!messagesRef || restoring) return;
-      const grew = messagesRef.scrollHeight > lastScrollHeight;
-      lastScrollHeight = messagesRef.scrollHeight;
+      if (restoring) return;
+      const grew = el.scrollHeight > lastScrollHeight;
+      lastScrollHeight = el.scrollHeight;
       if (grew && isAtBottom()) {
-        messagesRef.scrollTo({ top: messagesRef.scrollHeight, behavior: "instant" });
+        el.scrollTo({ top: el.scrollHeight, behavior: "instant" });
       }
     });
     if (contentRef) resizeObserver.observe(contentRef);
     onCleanup(() => resizeObserver.disconnect());
-  }
-
-  function scrollToBottom(): void {
-    if (messagesRef) {
-      messagesRef.scrollTo({ top: messagesRef.scrollHeight, behavior: "smooth" });
-    }
-  }
+  });
 
   return (
-    <div class="chat-main">
-      <Show when={!isAtBottom()}>
-        <button
-          class="btn btn-icon scroll-to-bottom"
-          onClick={scrollToBottom}
-          aria-label="Scroll to bottom"
-        >
-          <ChevronDown size={20} />
-        </button>
+    <div ref={contentRef} class="messages-content">
+      <For each={messages}>{(msg) => <MessageBubble msg={msg} />}</For>
+
+      {/* Permission prompt */}
+      <Show when={pendingPermission()}>
+        {(perm) => <ToolConfirmBlock permission={perm()} />}
       </Show>
-      <SwipeablePane
-        class="messages"
-        canSwipeLeft={canNavigateNext}
-        canSwipeRight={canNavigatePrev}
-        onSwipeLeft={navigateNext}
-        onSwipeRight={navigatePrev}
-        onMount={handlePaneMount}
-      >
-        <div ref={contentRef} class="messages-content">
-          <For each={messages}>{(msg) => <MessageBubble msg={msg} />}</For>
 
-          {/* Permission prompt */}
-          <Show when={pendingPermission()}>
-            {(perm) => <ToolConfirmBlock permission={perm()} />}
-          </Show>
+      {/* Question prompt */}
+      <Show when={pendingQuestion()}>
+        {(req) => <QuestionBlock request={req()} />}
+      </Show>
 
-          {/* Question prompt */}
-          <Show when={pendingQuestion()}>
-            {(req) => <QuestionBlock request={req()} />}
-          </Show>
+      {/* Error display */}
+      <Show when={errorMessage()}>
+        {(msg) => <div class="message error">{msg()}</div>}
+      </Show>
 
-          {/* Error display */}
-          <Show when={errorMessage()}>
-            {(msg) => <div class="message error">{msg()}</div>}
-          </Show>
-
-          <div class="scroll-sentinel" />
-        </div>
-      </SwipeablePane>
+      <div class="scroll-sentinel" />
     </div>
   );
 }

@@ -118,7 +118,7 @@ export function NewSessionPage() {
   const busy = () => sending() || creatingWorktree();
 
   return (
-    <div class="chat-main">
+    <div class="content-shell-body">
       <SwipeablePane
         class="new-session-page"
         canSwipeLeft={canSwipeLeft}

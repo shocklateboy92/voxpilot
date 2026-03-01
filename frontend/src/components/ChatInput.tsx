@@ -7,6 +7,11 @@ import { createEffect } from "solid-js";
 import { isStreaming } from "../store";
 import { sendUserMessage } from "../streaming";
 
+export interface ChatInputProps {
+  /** Optional callback fired after a message is successfully submitted. */
+  onSend?: () => void;
+}
+
 /** Shared ref so other components (ChatMain) can focus the input. */
 let inputEl: HTMLTextAreaElement | undefined;
 
@@ -14,7 +19,7 @@ export function focusChatInput(): void {
   inputEl?.focus();
 }
 
-export function ChatInput() {
+export function ChatInput(props: ChatInputProps) {
   function handleSubmit(e: SubmitEvent): void {
     e.preventDefault();
     const value = inputEl?.value.trim();
@@ -24,6 +29,7 @@ export function ChatInput() {
       inputEl.style.height = "auto";
     }
     void sendUserMessage(value);
+    props.onSend?.();
   }
 
   function handleKeyDown(e: KeyboardEvent): void {

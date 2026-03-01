@@ -415,14 +415,13 @@ h1 {
   height: 1rem;
 }
 
-.chat-main {
+/* Shared body container for ContentShell — fills remaining flex space,
+   applies mask gradients, and provides position context for floating
+   elements (scroll-to-bottom button). */
+.content-shell-body {
   flex: 1;
   min-width: 0;
   min-height: 0;
-  max-width: 66rem;
-  width: 100%;
-  margin: 0 auto;
-  padding: 0 3vw;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -518,6 +517,10 @@ h1 {
   text-align: left;
   flex: 1;
   min-height: 0;
+  max-width: 66rem;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 3vw;
   overflow-y: auto;
   overflow-x: hidden;
   padding-top: var(--status-bar-clearance);
@@ -539,7 +542,7 @@ h1 {
 
 .scroll-to-bottom {
   position: absolute;
-  bottom: calc(var(--bottom-nav-height) + var(--safe-bottom) + 0.75rem + 3.25rem);
+  bottom: 0.75rem;
   left: 50%;
   translate: -50% 0;
   z-index: 45;
@@ -1255,34 +1258,42 @@ h1 {
   display: flex;
   flex-direction: column;
   height: 100%;
+  padding: 0 0.75rem;
+  position: relative;
 }
 
-.review-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-border);
-  flex-shrink: 0;
+/* Inside the overlay the bottom nav is hidden, so the input
+   and pane padding don't need to clear it. */
+.review-overlay .chat-form {
+  bottom: 0.75rem;
 }
 
 .review-file-path {
   flex: 1;
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--color-muted);
 }
 
-/* Diff container */
-.review-diff-container {
+.review-pane {
+  text-align: left;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
+  padding-top: var(--status-bar-clearance);
+  padding-bottom: 4rem;
   touch-action: pan-y;
+  will-change: transform;
+}
+
+/* Diff container — scrolling is handled by .review-pane */
+.review-diff-container {
+  min-height: 0;
 }
 
 /* Diff table styling (rendered from server HTML) */

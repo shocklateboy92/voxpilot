@@ -3,10 +3,10 @@
  *
  * Flow:
  * 1. User clicks a file in ChangesetCard -> setReviewFile() called
- * 2. Overlay opens, measures container width -> calculates printWidth
- * 3. POST /api/review/ref-diff -> gets formatted HTML
- * 4. Renders HTML diff
- * 5. Resize re-renders at correct width
+ * 2. Overlay opens with ContentShell (floating status bar + diff + input)
+ * 3. Measures container width -> calculates printWidth
+ * 4. POST /api/review/ref-diff -> gets formatted HTML
+ * 5. Renders HTML diff; resize re-renders at correct width
  */
 
 import X from "lucide-solid/icons/x";
@@ -18,6 +18,7 @@ import {
   Show,
 } from "solid-js";
 import { rpc } from "../rpc";
+import { ContentShell } from "./ContentShell";
 
 /** What the overlay needs to display a single file diff. */
 export interface ReviewRequest {
@@ -32,6 +33,9 @@ export interface ReviewRequest {
 export const [reviewFile, setReviewFile] = createSignal<ReviewRequest | null>(
   null,
 );
+
+/** No-op swipe predicates — swiping between files not yet implemented. */
+const noSwipe = () => false;
 
 export function ReviewOverlay() {
   let containerRef: HTMLDivElement | undefined;
@@ -109,29 +113,39 @@ export function ReviewOverlay() {
             ref={containerRef}
             onClick={(e) => e.stopPropagation()}
           >
-            <div class="review-header">
-              <span class="review-file-path">{req().filePath}</span>
-              <button class="btn btn-ghost" onClick={close}>
-                <X size={18} />
-              </button>
-            </div>
-            <Show when={diffHtml.loading}>
-              <div class="review-loading">Formatting...</div>
-            </Show>
-            <Show when={diffHtml.error}>
-              {(err) => (
-                <div class="review-diff-container">
-                  <div class="error">
-                    Error: {err() instanceof Error ? err().message : "Unknown error"}
+            <ContentShell
+              statusBarLeft={
+                <span class="review-file-path">{req().filePath}</span>
+              }
+              statusBarRight={
+                <button class="btn btn-ghost" onClick={close}>
+                  <X size={18} />
+                </button>
+              }
+              canSwipeLeft={noSwipe}
+              canSwipeRight={noSwipe}
+              paneClass="review-pane"
+              onSend={close}
+            >
+              <Show when={diffHtml.loading}>
+                <div class="review-loading">Formatting...</div>
+              </Show>
+              <Show when={diffHtml.error}>
+                {(err) => (
+                  <div class="review-diff-container">
+                    <div class="error">
+                      Error:{" "}
+                      {err() instanceof Error ? err().message : "Unknown error"}
+                    </div>
                   </div>
-                </div>
-              )}
-            </Show>
-            <Show when={diffHtml()}>
-              {(html) => (
-                <div class="review-diff-container" innerHTML={html()} />
-              )}
-            </Show>
+                )}
+              </Show>
+              <Show when={diffHtml()}>
+                {(html) => (
+                  <div class="review-diff-container" innerHTML={html()} />
+                )}
+              </Show>
+            </ContentShell>
           </div>
         </div>
       )}
