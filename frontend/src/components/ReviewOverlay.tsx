@@ -7,11 +7,18 @@
  * 3. Measures container width -> calculates printWidth
  * 4. POST /api/review/ref-diff -> gets formatted HTML
  * 5. Renders HTML diff; resize re-renders at correct width
+ *
+ * Swipe navigation:
+ * - Swipe left  → scroll to next change region, then next file
+ * - Swipe right → scroll to prev change region, then prev file
+ * - Current change is highlighted with a left-border accent
+ * - Status bar shows "change N of M" counter
  */
 
 import X from "lucide-solid/icons/x";
 import {
   createEffect,
+  createMemo,
   createResource,
   createSignal,
   onCleanup,
@@ -27,6 +34,10 @@ export interface ReviewRequest {
   repoRoot: string;
   filePath: string;
   cacheId?: string;
+  /** All file paths in the changeset, in order. */
+  files: string[];
+  /** Index of the current file within `files`. */
+  fileIndex: number;
 }
 
 // Shared signal — set by ChangesetCard, consumed by this overlay
@@ -34,12 +45,44 @@ export const [reviewFile, setReviewFile] = createSignal<ReviewRequest | null>(
   null,
 );
 
-/** No-op swipe predicates — swiping between files not yet implemented. */
-const noSwipe = () => false;
+/** Padding (px) above a change region when it doesn't fit on screen. */
+const SCROLL_TOP_PADDING = 32;
+
+/** CSS class applied to rows belonging to the current change region. */
+const CURRENT_CHANGE_CLASS = "current-change";
 
 export function ReviewOverlay() {
   let containerRef: HTMLDivElement | undefined;
+  let paneRef: HTMLDivElement | undefined;
   const [printWidth, setPrintWidth] = createSignal<number | undefined>();
+
+  // Explicit index of the current change region (0-based).
+  // -1 means "no region selected yet" (before first navigation).
+  const [currentIndex, setCurrentIndex] = createSignal(-1);
+  // Total number of change regions in the current file's rendered diff.
+  const [regionCount, setRegionCount] = createSignal(0);
+
+  // Cached regions array — rebuilt each time the diff HTML changes.
+  let cachedRegions: ChangeRegion[] = [];
+
+  // Direction to auto-scroll when a new file's diff renders.
+  // "first" → start at first change, "last" → start at last change.
+  let initialDirection: "first" | "last" = "first";
+
+  // Version counter — incremented each time the file changes so that
+  // in-flight rAF callbacks from a previous file can discard themselves.
+  let regionVersion = 0;
+
+  // Reset navigation state immediately when the file changes, before
+  // the new diff HTML arrives. This prevents stale regions from a
+  // previous file being used during the loading gap.
+  createEffect(() => {
+    reviewFile(); // track the signal
+    cachedRegions = [];
+    setCurrentIndex(-1);
+    setRegionCount(0);
+    regionVersion++;
+  });
 
   // Derive a stable fetch key from the review request + print width.
   // Returns undefined (skipping the fetch) until both are available.
@@ -68,6 +111,47 @@ export function ReviewOverlay() {
 
     const data = await res.json();
     return data.html as string;
+  });
+
+  // After diff HTML renders, scan for change regions and navigate
+  // to the initial change (first or last).
+  createEffect(() => {
+    const html = diffHtml();
+    if (!html || !paneRef) return;
+
+    const pane = paneRef;
+    const direction = initialDirection;
+    initialDirection = "first";
+    const version = regionVersion;
+
+    // Wait one frame for innerHTML to update the DOM.
+    requestAnimationFrame(() => {
+      // Discard if a newer file change has occurred since we scheduled.
+      if (version !== regionVersion) return;
+
+      cachedRegions = getChangeRegions(pane);
+      setRegionCount(cachedRegions.length);
+
+      if (cachedRegions.length === 0) {
+        setCurrentIndex(-1);
+        return;
+      }
+
+      const idx = direction === "first" ? 0 : cachedRegions.length - 1;
+      setCurrentIndex(idx);
+      applyHighlight(cachedRegions, idx);
+      const region = cachedRegions[idx];
+      if (region) {
+        scrollToRegion(region, pane);
+      }
+    });
+  });
+
+  // When currentIndex changes (via swipe), update the DOM highlight.
+  createEffect(() => {
+    const idx = currentIndex();
+    if (!paneRef || cachedRegions.length === 0 || idx < 0) return;
+    applyHighlight(cachedRegions, idx);
   });
 
   // Compute initial printWidth once the overlay is visible
@@ -100,6 +184,120 @@ export function ReviewOverlay() {
     onCleanup(() => observer.disconnect());
   });
 
+  // ---------------------------------------------------------------------------
+  // Change-region navigation
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Navigate to the next change region within the current file.
+   * If already at the last region, navigate to the next file.
+   */
+  function navigateNext(): void {
+    if (!paneRef) return;
+    const idx = currentIndex();
+    const total = cachedRegions.length;
+
+    if (total === 0 || idx >= total - 1) {
+      // At or past last change — go to next file
+      navigateToFile(1, "first");
+      return;
+    }
+
+    const nextIdx = idx + 1;
+    setCurrentIndex(nextIdx);
+    const region = cachedRegions[nextIdx];
+    if (region) {
+      scrollToRegion(region, paneRef);
+    }
+  }
+
+  /**
+   * Navigate to the previous change region within the current file.
+   * If already at the first region, navigate to the previous file.
+   */
+  function navigatePrev(): void {
+    if (!paneRef) return;
+    const idx = currentIndex();
+
+    if (cachedRegions.length === 0 || idx <= 0) {
+      // At or before first change — go to prev file
+      navigateToFile(-1, "last");
+      return;
+    }
+
+    const prevIdx = idx - 1;
+    setCurrentIndex(prevIdx);
+    const region = cachedRegions[prevIdx];
+    if (region) {
+      scrollToRegion(region, paneRef);
+    }
+  }
+
+  /**
+   * Navigate to a sibling file in the changeset.
+   */
+  function navigateToFile(delta: number, scrollTo: "first" | "last"): void {
+    const req = reviewFile();
+    if (!req) return;
+
+    const newIndex = req.fileIndex + delta;
+    const newPath = req.files[newIndex];
+    if (newPath === undefined) return;
+
+    initialDirection = scrollTo;
+    setReviewFile({
+      ...req,
+      filePath: newPath,
+      fileIndex: newIndex,
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Swipe predicates
+  // ---------------------------------------------------------------------------
+
+  function canSwipeLeft(): boolean {
+    if (diffHtml.loading || !diffHtml()) return false;
+    const req = reviewFile();
+    if (!req) return false;
+
+    const hasNextRegion =
+      cachedRegions.length > 0 && currentIndex() < cachedRegions.length - 1;
+    const hasNextFile = req.fileIndex < req.files.length - 1;
+
+    return hasNextRegion || hasNextFile;
+  }
+
+  function canSwipeRight(): boolean {
+    if (diffHtml.loading || !diffHtml()) return false;
+    const req = reviewFile();
+    if (!req) return false;
+
+    const hasPrevRegion = cachedRegions.length > 0 && currentIndex() > 0;
+    const hasPrevFile = req.fileIndex > 0;
+
+    return hasPrevRegion || hasPrevFile;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Status bar counter
+  // ---------------------------------------------------------------------------
+
+  const changeCounter = createMemo(() => {
+    const total = regionCount();
+    if (total === 0) return null;
+    const idx = currentIndex();
+    return `${idx + 1} of ${total}`;
+  });
+
+  const fileCounter = createMemo(() => {
+    const req = reviewFile();
+    if (!req || req.files.length <= 1) return null;
+    return `${req.fileIndex + 1}/${req.files.length}`;
+  });
+
+  // ---------------------------------------------------------------------------
+
   function close(): void {
     setReviewFile(null);
   }
@@ -115,15 +313,30 @@ export function ReviewOverlay() {
           >
             <ContentShell
               statusBarLeft={
-                <span class="review-file-path">{req().filePath}</span>
+                <span class="review-file-path">
+                  {req().filePath}
+                  <Show when={fileCounter()}>
+                    {(fc) => <span class="review-file-counter">{fc()}</span>}
+                  </Show>
+                </span>
               }
               statusBarRight={
-                <button class="btn btn-ghost" onClick={close}>
-                  <X size={18} />
-                </button>
+                <>
+                  <Show when={changeCounter()}>
+                    {(cc) => <span class="review-change-counter">{cc()}</span>}
+                  </Show>
+                  <button class="btn btn-ghost" onClick={close}>
+                    <X size={18} />
+                  </button>
+                </>
               }
-              canSwipeLeft={noSwipe}
-              canSwipeRight={noSwipe}
+              canSwipeLeft={canSwipeLeft}
+              canSwipeRight={canSwipeRight}
+              onSwipeLeft={navigateNext}
+              onSwipeRight={navigatePrev}
+              onPaneMount={(el) => {
+                paneRef = el;
+              }}
               paneClass="review-pane"
               onSend={close}
             >
@@ -151,6 +364,110 @@ export function ReviewOverlay() {
       )}
     </Show>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Change-region detection and highlight helpers
+// ---------------------------------------------------------------------------
+
+/** A contiguous group of changed lines (adds and/or deletes). */
+interface ChangeRegion {
+  rows: HTMLElement[];
+}
+
+/** CSS selector matching changed lines in the full-file diff view. */
+const CHANGED_LINE_SELECTOR = ".fulltext-line-add, .fulltext-line-del";
+
+/**
+ * Scan the rendered diff DOM and group consecutive changed rows into
+ * change regions. A region ends when there's a gap (a context line)
+ * between changed rows.
+ */
+function getChangeRegions(pane: HTMLElement): ChangeRegion[] {
+  const rows = Array.from(
+    pane.querySelectorAll<HTMLElement>(CHANGED_LINE_SELECTOR),
+  );
+  if (rows.length === 0) return [];
+
+  const first = rows[0];
+  if (!first) return [];
+
+  const regions: ChangeRegion[] = [];
+  let currentRows: HTMLElement[] = [first];
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    const prev = rows[i - 1];
+    if (!row || !prev) continue;
+
+    if (prev.nextElementSibling === row) {
+      // Consecutive — same region
+      currentRows.push(row);
+    } else {
+      // Gap — flush and start new region
+      if (currentRows.length > 0) {
+        regions.push({ rows: currentRows });
+      }
+      currentRows = [row];
+    }
+  }
+
+  if (currentRows.length > 0) {
+    regions.push({ rows: currentRows });
+  }
+
+  return regions;
+}
+
+/**
+ * Apply the current-change highlight to the given region index,
+ * removing it from all other regions.
+ */
+function applyHighlight(regions: ChangeRegion[], activeIndex: number): void {
+  for (let i = 0; i < regions.length; i++) {
+    const region = regions[i];
+    if (!region) continue;
+    const isActive = i === activeIndex;
+    for (const row of region.rows) {
+      row.classList.toggle(CURRENT_CHANGE_CLASS, isActive);
+    }
+  }
+}
+
+/**
+ * Scroll the pane so a change region is visible.
+ *
+ * - If the entire region fits on screen → center it vertically.
+ * - If it doesn't fit → position it near the top with padding.
+ */
+function scrollToRegion(region: ChangeRegion, pane: HTMLElement): void {
+  const firstRow = region.rows[0];
+  const lastRow = region.rows[region.rows.length - 1];
+  if (!firstRow || !lastRow) return;
+
+  const regionTop = firstRow.getBoundingClientRect().top;
+  const regionBottom = lastRow.getBoundingClientRect().bottom;
+  const regionHeight = regionBottom - regionTop;
+  const paneRect = pane.getBoundingClientRect();
+  const viewportHeight = paneRect.height;
+
+  if (regionHeight <= viewportHeight) {
+    // Region fits on screen — center it
+    const regionCenter =
+      regionTop - paneRect.top + pane.scrollTop + regionHeight / 2;
+    pane.scrollTo({
+      top: regionCenter - viewportHeight / 2,
+      behavior: "smooth",
+    });
+  } else {
+    // Region too tall — position near the top
+    const targetTop =
+      regionTop - paneRect.top + pane.scrollTop - SCROLL_TOP_PADDING;
+    pane.scrollTo({
+      top: targetTop,
+      behavior: "smooth",
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -236,8 +553,7 @@ function computePrintWidth(container: HTMLElement): number {
   // Code-content cell: padding on each side
   const contentPadding = 2 * cellPadding;
 
-  const availableWidth =
-    container.clientWidth - gutterWidth - contentPadding;
+  const availableWidth = container.clientWidth - gutterWidth - contentPadding;
 
   return Math.max(40, Math.floor(availableWidth / charWidth));
 }

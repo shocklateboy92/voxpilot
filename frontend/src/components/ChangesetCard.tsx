@@ -53,12 +53,16 @@ export function ChangesetCard(props: Props) {
     const c = cache();
     const id = cacheId();
     if (!c) return;
+    const allFiles = c.files.map((f) => f.filePath);
+    const fileIndex = allFiles.indexOf(filePath);
     setReviewFile({
       fromRef: c.resolvedFrom,
       toRef: c.resolvedTo,
       repoRoot: c.repoRoot,
       filePath,
       cacheId: id ?? undefined,
+      files: allFiles,
+      fileIndex: fileIndex >= 0 ? fileIndex : 0,
     });
   }
 

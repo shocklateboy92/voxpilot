@@ -1437,6 +1437,27 @@ h1 {
   text-decoration: none;
 }
 
+/* Current change highlight — left border accent on the active change region */
+.fulltext-line.current-change {
+  border-left: 3px solid var(--color-accent);
+}
+
+/* Status bar change/file counters */
+.review-change-counter {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--color-muted);
+  white-space: nowrap;
+  margin-right: 0.5rem;
+}
+
+.review-file-counter {
+  font-size: 0.65rem;
+  color: var(--color-muted);
+  margin-left: 0.5rem;
+  opacity: 0.7;
+}
+
 /* Bottom bar */
 .review-bottom-bar {
   flex-shrink: 0;
