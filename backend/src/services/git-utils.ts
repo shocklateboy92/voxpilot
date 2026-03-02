@@ -104,3 +104,51 @@ export async function getFileAtRef(
   const result = await runGit(["show", `${ref}:${filePath}`], workDir);
   return result.exitCode === 0 ? result.stdout : "";
 }
+
+export interface UntrackedFile {
+  file: string;
+  additions: number;
+  deletions: number;
+}
+
+/**
+ * List untracked (non-ignored) files in the working directory.
+ *
+ * Returns each file with its line count as `additions` (since the entire
+ * file is new) and `deletions: 0`.
+ *
+ * When `pathFilter` is provided, only untracked files under that path are
+ * returned.
+ */
+export async function getUntrackedFiles(
+  workDir: string,
+  pathFilter?: string,
+): Promise<UntrackedFile[]> {
+  const args = ["ls-files", "--others", "--exclude-standard"];
+  if (pathFilter) args.push("--", pathFilter);
+
+  const result = await runGit(args, workDir);
+  if (result.exitCode !== 0 || !result.stdout.trim()) return [];
+
+  const files = result.stdout.trim().split("\n").filter(Boolean);
+
+  // Resolve repo root so we can read the files from disk
+  const rootResult = await runGit(["rev-parse", "--show-toplevel"], workDir);
+  const repoRoot =
+    rootResult.exitCode === 0 ? rootResult.stdout.trim() : workDir;
+
+  const entries = await Promise.all(
+    files.map(async (file) => {
+      try {
+        const content = await Bun.file(resolve(repoRoot, file)).text();
+        const lineCount = content.split("\n").length;
+        return { file, additions: lineCount, deletions: 0 };
+      } catch {
+        // Binary or unreadable file — still include it with zero stats
+        return { file, additions: 0, deletions: 0 };
+      }
+    }),
+  );
+
+  return entries;
+}

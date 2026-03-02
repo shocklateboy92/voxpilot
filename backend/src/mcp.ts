@@ -22,7 +22,7 @@ import { Hono } from "hono";
 import { z } from "zod/v4";
 import { getDb } from "./db";
 import { diffEntries, diffEntryFiles } from "./schema";
-import { ensureGitRepo, getFileAtRef, runGit } from "./services/git-utils";
+import { ensureGitRepo, getFileAtRef, getUntrackedFiles, runGit } from "./services/git-utils";
 
 // ── Diff cache (DB-backed) ─────────────────────────────────────
 
@@ -220,18 +220,6 @@ function createMcpServer() {
 
       const statOutput = statResult.stdout.trim();
 
-      if (!statOutput) {
-        const suffix = path ? ` in '${path}'` : "";
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `No changes found between ${fromRef} and ${toRef}${suffix}.`,
-            },
-          ],
-        };
-      }
-
       // Get numstat for structured file list
       const numstatArgs = [...built.args, "--numstat"];
       if (path) numstatArgs.push("--", path);
@@ -252,6 +240,39 @@ function createMcpServer() {
                 };
               })
           : [];
+
+      // Include untracked files when comparing against the working tree
+      let untrackedStatLines = "";
+      if (toRef === "WORKTREE") {
+        const trackedPaths = new Set(files.map((f) => f.file));
+        const untracked = await getUntrackedFiles(workdir, path);
+        const newFiles = untracked.filter((u) => !trackedPaths.has(u.file));
+
+        if (newFiles.length > 0) {
+          files.push(...newFiles);
+          untrackedStatLines = newFiles
+            .map((f) => ` ${f.file} (untracked) | ${f.additions} ${"+"
+              .repeat(Math.min(f.additions, 40))}`)
+            .join("\n");
+        }
+      }
+
+      // Check for empty diff (no tracked changes and no untracked files)
+      if (!statOutput && files.length === 0) {
+        const suffix = path ? ` in '${path}'` : "";
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `No changes found between ${fromRef} and ${toRef}${suffix}.`,
+            },
+          ],
+        };
+      }
+
+      const combinedStatOutput = [statOutput, untrackedStatLines]
+        .filter(Boolean)
+        .join("\n");
 
       // Resolve refs to SHAs for stability
       const [resolvedFrom, resolvedTo] = await Promise.all([
@@ -308,7 +329,7 @@ function createMcpServer() {
         content: [
           {
             type: "text" as const,
-            text: `${label} (displayed in VoxPilot diff viewer):\n${statOutput}\n[ref:${cacheId}]`,
+            text: `${label} (displayed in VoxPilot diff viewer):\n${combinedStatOutput}\n[ref:${cacheId}]`,
           },
         ],
       };
