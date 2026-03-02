@@ -339,6 +339,13 @@ h1 {
   cursor: default;
 }
 
+.btn-stop {
+  background: var(--color-error);
+}
+.btn-stop:hover {
+  background: var(--color-reject-hover);
+}
+
 .btn-sm {
   padding: 0.35rem 0.75rem;
   font-size: 0.8rem;

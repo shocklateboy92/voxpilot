@@ -1,14 +1,16 @@
 /**
- * Chat input form — message textarea + send button.
+ * Chat input form — message textarea + send/stop button.
  *
  * The textarea is never disabled so it retains focus across streaming.
  * The submit handler guards on `isStreaming()` to prevent sending while
- * the agent is responding; the send button is visually disabled as a cue.
+ * the agent is responding. During streaming the send button transforms
+ * into a stop button that aborts the current generation.
  */
 
 import ArrowUp from "lucide-solid/icons/arrow-up";
+import Square from "lucide-solid/icons/square";
 import { isStreaming } from "../store";
-import { sendUserMessage } from "../streaming";
+import { abortCurrentSession, sendUserMessage } from "../streaming";
 
 export interface ChatInputProps {
   /** Optional callback fired after a message is successfully submitted. */
@@ -18,10 +20,12 @@ export interface ChatInputProps {
 export function ChatInput(props: ChatInputProps) {
   function handleSubmit(e: SubmitEvent & { currentTarget: HTMLFormElement }): void {
     e.preventDefault();
+    if (isStreaming()) return;
+
     const textarea = e.currentTarget.elements.namedItem("message");
     if (!(textarea instanceof HTMLTextAreaElement)) return;
     const value = textarea.value.trim();
-    if (!value || isStreaming()) return;
+    if (!value) return;
 
     textarea.value = "";
     textarea.style.height = "auto";
@@ -41,6 +45,10 @@ export function ChatInput(props: ChatInputProps) {
     e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
   }
 
+  function handleStopClick(): void {
+    void abortCurrentSession();
+  }
+
   return (
     <form class="chat-form" onSubmit={handleSubmit}>
       <textarea
@@ -53,14 +61,24 @@ export function ChatInput(props: ChatInputProps) {
         onKeyDown={handleKeyDown}
         onInput={handleAutoResize}
       />
-      <button
-        type="submit"
-        class="btn btn-icon"
-        disabled={isStreaming()}
-        aria-label="Send"
-      >
-        <ArrowUp size={18} />
-      </button>
+      {isStreaming() ? (
+        <button
+          type="button"
+          class="btn btn-icon btn-stop"
+          aria-label="Stop generating"
+          onClick={handleStopClick}
+        >
+          <Square size={12} />
+        </button>
+      ) : (
+        <button
+          type="submit"
+          class="btn btn-icon"
+          aria-label="Send"
+        >
+          <ArrowUp size={18} />
+        </button>
+      )}
     </form>
   );
 }

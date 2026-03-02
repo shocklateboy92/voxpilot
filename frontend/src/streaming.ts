@@ -12,6 +12,7 @@
 import type { TextPart } from "@opencode-ai/sdk/v2/client";
 import type { Event, MessageWithParts } from "./api-client";
 import {
+  abortSession,
   addEventListener,
   fetchMessages,
   removeEventListener,
@@ -25,11 +26,13 @@ import {
   activeSession,
   activeSessionId,
   ensureAssistantMessage,
+  extractErrorMessage,
   replaceMessages,
   selectedAgent,
   setErrorMessage,
   setMessages,
   setSessionError,
+  showToast,
   mutatePermission,
   mutateQuestion,
   refetchSessions,
@@ -288,6 +291,26 @@ export async function sendUserMessage(content: string): Promise<boolean> {
     const msg = err instanceof Error ? err.message : "Unknown error";
     setErrorMessage(`Failed to send: ${msg}`);
     return false;
+  }
+}
+
+/**
+ * Abort the currently active session's generation.
+ * Stops the local rAF loop immediately and requests server-side abort.
+ */
+export async function abortCurrentSession(): Promise<void> {
+  const sessionId = activeSessionId();
+  if (!sessionId) return;
+
+  // Stop local streaming state immediately for responsive UI
+  stopRafLoop();
+  pendingTextPart = null;
+
+  try {
+    const dir = activeSession()?.directory;
+    await abortSession(sessionId, dir);
+  } catch (err: unknown) {
+    showToast(`Failed to stop: ${extractErrorMessage(err)}`);
   }
 }
 
