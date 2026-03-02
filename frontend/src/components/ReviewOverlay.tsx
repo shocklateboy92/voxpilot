@@ -63,7 +63,7 @@ export function ReviewOverlay() {
   const [regionCount, setRegionCount] = createSignal(0);
 
   // Cached regions array — rebuilt each time the diff HTML changes.
-  let cachedRegions: ChangeRegion[] = [];
+  let cachedRegions: HTMLElement[] = [];
 
   // Direction to auto-scroll when a new file's diff renders.
   // "first" → start at first change, "last" → start at last change.
@@ -370,67 +370,27 @@ export function ReviewOverlay() {
 // Change-region detection and highlight helpers
 // ---------------------------------------------------------------------------
 
-/** A contiguous group of changed lines (adds and/or deletes). */
-interface ChangeRegion {
-  rows: HTMLElement[];
-}
-
-/** CSS selector matching changed lines in the full-file diff view. */
-const CHANGED_LINE_SELECTOR = ".fulltext-line-add, .fulltext-line-del";
-
 /**
- * Scan the rendered diff DOM and group consecutive changed rows into
- * change regions. A region ends when there's a gap (a context line)
- * between changed rows.
+ * Collect the server-rendered change-region `<tbody>` elements.
+ *
+ * The server wraps consecutive changed rows in
+ * `<tbody class="change-region" id="cr-N">` and stamps the total
+ * count on `<table data-region-count="N">`.  This means region
+ * detection is a single querySelectorAll — no row-scanning needed.
  */
-function getChangeRegions(pane: HTMLElement): ChangeRegion[] {
-  const rows = Array.from(
-    pane.querySelectorAll<HTMLElement>(CHANGED_LINE_SELECTOR),
-  );
-  if (rows.length === 0) return [];
-
-  const first = rows[0];
-  if (!first) return [];
-
-  const regions: ChangeRegion[] = [];
-  let currentRows: HTMLElement[] = [first];
-
-  for (let i = 1; i < rows.length; i++) {
-    const row = rows[i];
-    const prev = rows[i - 1];
-    if (!row || !prev) continue;
-
-    if (prev.nextElementSibling === row) {
-      // Consecutive — same region
-      currentRows.push(row);
-    } else {
-      // Gap — flush and start new region
-      if (currentRows.length > 0) {
-        regions.push({ rows: currentRows });
-      }
-      currentRows = [row];
-    }
-  }
-
-  if (currentRows.length > 0) {
-    regions.push({ rows: currentRows });
-  }
-
-  return regions;
+function getChangeRegions(pane: HTMLElement): HTMLElement[] {
+  return Array.from(pane.querySelectorAll<HTMLElement>(".change-region"));
 }
 
 /**
  * Apply the current-change highlight to the given region index,
- * removing it from all other regions.
+ * removing it from all other regions.  Since each region is a single
+ * `<tbody>` element, this toggles one class per element rather than
+ * iterating every row.
  */
-function applyHighlight(regions: ChangeRegion[], activeIndex: number): void {
+function applyHighlight(regions: HTMLElement[], activeIndex: number): void {
   for (let i = 0; i < regions.length; i++) {
-    const region = regions[i];
-    if (!region) continue;
-    const isActive = i === activeIndex;
-    for (const row of region.rows) {
-      row.classList.toggle(CURRENT_CHANGE_CLASS, isActive);
-    }
+    regions[i]?.classList.toggle(CURRENT_CHANGE_CLASS, i === activeIndex);
   }
 }
 
@@ -440,21 +400,15 @@ function applyHighlight(regions: ChangeRegion[], activeIndex: number): void {
  * - If the entire region fits on screen → center it vertically.
  * - If it doesn't fit → position it near the top with padding.
  */
-function scrollToRegion(region: ChangeRegion, pane: HTMLElement): void {
-  const firstRow = region.rows[0];
-  const lastRow = region.rows[region.rows.length - 1];
-  if (!firstRow || !lastRow) return;
-
-  const regionTop = firstRow.getBoundingClientRect().top;
-  const regionBottom = lastRow.getBoundingClientRect().bottom;
-  const regionHeight = regionBottom - regionTop;
+function scrollToRegion(region: HTMLElement, pane: HTMLElement): void {
+  const rect = region.getBoundingClientRect();
   const paneRect = pane.getBoundingClientRect();
   const viewportHeight = paneRect.height;
 
-  if (regionHeight <= viewportHeight) {
+  if (rect.height <= viewportHeight) {
     // Region fits on screen — center it
     const regionCenter =
-      regionTop - paneRect.top + pane.scrollTop + regionHeight / 2;
+      rect.top - paneRect.top + pane.scrollTop + rect.height / 2;
     pane.scrollTo({
       top: regionCenter - viewportHeight / 2,
       behavior: "smooth",
@@ -462,7 +416,7 @@ function scrollToRegion(region: ChangeRegion, pane: HTMLElement): void {
   } else {
     // Region too tall — position near the top
     const targetTop =
-      regionTop - paneRect.top + pane.scrollTop - SCROLL_TOP_PADDING;
+      rect.top - paneRect.top + pane.scrollTop - SCROLL_TOP_PADDING;
     pane.scrollTo({
       top: targetTop,
       behavior: "smooth",

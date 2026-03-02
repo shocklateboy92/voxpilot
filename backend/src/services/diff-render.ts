@@ -137,12 +137,55 @@ export function renderFullFileHtml(
   }
 
   const lines = fullTextContent.split("\n");
-  const parts: string[] = [];
 
-  parts.push(
-    `<div class="fulltext-file" data-file-id="${escapeHtml(fileId)}">`,
-  );
-  parts.push('<table class="fulltext-table">');
+  // We group consecutive changed rows into <tbody class="change-region">
+  // elements with sequential IDs (cr-0, cr-1, …). Context rows go into
+  // plain <tbody> elements. This lets the client find/highlight regions
+  // with a single querySelector instead of scanning every row.
+  //
+  // `bodyParts` accumulates the tbody/tr content; outer wrappers are
+  // assembled at the end so we can stamp the final region count onto
+  // the <table> element.
+  const bodyParts: string[] = [];
+  let regionIndex = 0;
+  let inChangeRegion = false;
+  let inContextBody = false;
+
+  /** Open a change-region tbody if not already inside one. */
+  function openChangeRegion(): void {
+    if (!inChangeRegion) {
+      closeContextBody();
+      bodyParts.push(
+        `<tbody class="change-region" id="cr-${String(regionIndex)}">`,
+      );
+      inChangeRegion = true;
+    }
+  }
+
+  /** Close the current change-region tbody (if open) and bump the index. */
+  function closeChangeRegion(): void {
+    if (inChangeRegion) {
+      bodyParts.push("</tbody>");
+      regionIndex++;
+      inChangeRegion = false;
+    }
+  }
+
+  /** Ensure we're inside a plain (non-change) tbody. */
+  function openContextBody(): void {
+    if (!inContextBody) {
+      closeChangeRegion();
+      bodyParts.push("<tbody>");
+      inContextBody = true;
+    }
+  }
+
+  function closeContextBody(): void {
+    if (inContextBody) {
+      bodyParts.push("</tbody>");
+      inContextBody = false;
+    }
+  }
 
   for (let i = 0; i < lines.length; i++) {
     const lineNum = i + 1;
@@ -150,8 +193,9 @@ export function renderFullFileHtml(
     // Insert deleted lines that belong before this line
     const dels = deletionsBefore.get(lineNum);
     if (dels) {
+      openChangeRegion();
       for (const del of dels) {
-        parts.push(
+        bodyParts.push(
           `<tr class="fulltext-line fulltext-line-del">` +
             `<td class="fulltext-line-num"></td>` +
             `<td class="fulltext-line-content"><code>${escapeHtml(del.content)}</code></td>` +
@@ -161,11 +205,18 @@ export function renderFullFileHtml(
     }
 
     const isAdded = addedLines.has(lineNum);
+
+    if (isAdded) {
+      openChangeRegion();
+    } else {
+      openContextBody();
+    }
+
     const rowClass = isAdded
       ? "fulltext-line fulltext-line-add"
       : "fulltext-line";
 
-    parts.push(
+    bodyParts.push(
       `<tr class="${rowClass}">` +
         `<td class="fulltext-line-num">${lineNum}</td>` +
         `<td class="fulltext-line-content"><code>${escapeHtml(lines[i] ?? "")}</code></td>` +
@@ -177,8 +228,9 @@ export function renderFullFileHtml(
   const trailingKey = lines.length + 1;
   const trailingDels = deletionsBefore.get(trailingKey);
   if (trailingDels) {
+    openChangeRegion();
     for (const del of trailingDels) {
-      parts.push(
+      bodyParts.push(
         `<tr class="fulltext-line fulltext-line-del">` +
           `<td class="fulltext-line-num"></td>` +
           `<td class="fulltext-line-content"><code>${escapeHtml(del.content)}</code></td>` +
@@ -187,8 +239,17 @@ export function renderFullFileHtml(
     }
   }
 
-  parts.push("</table>");
-  parts.push("</div>");
+  // Close any open tbody
+  closeChangeRegion();
+  closeContextBody();
 
-  return parts.join("\n");
+  const bodies = bodyParts.join("\n");
+
+  return [
+    `<div class="fulltext-file" data-file-id="${escapeHtml(fileId)}">`,
+    `<table class="fulltext-table" data-region-count="${String(regionIndex)}">`,
+    bodies,
+    "</table>",
+    "</div>",
+  ].join("\n");
 }

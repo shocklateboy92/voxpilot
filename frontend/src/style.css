@@ -1437,8 +1437,9 @@ h1 {
   text-decoration: none;
 }
 
-/* Current change highlight — left border accent on the active change region */
-.fulltext-line.current-change {
+/* Current change highlight — left border accent on the active change region.
+   The class is applied to a <tbody>, so target its child rows. */
+.current-change > .fulltext-line {
   border-left: 3px solid var(--color-accent);
 }
 
