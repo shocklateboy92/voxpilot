@@ -103,7 +103,7 @@ async function resolveRef(ref: string, workDir: string): Promise<string> {
 
 // ── MCP server factory ──────────────────────────────────────────
 
-function createMcpServer(workDir: string) {
+function createMcpServer() {
   const server = new McpServer({
     name: "voxpilot",
     version: "0.1.0",
@@ -151,9 +151,15 @@ function createMcpServer(workDir: string) {
             "Restrict diff to a specific file or directory (relative to repo root). " +
               "Omit to show all changes.",
           ),
+        workdir: z
+          .string()
+          .describe(
+            "The working directory of the git repository to operate on. " +
+              "Must be an absolute path.",
+          ),
       },
     },
-    async ({ from, to, path }) => {
+    async ({ from, to, path, workdir }) => {
       const fromRef = from ?? "HEAD";
       const toRef = to ?? "WORKTREE";
 
@@ -179,7 +185,7 @@ function createMcpServer(workDir: string) {
       }
 
       // Ensure we're in a git repo
-      const repoCheck = await ensureGitRepo(workDir);
+      const repoCheck = await ensureGitRepo(workdir);
       if ("error" in repoCheck) {
         return {
           content: [
@@ -200,7 +206,7 @@ function createMcpServer(workDir: string) {
       const statArgs = [...built.args, "--stat"];
       if (path) statArgs.push("--", path);
 
-      const statResult = await runGit(statArgs, workDir);
+      const statResult = await runGit(statArgs, workdir);
       if (statResult.exitCode !== 0) {
         return {
           content: [
@@ -230,7 +236,7 @@ function createMcpServer(workDir: string) {
       const numstatArgs = [...built.args, "--numstat"];
       if (path) numstatArgs.push("--", path);
 
-      const numstatResult = await runGit(numstatArgs, workDir);
+      const numstatResult = await runGit(numstatArgs, workdir);
       const files =
         numstatResult.exitCode === 0
           ? numstatResult.stdout
@@ -249,8 +255,8 @@ function createMcpServer(workDir: string) {
 
       // Resolve refs to SHAs for stability
       const [resolvedFrom, resolvedTo] = await Promise.all([
-        resolveRef(fromRef, workDir),
-        resolveRef(toRef, workDir),
+        resolveRef(fromRef, workdir),
+        resolveRef(toRef, workdir),
       ]);
 
       // Persist the structured result to DB
@@ -260,8 +266,8 @@ function createMcpServer(workDir: string) {
       const filesWithContent = await Promise.all(
         files.map(async (f) => {
           const [beforeContent, afterContent] = await Promise.all([
-            getFileAtRef(fromRef, f.file, workDir),
-            getFileAtRef(toRef, f.file, workDir),
+            getFileAtRef(fromRef, f.file, workdir),
+            getFileAtRef(toRef, f.file, workdir),
           ]);
           return { ...f, beforeContent, afterContent };
         }),
@@ -326,7 +332,7 @@ if (!_mcpGlobal.__mcpTransports) {
 }
 const transports = _mcpGlobal.__mcpTransports;
 
-export function createMcpRouter(workDir: string) {
+export function createMcpRouter() {
   const router = new Hono();
 
   router.all("/", async (c) => {
@@ -357,7 +363,7 @@ export function createMcpRouter(workDir: string) {
           }
         };
 
-        const server = createMcpServer(workDir);
+        const server = createMcpServer();
         await server.connect(transport);
         return transport.handleRequest(c.req.raw, { parsedBody: body });
       }

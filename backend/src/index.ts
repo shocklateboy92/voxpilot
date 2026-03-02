@@ -50,7 +50,7 @@ appBase.use("/*", cors({ origin: "*", credentials: true }));
 const workDir = process.cwd();
 
 export const app = appBase
-  .route("/mcp", createMcpRouter(workDir))
+  .route("/mcp", createMcpRouter())
   .route("/api/review", createReviewRouter(workDir));
 
 // Proxy and static don't need RPC types — keep imperative
