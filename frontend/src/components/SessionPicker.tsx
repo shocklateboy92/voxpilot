@@ -14,7 +14,7 @@ import {
   handleNewSession,
   switchToSession,
 } from "../sessions";
-import { activeSessionId, pickerOpen, sessions, setPickerOpen } from "../store";
+import { activeSessionId, pickerOpen, projects, sessions, setPickerOpen } from "../store";
 
 type GroupedEntry = {
   originalIndex: number;
@@ -26,6 +26,18 @@ export function SessionPicker() {
     switchToSession(sessionId);
     setPickerOpen(false);
   }
+
+  /** Map projectID → display name (project name or directory basename). */
+  const projectNameMap = createMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of projects()) {
+      const name = p.name ?? p.worktree.split("/").pop() ?? p.worktree;
+      map.set(p.id, name);
+    }
+    return map;
+  });
+
+  const showProjectBadge = createMemo(() => projects().length > 1);
 
   /** Sessions reordered so children appear directly after their parent. */
   const grouped = createMemo(() => {
@@ -85,6 +97,11 @@ export function SessionPicker() {
                     <span class="picker-item-title">
                       {session()?.title || "New chat"}
                     </span>
+                    <Show when={showProjectBadge()}>
+                      <span class="picker-item-project">
+                        {projectNameMap().get(session()?.projectID ?? "") ?? ""}
+                      </span>
+                    </Show>
                     <button
                       class="btn btn-ghost picker-item-delete"
                       onClick={(e) => {

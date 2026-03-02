@@ -86,8 +86,32 @@ void (async () => {
 // ── Session API ─────────────────────────────────────────────────
 
 export async function fetchSessions(): Promise<Session[]> {
-  const result = await client.session.list();
-  return result.data ?? [];
+  const projects = await fetchProjects();
+  if (projects.length <= 1) {
+    // Single project (or none) — no need to aggregate
+    const result = await client.session.list();
+    return result.data ?? [];
+  }
+
+  // Fetch sessions from all known projects in parallel
+  const results = await Promise.all(
+    projects.map((p) => client.session.list({ directory: p.worktree })),
+  );
+  const allSessions = results.flatMap((r) => r.data ?? []);
+
+  // Deduplicate by session ID (in case the server returns overlapping results)
+  const seen = new Set<string>();
+  const unique: Session[] = [];
+  for (const s of allSessions) {
+    if (!seen.has(s.id)) {
+      seen.add(s.id);
+      unique.push(s);
+    }
+  }
+
+  // Sort by most recently updated first (matches default server behavior)
+  unique.sort((a, b) => b.time.updated - a.time.updated);
+  return unique;
 }
 
 export async function createSession(title?: string, directory?: string): Promise<Session> {
