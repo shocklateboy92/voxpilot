@@ -32,6 +32,7 @@ test:
 lint:
     cd backend && bunx @biomejs/biome check src tests ../frontend/src
     cd frontend && npx tsc --noEmit
+    cd frontend && npx eslint src/
 
 # Type check everything
 typecheck:
