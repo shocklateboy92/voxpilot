@@ -551,7 +551,7 @@ h1 {
 
 .scroll-to-bottom {
   position: absolute;
-  bottom: 0.75rem;
+  bottom: 4rem;
   left: 50%;
   translate: -50% 0;
   z-index: 45;
