@@ -43,6 +43,14 @@ let pendingTextPart: TextPart | null = null;
 let rafId: number | null = null;
 let isRafLoopRunning = false;
 
+/**
+ * Tracks part IDs that have received a full `message.part.updated` event.
+ * When a full update arrives, any subsequent `message.part.delta` events for
+ * that part are stale (they were in-flight before the server sent the full
+ * snapshot) and should be skipped. The set is cleared on session switch.
+ */
+const updatedPartIds = new Set<string>();
+
 /** Start the rAF loop that flushes pendingTextPart → store once per frame. */
 function startRafLoop(): void {
   if (isRafLoopRunning) return;
@@ -106,12 +114,24 @@ function handleEvent(event: Event): void {
 
       switch (part.type) {
         case "text": {
-          // Initialize the text part for rAF-batched streaming.
-          // Actual content arrives via message.part.delta events below.
-          ensureAssistantMessage(part.messageID, sid);
-          pendingTextPart = part;
-          if (!isRafLoopRunning) {
-            startRafLoop();
+          if (updatedPartIds.has(part.id)) {
+            // Already received a full snapshot for this part — this is a
+            // later update (e.g. final content). Just upsert it directly.
+            upsertPart(part);
+          } else if (part.text) {
+            // Non-empty text means this is a full snapshot arriving after
+            // deltas were already streaming. Mark it so subsequent stale
+            // deltas (still in-flight from before the snapshot) are skipped.
+            updatedPartIds.add(part.id);
+            upsertPart(part);
+          } else {
+            // Empty text — this is the initial part creation event.
+            // Deltas will follow, so do NOT add to updatedPartIds.
+            ensureAssistantMessage(part.messageID, sid);
+            pendingTextPart = part;
+            if (!isRafLoopRunning) {
+              startRafLoop();
+            }
           }
           break;
         }
@@ -136,6 +156,10 @@ function handleEvent(event: Event): void {
       const { sessionID, messageID, partID, field, delta } = event.properties;
       if (sessionID !== sid) return;
       if (field !== "text") return;
+
+      // Skip stale deltas: if we already received a full message.part.updated
+      // for this part, any trailing deltas are outdated duplicates.
+      if (updatedPartIds.has(partID)) return;
 
       // Append streamed token to the pending text part.
       // If we already have a matching pendingTextPart, just concatenate.
@@ -223,6 +247,7 @@ createEffect(() => {
   // Reset streaming state on every switch
   stopRafLoop();
   pendingTextPart = null;
+  updatedPartIds.clear();
   setSessionError(false);
   setErrorMessage(null);
   mutatePermission(null);
