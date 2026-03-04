@@ -11,7 +11,6 @@ import ChevronLeft from "lucide-solid/icons/chevron-left";
 import ChevronRight from "lucide-solid/icons/chevron-right";
 import { createSignal, type JSX, onCleanup, onMount, Show } from "solid-js";
 import { attachSwipeHandler } from "../gestures";
-import { setSwipeOffset, swipeOffset } from "../store";
 
 export interface SwipeablePaneProps {
   /** Can the user swipe left (toward "next"/older)? */
@@ -39,6 +38,7 @@ export interface SwipeablePaneProps {
 export function SwipeablePane(props: SwipeablePaneProps) {
   let containerRef: HTMLDivElement | undefined;
 
+  const [swipeOffset, setSwipeOffset] = createSignal(0);
   const [animateSnap, setAnimateSnap] = createSignal(false);
   let pendingNav: (() => void) | null = null;
 

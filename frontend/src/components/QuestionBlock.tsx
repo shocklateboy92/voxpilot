@@ -8,7 +8,7 @@ import type {
 } from "@opencode-ai/sdk/v2/client";
 import { createSignal, For, Show } from "solid-js";
 import { rejectQuestion, replyToQuestion } from "../api-client";
-import { activeSession, setErrorMessage } from "../store";
+import { activeSession, setStore } from "../store";
 
 interface Props {
   request: QuestionRequest;
@@ -65,7 +65,7 @@ export function QuestionBlock(props: Props) {
       await replyToQuestion(props.request.id, answers(), dir);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Unknown error";
-      setErrorMessage(`Question error: ${msg}`);
+      setStore("errorMessage", `Question error: ${msg}`);
     }
   }
 
@@ -75,7 +75,7 @@ export function QuestionBlock(props: Props) {
       await rejectQuestion(props.request.id, dir);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Unknown error";
-      setErrorMessage(`Question error: ${msg}`);
+      setStore("errorMessage", `Question error: ${msg}`);
     }
   }
 

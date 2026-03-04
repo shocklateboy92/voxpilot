@@ -4,9 +4,8 @@
  * Bridges the OpenCode global event stream to SolidJS store with
  * requestAnimationFrame batching on the hot path (text parts).
  *
- * The SSE stream and reactive message loading are initialized at module
- * level — just importing this module activates them. Message history
- * loading is driven reactively by `activeSessionId`.
+ * Call `startStreaming()` after the store is populated (from App.tsx)
+ * to register the SSE listener and activate reactive message loading.
  */
 
 import type { TextPart } from "@opencode-ai/sdk/v2/client";
@@ -14,6 +13,7 @@ import type { Event, MessageWithParts } from "./api-client";
 import {
   abortSession,
   addEventListener,
+  fetchGitBranch,
   fetchMessages,
   removeEventListener,
   respondToPermission,
@@ -24,20 +24,15 @@ import { createEffect } from "solid-js";
 import { produce } from "solid-js/store";
 import {
   activeSession,
-  activeSessionId,
+  clearScrollPosition,
   ensureAssistantMessage,
-  extractErrorMessage,
   replaceMessages,
-  selectedAgent,
-  setErrorMessage,
-  setMessages,
-  setSessionError,
-  showToast,
-  mutatePermission,
-  mutateQuestion,
-  refetchSessions,
+  setStore,
   upsertPart,
 } from "./store";
+import { activeSessionId } from "./navigation";
+import { selectedAgent } from "./preferences";
+import { extractErrorMessage, showToast } from "./toast";
 
 let pendingTextPart: TextPart | null = null;
 let rafId: number | null = null;
@@ -88,19 +83,15 @@ function handleEvent(event: Event): void {
       if (msg.sessionID !== sid) return;
 
       if (msg.role === "assistant") {
-        // Assistant message started or completed
         if ("time" in msg && msg.time.completed) {
           // Message is complete — reload full messages
           const dir = activeSession()?.directory;
           void fetchMessages(sid, dir).then((msgs) => {
-            // Guard against stale fetch: only replace if still on the same session
             if (activeSessionId() === sid) replaceMessages(msgs);
           });
           stopRafLoop();
           pendingTextPart = null;
-          mutatePermission(null);
         } else {
-          // Ensure the in-progress message exists in the store
           ensureAssistantMessage(msg.id, sid, msg);
         }
       }
@@ -115,18 +106,11 @@ function handleEvent(event: Event): void {
       switch (part.type) {
         case "text": {
           if (updatedPartIds.has(part.id)) {
-            // Already received a full snapshot for this part — this is a
-            // later update (e.g. final content). Just upsert it directly.
             upsertPart(part);
           } else if (part.text) {
-            // Non-empty text means this is a full snapshot arriving after
-            // deltas were already streaming. Mark it so subsequent stale
-            // deltas (still in-flight from before the snapshot) are skipped.
             updatedPartIds.add(part.id);
             upsertPart(part);
           } else {
-            // Empty text — this is the initial part creation event.
-            // Deltas will follow, so do NOT add to updatedPartIds.
             ensureAssistantMessage(part.messageID, sid);
             pendingTextPart = part;
             if (!isRafLoopRunning) {
@@ -136,7 +120,6 @@ function handleEvent(event: Event): void {
           break;
         }
         case "tool": {
-          // Upsert tool part into the message in the store
           ensureAssistantMessage(part.messageID, sid);
           upsertPart(part);
           break;
@@ -157,13 +140,8 @@ function handleEvent(event: Event): void {
       if (sessionID !== sid) return;
       if (field !== "text") return;
 
-      // Skip stale deltas: if we already received a full message.part.updated
-      // for this part, any trailing deltas are outdated duplicates.
       if (updatedPartIds.has(partID)) return;
 
-      // Append streamed token to the pending text part.
-      // If we already have a matching pendingTextPart, just concatenate.
-      // Otherwise create a minimal TextPart so the rAF loop can flush it.
       if (pendingTextPart && pendingTextPart.id === partID) {
         pendingTextPart = { ...pendingTextPart, text: pendingTextPart.text + delta };
       } else {
@@ -182,44 +160,56 @@ function handleEvent(event: Event): void {
       break;
     }
 
-    case "permission.asked": {
-      if (!sid) return;
-      const perm = event.properties;
-      if (perm.sessionID !== sid) return;
-      mutatePermission(perm);
+    // ── Cross-session event handlers ────────────────────────────
+
+    case "session.status": {
+      const { sessionID, status } = event.properties;
+      setStore("sessionStatuses", sessionID, status);
+      if (status.type === "busy") {
+        setStore("sessionErrors", produce((draft) => { delete draft[sessionID]; }));
+      }
       break;
     }
 
-    case "permission.replied": {
-      mutatePermission(null);
+    case "session.created": {
+      const info = event.properties.info;
+      setStore("sessions", produce((list) => {
+        if (list.some((s) => s.id === info.id)) return; // already exists (optimistic)
+        list.push(info);
+        list.sort((a, b) => b.time.updated - a.time.updated);
+      }));
       break;
     }
 
-    case "question.asked": {
-      if (!sid) return;
-      const req = event.properties;
-      if (req.sessionID !== sid) return;
-      mutateQuestion(req);
-      break;
-    }
-
-    case "question.replied":
-    case "question.rejected": {
-      mutateQuestion(null);
+    case "session.deleted": {
+      const info = event.properties.info;
+      setStore("sessions", (prev) => prev.filter((s) => s.id !== info.id));
+      setStore("sessionStatuses", produce((draft) => { delete draft[info.id]; }));
+      setStore("sessionPermissions", produce((draft) => { delete draft[info.id]; }));
+      setStore("sessionQuestions", produce((draft) => { delete draft[info.id]; }));
+      setStore("sessionErrors", produce((draft) => { delete draft[info.id]; }));
+      clearScrollPosition(info.id);
       break;
     }
 
     case "session.updated": {
-      // Refresh session list (title may have changed)
-      void refetchSessions();
+      const info = event.properties.info;
+      if (info.time.archived) {
+        setStore("sessions", (prev) => prev.filter((s) => s.id !== info.id));
+      } else {
+        setStore("sessions", produce((list) => {
+          const idx = list.findIndex((s) => s.id === info.id);
+          if (idx >= 0) list[idx] = info;
+          else list.push(info);
+          list.sort((a, b) => b.time.updated - a.time.updated);
+        }));
+      }
       break;
     }
 
     case "session.error": {
-      if (!sid) return;
       const props = event.properties;
-      if (props.sessionID !== sid) return;
-      setSessionError(true);
+      const errorSessionID = props.sessionID as string;
       const err = props.error;
       let errorMsg = "An error occurred";
       if (
@@ -231,51 +221,96 @@ function handleEvent(event: Event): void {
       ) {
         errorMsg = String((err.data as Record<string, unknown>).message);
       }
-      setErrorMessage(errorMsg);
+      // Store for all sessions (cross-session tracking)
+      setStore("sessionErrors", errorSessionID, errorMsg);
+      // Active session UI state
+      if (errorSessionID !== sid) break;
+      setStore("sessionError", true);
+      setStore("errorMessage", errorMsg);
       stopRafLoop();
+      break;
+    }
+
+    case "permission.asked": {
+      const perm = event.properties;
+      setStore("sessionPermissions", perm.sessionID, perm);
+      break;
+    }
+
+    case "permission.replied": {
+      const props = event.properties;
+      setStore("sessionPermissions", produce((draft) => { delete draft[props.sessionID]; }));
+      break;
+    }
+
+    case "question.asked": {
+      const req = event.properties;
+      setStore("sessionQuestions", req.sessionID, req);
+      break;
+    }
+
+    case "question.replied":
+    case "question.rejected": {
+      const props = event.properties;
+      setStore("sessionQuestions", produce((draft) => { delete draft[props.sessionID]; }));
+      break;
+    }
+
+    case "vcs.branch.updated": {
+      const activeDir = activeSession()?.directory;
+      const props = event.properties as { directory?: string; branch?: string };
+      if (activeDir && props.directory === activeDir) {
+        setStore("gitBranch", props.branch ?? null);
+      }
       break;
     }
   }
 }
 
-// ── Reactive message loading ────────────────────────────────────
-// Loads/clears messages when `activeSessionId` changes.
+// ── Reactive message loading + SSE subscription ────────────────
+// Activated by startStreaming() after the store is populated.
 
-createEffect(() => {
-  const sid = activeSessionId();
+export function startStreaming(): void {
+  // Loads/clears messages when `activeSessionId` changes.
+  createEffect(() => {
+    const sid = activeSessionId();
 
-  // Reset streaming state on every switch
-  stopRafLoop();
-  pendingTextPart = null;
-  updatedPartIds.clear();
-  setSessionError(false);
-  setErrorMessage(null);
-  mutatePermission(null);
-  mutateQuestion(null);
-
-  if (sid) {
-    const dir = activeSession()?.directory;
-    void fetchMessages(sid, dir).then((msgs) => {
-      // Guard against rapid switches: only apply if still on this session
-      if (activeSessionId() === sid) replaceMessages(msgs);
-    });
-  } else {
-    replaceMessages([]);
-  }
-});
-
-// ── Global SSE subscription ─────────────────────────────────────
-// The stream starts automatically in api-client.ts; just register our handler.
-// On HMR, remove the previous listener so we don't accumulate duplicates.
-
-if (import.meta.hot) {
-  import.meta.hot.dispose(() => {
-    removeEventListener(handleEvent);
+    // Reset streaming state on every switch
     stopRafLoop();
+    pendingTextPart = null;
+    updatedPartIds.clear();
+    setStore("sessionError", false);
+    setStore("errorMessage", null);
+
+    if (sid) {
+      const dir = activeSession()?.directory;
+      void fetchMessages(sid, dir).then((msgs) => {
+        if (activeSessionId() === sid) replaceMessages(msgs);
+      });
+      // Fetch git branch for the new session's directory
+      void fetchGitBranch(dir).then((branch) => {
+        if (activeSessionId() === sid) {
+          setStore("gitBranch", branch);
+        }
+      });
+    } else {
+      replaceMessages([]);
+      setStore("gitBranch", null);
+    }
   });
+
+  // Global SSE subscription
+  if (import.meta.hot) {
+    import.meta.hot.dispose(() => {
+      removeEventListener(handleEvent);
+      stopRafLoop();
+    });
+  }
+
+  addEventListener(handleEvent);
 }
 
-addEventListener(handleEvent);
+// ── Exported action functions ───────────────────────────────────
 
 /**
  * Send a user message on the current session.
@@ -285,12 +320,10 @@ export async function sendUserMessage(content: string): Promise<boolean> {
   const sessionId = activeSessionId();
   if (!sessionId) return false;
 
-  setErrorMessage(null);
-  setSessionError(false);
+  setStore("errorMessage", null);
+  setStore("sessionError", false);
 
-  // Inject optimistic user message immediately so the UI shows it before
-  // the server responds. Uses a temporary placeholder ID — the server will
-  // assign the real one and reconciliation will replace it.
+  // Inject optimistic user message
   const optimistic: MessageWithParts = {
     info: {
       id: "__optimistic__",
@@ -300,7 +333,7 @@ export async function sendUserMessage(content: string): Promise<boolean> {
     } as Message,
     parts: [],
   };
-  setMessages(produce((msgs) => { msgs.push(optimistic); }));
+  setStore("messages", produce((msgs) => { msgs.push(optimistic); }));
 
   try {
     const agent = selectedAgent();
@@ -309,25 +342,23 @@ export async function sendUserMessage(content: string): Promise<boolean> {
     return true;
   } catch (err: unknown) {
     // Remove the optimistic message on failure
-    setMessages(produce((msgs) => {
+    setStore("messages", produce((msgs) => {
       const idx = msgs.findIndex((m) => m.info.id === "__optimistic__");
       if (idx >= 0) msgs.splice(idx, 1);
     }));
     const msg = err instanceof Error ? err.message : "Unknown error";
-    setErrorMessage(`Failed to send: ${msg}`);
+    setStore("errorMessage", `Failed to send: ${msg}`);
     return false;
   }
 }
 
 /**
  * Abort the currently active session's generation.
- * Stops the local rAF loop immediately and requests server-side abort.
  */
 export async function abortCurrentSession(): Promise<void> {
   const sessionId = activeSessionId();
   if (!sessionId) return;
 
-  // Stop local streaming state immediately for responsive UI
   stopRafLoop();
   pendingTextPart = null;
 
@@ -346,13 +377,16 @@ export async function respondToConfirm(
   requestID: string,
   reply: "once" | "always" | "reject",
 ): Promise<void> {
-  mutatePermission(null);
+  const sid = activeSessionId();
+  if (sid) {
+    setStore("sessionPermissions", produce((draft) => { delete draft[sid]; }));
+  }
 
   try {
     const dir = activeSession()?.directory;
     await respondToPermission(requestID, reply, dir);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Unknown error";
-    setErrorMessage(`Permission error: ${msg}`);
+    setStore("errorMessage", `Permission error: ${msg}`);
   }
 }

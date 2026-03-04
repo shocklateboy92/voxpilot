@@ -13,7 +13,7 @@
 import type { AssistantMessage } from "@opencode-ai/sdk/v2/client";
 import { createMemo, createResource, Show } from "solid-js";
 import { client } from "../api-client";
-import { messages } from "../store";
+import { store } from "../store";
 
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -29,7 +29,7 @@ export function ContextUsageBar() {
 
   const context = createMemo(() => {
     let lastAssistant: AssistantMessage | undefined;
-    for (const msg of messages) {
+    for (const msg of store.messages) {
       if (msg.info.role !== "assistant") continue;
       const info = msg.info as AssistantMessage;
       if (info.tokens && info.tokens.input > 0) {

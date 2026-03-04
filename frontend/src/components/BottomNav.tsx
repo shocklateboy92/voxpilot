@@ -2,11 +2,15 @@
  * Bottom navigation bar — session title (tap to open picker) and + button.
  */
 
+import { createSignal, Show } from "solid-js";
 import Plus from "lucide-solid/icons/plus";
-import { handleNewSession } from "../sessions";
-import { activeSession, isNewSessionPage, setPickerOpen } from "../store";
+import { handleNewSession } from "../navigation";
+import { activeSession, isNewSessionPage } from "../store";
+import { SessionPicker } from "./SessionPicker";
 
 export function BottomNav() {
+  const [pickerOpen, setPickerOpen] = createSignal(false);
+
   return (
     <nav class="bottom-nav">
       <button class="session-title-btn" onClick={() => setPickerOpen(true)}>
@@ -20,6 +24,9 @@ export function BottomNav() {
       >
         <Plus size={20} />
       </button>
+      <Show when={pickerOpen()}>
+        <SessionPicker onClose={() => setPickerOpen(false)} />
+      </Show>
     </nav>
   );
 }

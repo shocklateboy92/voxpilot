@@ -1,16 +1,22 @@
 /**
  * Root application component.
  *
- * Goes directly to ChatView — no auth required for self-hosted mode.
- * Wraps the tree in an ErrorBoundary to catch unhandled render errors.
+ * This module is lazy-loaded by index.tsx. By the time it executes,
+ * store.ts has already completed its top-level await (init), so
+ * the store is fully populated. We just need to start SSE streaming
+ * and render the app shell.
  */
 
 import { ErrorBoundary } from "solid-js";
 import { ChatView } from "./components/ChatView";
 import { ToastContainer } from "./components/ToastContainer";
-import "./style.css";
+import { startStreaming } from "./streaming";
 
-export function App() {
+// Activate SSE listener + reactive message loading.
+// The store is guaranteed to exist (store.ts TLA completed before this module loaded).
+startStreaming();
+
+export default function App() {
   return (
     <ErrorBoundary fallback={(err) => <AppError error={err} />}>
       <ChatView />

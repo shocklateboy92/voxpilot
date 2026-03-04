@@ -1,74 +1,39 @@
 /**
- * Reactive store using SolidJS signals and stores.
+ * Consolidated reactive store — single createStore<AppState>.
+ *
+ * All server-sourced state lives in one store. UI-only state (toast,
+ * agent preference, picker visibility, swipe offset) lives in their
+ * own modules or component-local signals.
+ *
+ * The store is populated via top-level await of init() before any
+ * consumer module executes (the app is lazy-loaded via index.tsx).
  */
 
 import type {
   AssistantMessage,
-  PermissionRequest,
   Part as SdkPart,
 } from "@opencode-ai/sdk/v2/client";
-import { createEffect, createMemo, createResource, createSignal } from "solid-js";
-import { createStore, produce, reconcile } from "solid-js/store";
-import type { Message, MessageWithParts, Part, Project, Session } from "./api-client";
-import {
-  fetchAgents,
-  fetchCurrentProject,
-  fetchGitBranch,
-  fetchPendingPermissions,
-  fetchPendingQuestions,
-  fetchProjects,
-  fetchSessions,
-  fetchWorktrees,
-} from "./api-client";
+import { createStore } from "solid-js/store";
+import { produce, reconcile } from "solid-js/store";
+import type { Part } from "./api-client";
+import { init } from "./init";
+import type { AppState } from "./types";
 
-export type { Session, Message, Part, MessageWithParts, Project };
+// Re-export types from types.ts for consumers
+export type { AppState, Session, Message, Part, MessageWithParts, Project, PendingPermission } from "./types";
 
-// ── Streaming state types ──────────────────────────────────────
+// ── Store creation (top-level await) ────────────────────────────
+// init() fetches all bootstrap data; createStore wraps it reactively.
+// By the time any importing module executes, the store is fully populated.
 
-export type PendingPermission = PermissionRequest;
+const data = await init();
+export const [store, setStore] = createStore<AppState>(data);
 
-// ── Toast types ──────────────────────────────────────────────────
-
-export interface Toast {
-  id: number;
-  message: string;
-}
-
-let nextToastId = 0;
-
-// ── Signals ──────────────────────────────────────────────────────
-
-/** All sessions, most-recently-updated first. */
-export const [sessions, { mutate: mutateSessions, refetch: refetchSessions }] =
-  createResource(fetchSessions, { initialValue: [] });
-
-/** ID of the currently active session. */
-export const [activeSessionId, setActiveSessionId] = createSignal<string | undefined>(
-  window.location.hash.slice(1) || undefined
-);
-
-// Sync signal → URL hash
-createEffect(() => {
-  const id = activeSessionId();
-  if (id) {
-    history.replaceState(null, "", `#${id}`);
-  } else {
-    history.replaceState(null, "", window.location.pathname);
-  }
-});
-
-// Sync URL hash → signal (browser back/forward, manual edits)
-window.addEventListener("hashchange", () => {
-  const hash = window.location.hash.slice(1);
-  setActiveSessionId(hash || undefined);
-});
-
-/** Messages for the active session — single source of truth for both history and streaming. */
-export const [messages, setMessages] = createStore<MessageWithParts[]>([]);
+// ── Mutation helpers ────────────────────────────────────────────
 
 /** Replace the entire messages array (used for history load and reconciliation). */
-export function replaceMessages(msgs: MessageWithParts[]): void {
-  setMessages(reconcile(msgs));
+export function replaceMessages(msgs: import("./types").MessageWithParts[]): void {
+  setStore("messages", reconcile(msgs));
 }
 
 /**
@@ -80,17 +45,17 @@ export function ensureAssistantMessage(
   sessionID: string,
   info?: AssistantMessage,
 ): void {
-  const idx = messages.findIndex((m) => m.info.id === messageID);
+  const idx = store.messages.findIndex((m) => m.info.id === messageID);
   if (idx >= 0) {
     // Already exists — update its info if provided
     if (info) {
-      setMessages(idx, "info", info);
+      setStore("messages", idx, "info", info);
     }
     return;
   }
 
   // Create a placeholder assistant message
-  const placeholder: MessageWithParts = {
+  const placeholder: import("./types").MessageWithParts = {
     info:
       info ??
       ({
@@ -109,7 +74,8 @@ export function ensureAssistantMessage(
     parts: [],
   };
 
-  setMessages(
+  setStore(
+    "messages",
     produce((msgs) => {
       msgs.push(placeholder);
     }),
@@ -121,165 +87,26 @@ export function ensureAssistantMessage(
  * If the part already exists (by ID), it is replaced; otherwise it is appended.
  */
 export function upsertPart(part: SdkPart): void {
-  const msgIdx = messages.findIndex((m) => m.info.id === part.messageID);
+  const msgIdx = store.messages.findIndex((m) => m.info.id === part.messageID);
   if (msgIdx < 0) return;
 
-  const partIdx = messages[msgIdx]!.parts.findIndex((p) => p.id === part.id);
+  const msg = store.messages[msgIdx];
+  if (!msg) return;
+  const partIdx = msg.parts.findIndex((p) => p.id === part.id);
   if (partIdx >= 0) {
     // Replace existing part
-    setMessages(msgIdx, "parts", partIdx, reconcile(part));
+    setStore("messages", msgIdx, "parts", partIdx, reconcile(part));
   } else {
     // Append new part
-    setMessages(
+    setStore(
+      "messages",
       msgIdx,
       "parts",
-      produce((parts) => {
+      produce((parts: Part[]) => {
         parts.push(part as Part);
       }),
     );
   }
-}
-
-/** Session error flag — set on session.error SSE, cleared on new messages or session switch. */
-export const [sessionError, setSessionError] = createSignal(false);
-
-/** Whether we're waiting for an assistant response (derived from messages store). */
-export const isStreaming = createMemo(() => {
-  if (sessionError()) return false;
-
-  const len = messages.length;
-  if (len === 0) return false;
-  const last = messages[len - 1];
-  if (!last) return false;
-
-  // If the last message is a user message (optimistic), we're waiting for the assistant
-  if (last.info.role === "user") {
-    return true;
-  }
-
-  // Last message is an assistant message — still streaming until time.completed is set
-  return !last.info.time.completed;
-});
-
-/** Error message to display (null = no error). */
-export const [errorMessage, setErrorMessage] = createSignal<string | null>(
-  null,
-);
-
-/** Whether the session picker overlay is open (mobile). */
-export const [pickerOpen, setPickerOpen] = createSignal(false);
-
-/** Horizontal swipe offset in px (dampened rubber-band hint). */
-export const [swipeOffset, setSwipeOffset] = createSignal(0);
-
-/** Pending permission request (null = none pending). */
-export const [pendingPermission, { mutate: mutatePermission }] =
-  createResource(activeSessionId, async (sid) => {
-    const dir = sessions().find((s) => s.id === sid)?.directory;
-    const all = await fetchPendingPermissions(dir);
-    return all.find((p) => p.sessionID === sid) ?? null;
-  }, { initialValue: null });
-
-/** Pending question request (null = none pending). */
-export const [pendingQuestion, { mutate: mutateQuestion }] =
-  createResource(activeSessionId, async (sid) => {
-    const dir = sessions().find((s) => s.id === sid)?.directory;
-    const all = await fetchPendingQuestions(dir);
-    return all.find((q) => q.sessionID === sid) ?? null;
-  }, { initialValue: null });
-
-/** Current git branch name — re-fetches when the active session changes. */
-export const [gitBranch] = createResource(activeSessionId, (sid) => {
-  const dir = sessions().find((s) => s.id === sid)?.directory;
-  return fetchGitBranch(dir);
-});
-
-/** Toast notifications. */
-export const [toasts, setToasts] = createSignal<Toast[]>([]);
-
-// ── Agent/mode state ─────────────────────────────────────────────
-
-/** Available agents fetched from OpenCode (primary agents only). */
-export const [agents] = createResource(
-  // Source signal so the async fetcher is the 2nd arg (not a tracked scope).
-  () => true as const,
-  async () => {
-    const all = await fetchAgents();
-    return all.filter(a => (a.mode === "primary" || a.mode === "all") && !a.hidden);
-  },
-  { initialValue: [] },
-);
-
-const AGENT_STORAGE_KEY = "voxpilot-selected-agent";
-
-/** Currently selected agent name (persisted to localStorage). */
-export const [selectedAgent, setSelectedAgent] = createSignal<string>(
-  localStorage.getItem(AGENT_STORAGE_KEY) ?? "build",
-);
-
-createEffect(() => {
-  localStorage.setItem(AGENT_STORAGE_KEY, selectedAgent());
-});
-
-// ── Project/worktree state ───────────────────────────────────────
-
-/** All projects known to OpenCode. */
-export const [projects] = createResource(fetchProjects, { initialValue: [] });
-
-/** The current (default) project. */
-export const [currentProject] = createResource(fetchCurrentProject);
-
-/** Directory of the selected project for new session creation. */
-export const [selectedProjectDir, setSelectedProjectDir] = createSignal<string | undefined>(
-  undefined,
-);
-
-/** Initialize selectedProjectDir from current project once loaded. */
-createEffect(() => {
-  const cur = currentProject();
-  if (cur && selectedProjectDir() === undefined) {
-    setSelectedProjectDir(cur.worktree);
-  }
-});
-
-/** The selected project object (derived from selectedProjectDir). */
-export const selectedProject = () => {
-  const dir = selectedProjectDir();
-  return projects().find((p) => p.worktree === dir);
-};
-
-/** Worktree directories for the selected project (only fetched for git projects). */
-export const [worktrees, { refetch: refetchWorktrees }] = createResource(
-  () => {
-    const proj = selectedProject();
-    if (proj?.vcs !== "git") return undefined;
-    return proj.worktree;
-  },
-  (dir) => fetchWorktrees(dir),
-  { initialValue: [] },
-);
-
-/** The selected worktree directory for new session creation (undefined = use project root). */
-export const [selectedWorktreeDir, setSelectedWorktreeDir] = createSignal<string | undefined>(
-  undefined,
-);
-
-// ── Toast helpers ────────────────────────────────────────────────
-
-const TOAST_DURATION_MS = 5000;
-
-export function showToast(message: string): void {
-  const id = nextToastId++;
-  setToasts((prev) => [...prev, { id, message }]);
-  setTimeout(() => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  }, TOAST_DURATION_MS);
-}
-
-export function extractErrorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  if (typeof err === "string") return err;
-  return "An unexpected error occurred";
 }
 
 // ── Scroll position persistence ──────────────────────────────────
@@ -304,11 +131,10 @@ export function registerScrollTopGetter(
   scrollTopGetter = getter;
 }
 
-/** Save the current scroll position for the active session (called before switching). */
-export function saveCurrentScrollPosition(): void {
-  const id = activeSessionId();
-  if (!id || !scrollTopGetter) return;
-  scrollPositions.set(id, scrollTopGetter());
+/** Save the current scroll position for a session (called before switching). */
+export function saveCurrentScrollPosition(sessionId: string | undefined): void {
+  if (!sessionId || !scrollTopGetter) return;
+  scrollPositions.set(sessionId, scrollTopGetter());
 }
 
 /** Consume (read + delete) a saved scroll state for a session. Returns undefined if none saved. */
@@ -325,35 +151,23 @@ export function clearScrollPosition(sessionId: string): void {
   scrollPositions.delete(sessionId);
 }
 
-// ── Derived ──────────────────────────────────────────────────────
+// ── Derived accessors ───────────────────────────────────────────
+// These import activeSessionId from navigation.ts. The circular
+// dependency (navigation.ts also imports from store.ts) is safe
+// because these are plain functions — they only read at call time,
+// not at module evaluation time.
+
+import { activeSessionId } from "./navigation";
 
 /** The currently active session summary, or undefined. */
 export const activeSession = () => {
   const id = activeSessionId();
-  return sessions().find((s) => s.id === id);
+  return store.sessions.find((s) => s.id === id);
 };
-
-// ── Session validation ──────────────────────────────────────────
-
-/**
- * Reactive session validation: if sessions have loaded and activeSessionId
- * points to a session that doesn't exist, redirect to the new session page.
- * Handles deep-link-to-deleted-session and initial load with no sessions.
- */
-createEffect(() => {
-  if (sessions.loading) return; // Don't make decisions while loading
-  const id = activeSessionId();
-  if (id === undefined) return; // Already on new session page — nothing to validate
-  const list = sessions();
-  if (!list.some((s) => s.id === id)) {
-    // Active session not found in the list — redirect to new session page
-    setActiveSessionId(undefined);
-  }
-});
 
 /** Top-level (root) sessions only — sessions without a parentID. */
 export const rootSessions = () => {
-  return sessions().filter((s) => !s.parentID);
+  return store.sessions.filter((s) => !s.parentID);
 };
 
 /** Whether we're on the "new session" page (no active session selected). */
@@ -362,12 +176,51 @@ export const isNewSessionPage = () => activeSessionId() === undefined;
 /**
  * Index of the active session within rootSessions(), or -1 if on the new session page.
  * Layout: [new session page (-1)] [0: most recent] [1] ... [N-1: oldest]
- * Swiping left (next) from the most recent session reaches the new session page.
- * Swiping right (prev) from the new session page returns to the most recent session.
  */
 export const activeRootIndex = () => {
   const id = activeSessionId();
-  if (!id) return -1; // new session page is before the first (most recent) session
+  if (!id) return -1;
   const idx = rootSessions().findIndex((s) => s.id === id);
   return idx >= 0 ? idx : -1;
 };
+
+/** Whether we're waiting for an assistant response (derived from messages store). */
+export const isStreaming = () => {
+  if (store.sessionError) return false;
+
+  const len = store.messages.length;
+  if (len === 0) return false;
+  const last = store.messages[len - 1];
+  if (!last) return false;
+
+  // If the last message is a user message (optimistic), we're waiting for the assistant
+  if (last.info.role === "user") {
+    return true;
+  }
+
+  // Last message is an assistant message — still streaming until time.completed is set
+  return !last.info.time.completed;
+};
+
+/** Pending permission for the active session (derived from cross-session store). */
+export const pendingPermission = () => {
+  const id = activeSessionId();
+  if (!id) return null;
+  return store.sessionPermissions[id] ?? null;
+};
+
+/** Pending question for the active session (derived from cross-session store). */
+export const pendingQuestion = () => {
+  const id = activeSessionId();
+  if (!id) return null;
+  return store.sessionQuestions[id] ?? null;
+};
+
+/** Whether a session needs attention (permission, question, error, or waiting). */
+export function sessionNeedsAttention(id: string): boolean {
+  return (
+    id in store.sessionPermissions ||
+    id in store.sessionQuestions ||
+    id in store.sessionErrors
+  );
+}

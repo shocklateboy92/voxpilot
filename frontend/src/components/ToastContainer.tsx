@@ -6,7 +6,7 @@
 
 import X from "lucide-solid/icons/x";
 import { For } from "solid-js";
-import { setToasts, toasts } from "../store";
+import { setToasts, toasts } from "../toast";
 
 export function ToastContainer() {
   function dismiss(id: number) {

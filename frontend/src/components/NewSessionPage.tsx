@@ -11,23 +11,18 @@
 
 import ArrowUp from "lucide-solid/icons/arrow-up";
 import Plus from "lucide-solid/icons/plus";
-import { createSignal, For, onMount, Show } from "solid-js";
-import { createWorktree } from "../api-client";
-import { createSessionAndSend, navigateNext } from "../sessions";
 import {
-  extractErrorMessage,
-  projects,
-  refetchWorktrees,
-  rootSessions,
-  selectedAgent,
-  selectedProject,
-  selectedProjectDir,
-  selectedWorktreeDir,
-  setSelectedProjectDir,
-  setSelectedWorktreeDir,
-  showToast,
-  worktrees,
-} from "../store";
+  createMemo,
+  createResource,
+  createSignal,
+  For,
+  onMount,
+  Show,
+} from "solid-js";
+import { createWorktree, fetchWorktrees } from "../api-client";
+import { createSessionAndSend, navigateNext } from "../navigation";
+import { selectedAgent } from "../preferences";
+import { rootSessions, store } from "../store";
 import { AgentPicker } from "./AgentPicker";
 import { SwipeablePane } from "./SwipeablePane";
 
@@ -39,6 +34,31 @@ export function NewSessionPage() {
   const [sending, setSending] = createSignal(false);
   const [creatingWorktree, setCreatingWorktree] = createSignal(false);
   const [worktreeName, setWorktreeName] = createSignal("");
+
+  // Component-local project/worktree selection, initialized from the current project
+  const [selectedProjectDir, setSelectedProjectDir] = createSignal<
+    string | undefined
+  >(store.currentProject?.worktree);
+  const [selectedWorktreeDir, setSelectedWorktreeDir] = createSignal<
+    string | undefined
+  >(undefined);
+
+  // Derived: the full Project object for the selected directory
+  const selectedProject = createMemo(() => {
+    const dir = selectedProjectDir();
+    if (!dir) return undefined;
+    return store.projects.find((p) => p.worktree === dir);
+  });
+
+  // Fetch worktrees on demand — refetches when the selected git project changes
+  const worktreeSource = () => {
+    const project = selectedProject();
+    return project?.vcs === "git" ? project.worktree : undefined;
+  };
+  const [worktrees, { refetch: refetchWorktrees }] = createResource(
+    worktreeSource,
+    fetchWorktrees,
+  );
 
   /** Display name for a project — use name if available, otherwise last path segment. */
   function projectLabel(worktree: string, name?: string): string {
@@ -73,8 +93,6 @@ export function NewSessionPage() {
     setSending(true);
     try {
       await createSessionAndSend(value, selectedAgent(), directory);
-    } catch (err: unknown) {
-      showToast(extractErrorMessage(err));
     } finally {
       setSending(false);
     }
@@ -91,8 +109,6 @@ export function NewSessionPage() {
       await refetchWorktrees();
       setSelectedWorktreeDir(wt.directory);
       setWorktreeName("");
-    } catch (err: unknown) {
-      showToast(extractErrorMessage(err));
     } finally {
       setCreatingWorktree(false);
     }
@@ -128,7 +144,7 @@ export function NewSessionPage() {
         <div class="new-session-content">
           <h1 class="new-session-heading">New Chat</h1>
 
-          <Show when={projects().length > 1}>
+          <Show when={store.projects.length > 1}>
             <select
               class="project-select"
               value={selectedProjectDir() ?? ""}
@@ -138,7 +154,7 @@ export function NewSessionPage() {
               }}
               disabled={busy()}
             >
-              <For each={projects()}>
+              <For each={store.projects}>
                 {(project) => (
                   <option value={project.worktree}>
                     {projectLabel(project.worktree, project.name)}
@@ -159,10 +175,8 @@ export function NewSessionPage() {
                 disabled={busy()}
               >
                 <option value="">Main worktree</option>
-                <For each={worktrees()}>
-                  {(dir) => (
-                    <option value={dir}>{worktreeLabel(dir)}</option>
-                  )}
+                <For each={worktrees() ?? []}>
+                  {(dir) => <option value={dir}>{worktreeLabel(dir)}</option>}
                 </For>
               </select>
 

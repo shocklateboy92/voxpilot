@@ -8,8 +8,8 @@
 import type { TextPart, ToolPart } from "@opencode-ai/sdk/v2/client";
 import { For, Show } from "solid-js";
 import { renderMarkdown } from "../markdown";
-import type { MessageWithParts } from "../store";
-import { agents } from "../store";
+import type { MessageWithParts } from "../types";
+import { store } from "../store";
 import { ChangesetCard } from "./ChangesetCard";
 import { ToolPartBlock } from "./ToolPartBlock";
 
@@ -59,7 +59,7 @@ export function MessageBubble(props: Props) {
   const agentColor = () => {
     const name = agentName();
     if (!name) return undefined;
-    return agents().find((a) => a.name === name)?.color;
+    return store.agents.find((a) => a.name === name)?.color;
   };
 
   /** Whether this message is still being streamed (assistant, not yet completed). */

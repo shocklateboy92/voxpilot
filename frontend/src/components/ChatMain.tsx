@@ -11,15 +11,14 @@
 
 import ChevronDown from "lucide-solid/icons/chevron-down";
 import { createEffect, For, Show } from "solid-js";
+import { activeSessionId } from "../navigation";
 import { useScrollAnchor } from "../scroll-anchor";
 import {
-  activeSessionId,
   consumeScrollPosition,
-  errorMessage,
-  messages,
   pendingPermission,
   pendingQuestion,
   registerScrollTopGetter,
+  store,
 } from "../store";
 import { MessageBubble } from "./MessageBubble";
 import { QuestionBlock } from "./QuestionBlock";
@@ -74,8 +73,8 @@ export function ChatMain() {
   createEffect(() => {
     // Reactive dependencies: track message count & prompt state so we
     // re-run whenever content changes.
-    const len = messages.length;
-    errorMessage();
+    const len = store.messages.length;
+    store.errorMessage;
     pendingPermission();
     pendingQuestion();
 
@@ -113,7 +112,9 @@ export function ChatMain() {
 
   return (
     <div ref={contentRef} class="messages-content">
-      <For each={messages}>{(msg) => <MessageBubble msg={msg} />}</For>
+      <For each={store.messages}>
+        {(msg) => <MessageBubble msg={msg} />}
+      </For>
 
       {/* Permission prompt */}
       <Show when={pendingPermission()}>
@@ -126,7 +127,7 @@ export function ChatMain() {
       </Show>
 
       {/* Error display */}
-      <Show when={errorMessage()}>
+      <Show when={store.errorMessage}>
         {(msg) => <div class="message error">{msg()}</div>}
       </Show>
 

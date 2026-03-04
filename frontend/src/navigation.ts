@@ -1,11 +1,13 @@
 /**
- * Session orchestration.
+ * Session navigation — activeSessionId signal, URL hash sync,
+ * session switching, creation, deletion.
  *
- * Coordinates session switching, creation, deletion with
- * the store signals. Message loading and SSE streaming are
- * handled reactively by streaming.ts based on activeSessionId.
+ * Absorbs the old sessions.ts. Imports from store.ts for store
+ * access, scroll helpers, and derived state.
  */
 
+import { createEffect, createSignal } from "solid-js";
+import { produce } from "solid-js/store";
 import {
   createSession,
   deleteSession,
@@ -14,23 +16,61 @@ import {
 import {
   activeRootIndex,
   activeSession,
-  activeSessionId,
   clearScrollPosition,
   isNewSessionPage,
-  refetchSessions,
   rootSessions,
   saveCurrentScrollPosition,
-  sessions,
-  setActiveSessionId,
-  setErrorMessage,
-  setPickerOpen,
+  setStore,
+  store,
 } from "./store";
+
+// ── Active session ID ───────────────────────────────────────────
+
+/** ID of the currently active session. */
+export const [activeSessionId, setActiveSessionId] = createSignal<string | undefined>(
+  window.location.hash.slice(1) || undefined,
+);
+
+// Sync signal → URL hash
+createEffect(() => {
+  const id = activeSessionId();
+  if (id) {
+    history.replaceState(null, "", `#${id}`);
+  } else {
+    history.replaceState(null, "", window.location.pathname);
+  }
+});
+
+// Sync URL hash → signal (browser back/forward, manual edits)
+window.addEventListener("hashchange", () => {
+  const hash = window.location.hash.slice(1);
+  setActiveSessionId(hash || undefined);
+});
+
+// ── Session validation ──────────────────────────────────────────
+
+/**
+ * Reactive session validation: if activeSessionId points to a session
+ * that doesn't exist in the store, redirect to the new session page.
+ *
+ * With the spinner gate, sessions are always loaded before the UI renders,
+ * so no .loading guard is needed.
+ */
+createEffect(() => {
+  const id = activeSessionId();
+  if (id === undefined) return; // Already on new session page
+  if (!store.sessions.some((s) => s.id === id)) {
+    setActiveSessionId(undefined);
+  }
+});
+
+// ── Navigation helpers ──────────────────────────────────────────
 
 /**
  * Switch to the session at the given index.
  */
 export function switchToIndex(index: number): void {
-  const list = sessions();
+  const list = store.sessions;
   if (index < 0 || index >= list.length) return;
 
   const session = list[index];
@@ -42,14 +82,13 @@ export function switchToIndex(index: number): void {
 /**
  * Switch to a session by ID.
  * Updates the URL hash and resets error state.
- * The reactive effect in streaming.ts handles message loading and stream filtering.
  */
 export function switchToSession(sessionId: string): void {
   if (activeSessionId() === sessionId) return;
 
-  saveCurrentScrollPosition();
+  saveCurrentScrollPosition(activeSessionId());
   setActiveSessionId(sessionId);
-  setErrorMessage(null);
+  setStore("errorMessage", null);
 }
 
 /** Whether the active session is a child (sub-agent) with a parent to navigate to. */
@@ -57,7 +96,7 @@ function isChildSession(): boolean {
   return Boolean(activeSession()?.parentID);
 }
 
-/** Whether a swipe-next gesture has somewhere to go (toward older sessions, or from new session page to most recent). */
+/** Whether a swipe-next gesture has somewhere to go. */
 export function canNavigateNext(): boolean {
   if (isChildSession()) return true;
   if (isNewSessionPage()) return rootSessions().length > 0;
@@ -65,14 +104,14 @@ export function canNavigateNext(): boolean {
   return idx >= 0 && idx < rootSessions().length - 1;
 }
 
-/** Whether a swipe-prev gesture has somewhere to go (toward newer sessions / new session page). */
+/** Whether a swipe-prev gesture has somewhere to go. */
 export function canNavigatePrev(): boolean {
   if (isChildSession()) return true;
-  if (isNewSessionPage()) return false; // already at the leftmost position
-  return true; // can always swipe prev to the new session page or a newer session
+  if (isNewSessionPage()) return false;
+  return true;
 }
 
-/** Navigate to the next root session (toward older), or from the new session page to the most recent session. */
+/** Navigate to the next root session (toward older). */
 export function navigateNext(): void {
   if (isChildSession()) {
     const parentId = activeSession()?.parentID;
@@ -81,7 +120,6 @@ export function navigateNext(): void {
   }
   const roots = rootSessions();
   if (isNewSessionPage()) {
-    // From new session page → most recent session
     const first = roots[0];
     if (first) switchToSession(first.id);
     return;
@@ -95,14 +133,14 @@ export function navigateNext(): void {
   }
 }
 
-/** Navigate to the previous root session (toward newer) or the new session page, or to the parent if in a sub-agent session. */
+/** Navigate to the previous root session (toward newer) or new session page. */
 export function navigatePrev(): void {
   if (isChildSession()) {
     const parentId = activeSession()?.parentID;
     if (parentId) switchToSession(parentId);
     return;
   }
-  if (isNewSessionPage()) return; // already at the leftmost position
+  if (isNewSessionPage()) return;
   const roots = rootSessions();
   const idx = activeRootIndex();
   if (idx < 0) return;
@@ -111,7 +149,6 @@ export function navigatePrev(): void {
     const target = roots[prev];
     if (target) switchToSession(target.id);
   } else {
-    // Swipe prev from the most recent session → new session page
     navigateToNewSession();
   }
 }
@@ -123,19 +160,16 @@ export function handleNewSession(): void {
 
 /** Navigate to the new session page (clears active session). */
 export function navigateToNewSession(): void {
-  saveCurrentScrollPosition();
+  saveCurrentScrollPosition(activeSessionId());
   setActiveSessionId(undefined);
-  setErrorMessage(null);
+  setStore("errorMessage", null);
 }
+
+// ── Session lifecycle ───────────────────────────────────────────
 
 /**
  * Create a new session, send the first message, and switch to it.
- * Used by NewSessionPage when the user types their first message.
- *
- * Setting activeSessionId triggers the reactive message-loading effect
- * in streaming.ts — no explicit openStream needed.
- *
- * @param directory - Directory to create the session in (project root or worktree)
+ * Optimistically inserts the session into the store.
  */
 export async function createSessionAndSend(
   content: string,
@@ -143,7 +177,14 @@ export async function createSessionAndSend(
   directory?: string,
 ): Promise<void> {
   const session = await createSession(undefined, directory);
-  await refetchSessions();
+
+  // Optimistically insert the new session
+  setStore("sessions", produce((list) => {
+    if (list.some((s) => s.id === session.id)) return; // already exists
+    list.push(session);
+    list.sort((a, b) => b.time.updated - a.time.updated);
+  }));
+
   setActiveSessionId(session.id);
   await sendPromptAsync(session.id, content, agent, directory);
 }
@@ -151,14 +192,20 @@ export async function createSessionAndSend(
 /** Delete a session and adjust navigation. */
 export async function handleDeleteSession(sessionId: string): Promise<void> {
   // Look up the session's directory before deleting it
-  const session = sessions().find((s) => s.id === sessionId);
+  const session = store.sessions.find((s) => s.id === sessionId);
   await deleteSession(sessionId, session?.directory);
-  const list = (await refetchSessions()) ?? [];
+
+  // Remove from store synchronously
+  setStore("sessions", (prev) => prev.filter((s) => s.id !== sessionId));
+  setStore("sessionStatuses", produce((draft) => { delete draft[sessionId]; }));
+  setStore("sessionPermissions", produce((draft) => { delete draft[sessionId]; }));
+  setStore("sessionQuestions", produce((draft) => { delete draft[sessionId]; }));
+  setStore("sessionErrors", produce((draft) => { delete draft[sessionId]; }));
+
+  const list = store.sessions;
 
   if (list.length === 0) {
-    // No sessions left — show the new session page
     navigateToNewSession();
-    setPickerOpen(false);
     clearScrollPosition(sessionId);
     return;
   }
@@ -174,6 +221,5 @@ export async function handleDeleteSession(sessionId: string): Promise<void> {
     }
   }
 
-  setPickerOpen(false);
   clearScrollPosition(sessionId);
 }

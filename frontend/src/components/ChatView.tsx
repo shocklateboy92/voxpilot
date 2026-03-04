@@ -14,8 +14,8 @@ import {
   canNavigatePrev,
   navigateNext,
   navigatePrev,
-} from "../sessions";
-import { gitBranch, isNewSessionPage } from "../store";
+} from "../navigation";
+import { isNewSessionPage, store } from "../store";
 import { AgentPicker } from "./AgentPicker";
 import { BottomNav } from "./BottomNav";
 import {
@@ -28,7 +28,6 @@ import { ContentShell } from "./ContentShell";
 import { ContextUsageBar } from "./ContextUsageBar";
 import { NewSessionPage } from "./NewSessionPage";
 import { ReviewOverlay } from "./ReviewOverlay";
-import { SessionPicker } from "./SessionPicker";
 
 export function ChatView() {
   return (
@@ -37,7 +36,7 @@ export function ChatView() {
         <ContentShell
           statusBarLeft={
             <Show
-              when={gitBranch()}
+              when={store.gitBranch}
               fallback={<span class="status-bar-branch-placeholder" />}
             >
               {(branch) => (
@@ -63,7 +62,6 @@ export function ChatView() {
         </ContentShell>
       </Show>
       <BottomNav />
-      <SessionPicker />
       <ReviewOverlay />
     </main>
   );

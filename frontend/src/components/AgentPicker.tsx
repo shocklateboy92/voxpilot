@@ -6,13 +6,14 @@
  */
 
 import { For, Show } from "solid-js";
-import { agents, isStreaming, selectedAgent, setSelectedAgent } from "../store";
+import { selectedAgent, setSelectedAgent } from "../preferences";
+import { isStreaming, store } from "../store";
 
 export function AgentPicker() {
   return (
-    <Show when={agents().length > 1}>
+    <Show when={store.agents.length > 1}>
       <div class="agent-segmented">
-        <For each={agents()}>
+        <For each={store.agents}>
           {(agent) => (
             <button
               type="button"
