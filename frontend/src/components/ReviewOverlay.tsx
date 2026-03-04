@@ -8,9 +8,10 @@
  * 4. POST /api/review/ref-diff -> gets formatted HTML
  * 5. Renders HTML diff; resize re-renders at correct width
  *
- * Swipe navigation:
- * - Swipe left  → scroll to next change region, then next file
- * - Swipe right → scroll to prev change region, then prev file
+ * Swipe / keyboard navigation:
+ * - Swipe left  / PageDown → scroll to next change region, then next file
+ * - Swipe right / PageUp   → scroll to prev change region, then prev file
+ * - Escape closes the overlay
  * - Current change is highlighted with a left-border accent
  * - Status bar shows "change N of M" counter
  */
@@ -297,6 +298,27 @@ export function ReviewOverlay() {
   });
 
   // ---------------------------------------------------------------------------
+  // Keyboard navigation
+  // ---------------------------------------------------------------------------
+
+  function handleKeyDown(e: KeyboardEvent): void {
+    switch (e.key) {
+      case "PageDown":
+        e.preventDefault();
+        navigateNext();
+        break;
+      case "PageUp":
+        e.preventDefault();
+        navigatePrev();
+        break;
+      case "Escape":
+        e.preventDefault();
+        close();
+        break;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
 
   function close(): void {
     setReviewFile(null);
@@ -305,7 +327,7 @@ export function ReviewOverlay() {
   return (
     <Show when={reviewFile()}>
       {(req) => (
-        <div class="review-overlay" onClick={close}>
+        <div class="review-overlay" onClick={close} onKeyDown={handleKeyDown}>
           <div
             class="review-content"
             ref={containerRef}
