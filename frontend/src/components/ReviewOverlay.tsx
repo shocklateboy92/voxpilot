@@ -22,11 +22,13 @@ import {
   createMemo,
   createResource,
   createSignal,
+  ErrorBoundary,
   onCleanup,
   Show,
 } from "solid-js";
 import { rpc } from "../rpc";
 import { ContentShell } from "./ContentShell";
+import { LoadingSpinner } from "./LoadingSpinner";
 
 /** What the overlay needs to display a single file diff. */
 export interface ReviewRequest {
@@ -362,25 +364,21 @@ export function ReviewOverlay() {
               paneClass="review-pane"
               onSend={close}
             >
-              <Show when={diffHtml.loading}>
-                <div class="review-loading">Formatting...</div>
-              </Show>
-              <Show when={diffHtml.error}>
-                {(err) => (
+              <ErrorBoundary
+                fallback={(err) => (
                   <div class="review-diff-container">
                     <div class="error">
                       Error:{" "}
-                      {err() instanceof Error ? err().message : "Unknown error"}
+                      {err instanceof Error ? err.message : "Unknown error"}
                     </div>
                   </div>
                 )}
-              </Show>
-              <Show when={diffHtml()}>
-                {(html) => (
-                  // eslint-disable-next-line solid/no-innerhtml -- intentional: server-rendered diff HTML
-                  <div class="review-diff-container" innerHTML={html()} />
-                )}
-              </Show>
+              >
+                <LoadingSpinner>
+                  {/* eslint-disable-next-line solid/no-innerhtml -- intentional: server-rendered diff HTML */}
+                  <div class="review-diff-container" innerHTML={diffHtml() ?? ""} />
+                </LoadingSpinner>
+              </ErrorBoundary>
             </ContentShell>
           </div>
         </div>

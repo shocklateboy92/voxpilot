@@ -47,7 +47,7 @@ export function ChangesetCard(props: Props) {
     const data = await res.json();
     if ("error" in data) return null;
     return data;
-  });
+  }, { initialValue: null });
 
   function openFile(filePath: string): void {
     const c = cache();

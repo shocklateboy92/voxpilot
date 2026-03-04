@@ -25,7 +25,7 @@ export function ContextUsageBar() {
   const [providers] = createResource(async () => {
     const result = await client.provider.list();
     return result.data;
-  });
+  }, { initialValue: undefined });
 
   const context = createMemo(() => {
     let lastAssistant: AssistantMessage | undefined;

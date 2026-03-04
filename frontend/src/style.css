@@ -1268,14 +1268,6 @@ h1 {
   text-align: left;
 }
 
-.review-loading {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-muted);
-  font-family: var(--font-mono);
-}
 
 .review-content {
   display: flex;
@@ -1638,4 +1630,15 @@ h1 {
   border-top-color: var(--color-text);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
+}
+
+.spinner-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+}
+
+.spinner-fallback--fullscreen {
+  min-height: 100dvh;
 }

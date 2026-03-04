@@ -58,6 +58,7 @@ export function NewSessionPage() {
   const [worktrees, { refetch: refetchWorktrees }] = createResource(
     worktreeSource,
     fetchWorktrees,
+    { initialValue: [] },
   );
 
   /** Display name for a project — use name if available, otherwise last path segment. */
@@ -175,7 +176,7 @@ export function NewSessionPage() {
                 disabled={busy()}
               >
                 <option value="">Main worktree</option>
-                <For each={worktrees() ?? []}>
+                <For each={worktrees()}>
                   {(dir) => <option value={dir}>{worktreeLabel(dir)}</option>}
                 </For>
               </select>
