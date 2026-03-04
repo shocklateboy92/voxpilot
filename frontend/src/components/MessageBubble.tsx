@@ -95,6 +95,7 @@ export function MessageBubble(props: Props) {
         </span>
       </Show>
       <Show when={role() === "assistant" && textContent()}>
+        {/* eslint-disable-next-line solid/no-innerhtml -- intentional: markdown renderer produces trusted HTML */}
         <div class="markdown-body" ref={guardScrollWrappers} innerHTML={renderMarkdown(textContent())} />
       </Show>
       <Show when={role() === "user" && textContent()}>

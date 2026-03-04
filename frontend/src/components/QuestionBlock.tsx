@@ -15,13 +15,10 @@ interface Props {
 }
 
 export function QuestionBlock(props: Props) {
-  // One answers array per question (each is an array of selected labels)
-  const [answers, setAnswers] = createSignal<QuestionAnswer[]>(
-    Array(props.request.questions.length).fill([]),
-  );
-  const [customInputs, setCustomInputs] = createSignal(
-    Array(props.request.questions.length).fill(""),
-  );
+  // Per-question answers (each entry is an array of selected labels).
+  // Starts empty; entries are created on demand via toggleOption/setCustom.
+  const [answers, setAnswers] = createSignal<QuestionAnswer[]>([]);
+  const [customInputs, setCustomInputs] = createSignal<string[]>([]);
 
   function toggleOption(qIndex: number, label: string): void {
     const q = props.request.questions[qIndex];
@@ -115,7 +112,7 @@ export function QuestionBlock(props: Props) {
                 class="question-custom-input"
                 type="text"
                 placeholder="Or type a custom answer…"
-                value={customInputs()[qIndex()]}
+                value={customInputs()[qIndex()] ?? ""}
                 onInput={(e) => setCustom(qIndex(), e.currentTarget.value)}
               />
             </Show>

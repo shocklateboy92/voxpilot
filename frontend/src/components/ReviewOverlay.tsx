@@ -355,6 +355,7 @@ export function ReviewOverlay() {
               </Show>
               <Show when={diffHtml()}>
                 {(html) => (
+                  // eslint-disable-next-line solid/no-innerhtml -- intentional: server-rendered diff HTML
                   <div class="review-diff-container" innerHTML={html()} />
                 )}
               </Show>

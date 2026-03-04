@@ -121,7 +121,7 @@ export function SwipeablePane(props: SwipeablePaneProps) {
           transition: animateSnap() ? "transform 200ms ease-out" : "none",
         }}
         onTransitionEnd={handleTransitionEnd}
-        onScroll={props.onScroll}
+        onScroll={(e) => props.onScroll?.(e)}
       >
         {props.children}
       </div>

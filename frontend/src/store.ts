@@ -200,10 +200,15 @@ export const [toasts, setToasts] = createSignal<Toast[]>([]);
 // ── Agent/mode state ─────────────────────────────────────────────
 
 /** Available agents fetched from OpenCode (primary agents only). */
-export const [agents] = createResource(async () => {
-  const all = await fetchAgents();
-  return all.filter(a => (a.mode === "primary" || a.mode === "all") && !a.hidden);
-}, { initialValue: [] });
+export const [agents] = createResource(
+  // Source signal so the async fetcher is the 2nd arg (not a tracked scope).
+  () => true as const,
+  async () => {
+    const all = await fetchAgents();
+    return all.filter(a => (a.mode === "primary" || a.mode === "all") && !a.hidden);
+  },
+  { initialValue: [] },
+);
 
 const AGENT_STORAGE_KEY = "voxpilot-selected-agent";
 
