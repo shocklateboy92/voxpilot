@@ -3,7 +3,7 @@
  * session switching, creation, deletion.
  *
  * Absorbs the old sessions.ts. Imports from store.ts for store
- * access, scroll helpers, and derived state.
+ * access and derived state.
  */
 
 import { createEffect, createSignal } from "solid-js";
@@ -16,10 +16,8 @@ import {
 import {
   activeRootIndex,
   activeSession,
-  clearScrollPosition,
   isNewSessionPage,
   rootSessions,
-  saveCurrentScrollPosition,
   setStore,
   store,
 } from "./store";
@@ -86,7 +84,6 @@ export function switchToIndex(index: number): void {
 export function switchToSession(sessionId: string): void {
   if (activeSessionId() === sessionId) return;
 
-  saveCurrentScrollPosition(activeSessionId());
   setActiveSessionId(sessionId);
   setStore("errorMessage", null);
 }
@@ -160,7 +157,6 @@ export function handleNewSession(): void {
 
 /** Navigate to the new session page (clears active session). */
 export function navigateToNewSession(): void {
-  saveCurrentScrollPosition(activeSessionId());
   setActiveSessionId(undefined);
   setStore("errorMessage", null);
 }
@@ -206,7 +202,6 @@ export async function handleDeleteSession(sessionId: string): Promise<void> {
 
   if (list.length === 0) {
     navigateToNewSession();
-    clearScrollPosition(sessionId);
     return;
   }
 
@@ -220,6 +215,4 @@ export async function handleDeleteSession(sessionId: string): Promise<void> {
       switchToSession(target.id);
     }
   }
-
-  clearScrollPosition(sessionId);
 }

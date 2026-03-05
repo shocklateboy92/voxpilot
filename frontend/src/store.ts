@@ -109,48 +109,6 @@ export function upsertPart(part: SdkPart): void {
   }
 }
 
-// ── Scroll position persistence ──────────────────────────────────
-
-interface SavedScrollState {
-  scrollTop: number;
-  atBottom: boolean;
-}
-
-const scrollPositions = new Map<string, SavedScrollState>();
-
-/**
- * Callback that returns the current scrollTop of the messages container.
- * Registered by ChatMain on mount — keeps the store decoupled from the DOM.
- */
-let scrollTopGetter: (() => { scrollTop: number; atBottom: boolean }) | undefined;
-
-/** ChatMain calls this on mount to provide a loose read-only hook into scroll state. */
-export function registerScrollTopGetter(
-  getter: () => { scrollTop: number; atBottom: boolean },
-): void {
-  scrollTopGetter = getter;
-}
-
-/** Save the current scroll position for a session (called before switching). */
-export function saveCurrentScrollPosition(sessionId: string | undefined): void {
-  if (!sessionId || !scrollTopGetter) return;
-  scrollPositions.set(sessionId, scrollTopGetter());
-}
-
-/** Consume (read + delete) a saved scroll state for a session. Returns undefined if none saved. */
-export function consumeScrollPosition(
-  sessionId: string,
-): SavedScrollState | undefined {
-  const state = scrollPositions.get(sessionId);
-  if (state !== undefined) scrollPositions.delete(sessionId);
-  return state;
-}
-
-/** Remove saved scroll state for a deleted session. */
-export function clearScrollPosition(sessionId: string): void {
-  scrollPositions.delete(sessionId);
-}
-
 // ── Derived accessors ───────────────────────────────────────────
 // These import activeSessionId from navigation.ts. The circular
 // dependency (navigation.ts also imports from store.ts) is safe

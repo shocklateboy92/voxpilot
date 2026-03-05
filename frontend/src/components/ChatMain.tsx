@@ -7,6 +7,10 @@
  *
  * The scroll-to-bottom button is exported as `ChatScrollButton` for
  * ContentShell's overlay slot.
+ *
+ * Scroll-position persistence across session switches is handled entirely
+ * within this module via a single effect that tracks both activeSessionId
+ * and store.messages — restoring scroll only after messages have loaded.
  */
 
 import ChevronDown from "lucide-solid/icons/chevron-down";
@@ -14,10 +18,8 @@ import { createEffect, For, Show } from "solid-js";
 import { activeSessionId } from "../navigation";
 import { useScrollAnchor } from "../scroll-anchor";
 import {
-  consumeScrollPosition,
   pendingPermission,
   pendingQuestion,
-  registerScrollTopGetter,
   store,
 } from "../store";
 import { MessageBubble } from "./MessageBubble";
@@ -39,16 +41,12 @@ let paneElRef: HTMLDivElement | undefined;
 
 /**
  * Thin wrapper around anchor.onPaneMount that also captures the element
- * for scroll-position restore and registers the scroll-top getter.
+ * for scroll-position restore.
  * Pass to ContentShell's `onPaneMount`.
  */
 export function chatPaneMount(el: HTMLDivElement): void {
   paneElRef = el;
   anchor.onPaneMount(el);
-  registerScrollTopGetter(() => ({
-    scrollTop: el.scrollTop,
-    atBottom: anchor.isAtBottom(),
-  }));
 }
 
 /** Floating scroll-to-bottom button — render in ContentShell's overlay slot. */
@@ -66,41 +64,84 @@ export function ChatScrollButton() {
   );
 }
 
+// ── Scroll position persistence ──────────────────────────────────
+
+interface SavedScrollState {
+  scrollTop: number;
+  atBottom: boolean;
+}
+
+const scrollPositions = new Map<string, SavedScrollState>();
+
+function saveScrollPosition(sessionId: string | undefined): void {
+  if (!sessionId || !paneElRef) return;
+  scrollPositions.set(sessionId, {
+    scrollTop: paneElRef.scrollTop,
+    atBottom: anchor.isAtBottom(),
+  });
+}
+
+function consumeScrollPosition(
+  sessionId: string,
+): SavedScrollState | undefined {
+  const state = scrollPositions.get(sessionId);
+  if (state !== undefined) scrollPositions.delete(sessionId);
+  return state;
+}
+
 export function ChatMain() {
   let contentRef: HTMLDivElement | undefined;
 
-  // Auto-scroll / restore when messages change or session switches.
+  // ── Scroll position save/restore across session switches ──────
+  //
+  // Merged into a single effect that tracks both activeSessionId()
+  // and store.messages reactively.
+  //
+  // When the session changes: save old position, prepare restore,
+  // but return early — messages haven't loaded yet.
+  //
+  // When messages update for the current session and a restore is
+  // pending: perform the restore against the correct DOM content.
+  //
+  // Auto-scroll on content growth is NOT handled here — the
+  // ResizeObserver in useScrollAnchor already does that.
+
+  let prevSessionId: string | undefined;
+  let pendingRestore: SavedScrollState | undefined;
+  let restorePending = false;
+
   createEffect(() => {
-    // Reactive dependencies: track message count & prompt state so we
-    // re-run whenever content changes.
-    const len = store.messages.length;
-    store.errorMessage;
-    pendingPermission();
-    pendingQuestion();
-
-    if (anchor.suppressed()) return;
-
     const id = activeSessionId();
-    if (id && len > 0) {
-      const saved = consumeScrollPosition(id);
-      if (saved !== undefined) {
-        if (saved.atBottom) {
-          anchor.scrollToBottomInstant();
-        } else {
-          anchor.setSuppressed(true);
-          const top = saved.scrollTop;
-          requestAnimationFrame(() => {
-            paneElRef?.scrollTo({ top, behavior: "instant" });
-            anchor.setSuppressed(false);
-          });
-        }
-        return;
-      }
+    store.messages.length; // reactive dep — re-run when messages are replaced
+
+    if (id !== prevSessionId) {
+      // Session changed — save old position, prepare restore
+      saveScrollPosition(prevSessionId);
+      // Clear any in-progress restore from a previous switch
+      anchor.clearRestoreTarget();
+      pendingRestore = id ? consumeScrollPosition(id) : undefined;
+      restorePending = true;
+      prevSessionId = id;
+      return;
     }
 
-    if (anchor.isAtBottom()) {
-      anchor.scrollToBottomInstant();
+    // Same session, messages updated — restore if pending
+    if (!restorePending) return;
+    restorePending = false;
+
+    if (pendingRestore) {
+      const saved = pendingRestore;
+      pendingRestore = undefined;
+      if (!saved.atBottom) {
+        // Set the restore target — the ResizeObserver will keep scrolling
+        // to this position on every content growth until the DOM is tall
+        // enough to reach it.
+        anchor.setRestoreTarget(saved.scrollTop);
+      }
+      // If saved.atBottom: no action needed — isAtBottom starts true,
+      // so the ResizeObserver will keep it pinned as content renders.
     }
+    // No saved position → default is at bottom (isAtBottom starts true).
   });
 
   // Wire up the content element for the ResizeObserver once mounted.

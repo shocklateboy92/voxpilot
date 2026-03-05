@@ -25,10 +25,11 @@ import {
   ErrorBoundary,
   onCleanup,
   Show,
+  Suspense,
 } from "solid-js";
 import { rpc } from "../rpc";
 import { ContentShell } from "./ContentShell";
-import { LoadingSpinner } from "./LoadingSpinner";
+import { Spinner } from "./Spinner";
 
 /** What the overlay needs to display a single file diff. */
 export interface ReviewRequest {
@@ -374,10 +375,10 @@ export function ReviewOverlay() {
                   </div>
                 )}
               >
-                <LoadingSpinner>
+                <Suspense fallback={<Spinner />}>
                   {/* eslint-disable-next-line solid/no-innerhtml -- intentional: server-rendered diff HTML */}
                   <div class="review-diff-container" innerHTML={diffHtml() ?? ""} />
-                </LoadingSpinner>
+                </Suspense>
               </ErrorBoundary>
             </ContentShell>
           </div>

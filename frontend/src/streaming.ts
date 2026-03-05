@@ -24,7 +24,6 @@ import { createEffect } from "solid-js";
 import { produce } from "solid-js/store";
 import {
   activeSession,
-  clearScrollPosition,
   ensureAssistantMessage,
   replaceMessages,
   setStore,
@@ -188,7 +187,6 @@ function handleEvent(event: Event): void {
       setStore("sessionPermissions", produce((draft) => { delete draft[info.id]; }));
       setStore("sessionQuestions", produce((draft) => { delete draft[info.id]; }));
       setStore("sessionErrors", produce((draft) => { delete draft[info.id]; }));
-      clearScrollPosition(info.id);
       break;
     }
 

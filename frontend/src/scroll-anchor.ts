@@ -47,21 +47,27 @@ export interface ScrollAnchor {
   observeContent: (el: HTMLElement) => void;
 
   /**
-   * Suppress auto-scrolling temporarily (e.g. during scroll position restore).
-   * When suppressed, content growth will not trigger auto-scroll.
+   * Set a scroll-position restore target. While set, the ResizeObserver
+   * scrolls to this position (instead of bottom) on every content growth,
+   * until scrollHeight is large enough to reach the target. Once reached,
+   * the target is cleared automatically.
+   *
+   * This solves the race between scroll restore and incremental DOM
+   * rendering — the ResizeObserver keeps retrying until the full content
+   * is laid out.
    */
-  setSuppressed: (value: boolean) => void;
+  setRestoreTarget: (scrollTop: number) => void;
 
-  /** Whether auto-scroll is currently suppressed. */
-  suppressed: Accessor<boolean>;
+  /** Clear any pending restore target (e.g. if the session changes again). */
+  clearRestoreTarget: () => void;
 }
 
 export function useScrollAnchor(): ScrollAnchor {
   const [paneEl, setPaneEl] = createSignal<HTMLDivElement | undefined>();
   const [isAtBottom, setIsAtBottom] = createSignal(true);
-  const [suppressed, setSuppressed] = createSignal(false);
 
   let contentEl: HTMLElement | undefined;
+  let restoreTarget: number | null = null;
 
   function checkAtBottom(el: HTMLElement): boolean {
     return (
@@ -94,17 +100,41 @@ export function useScrollAnchor(): ScrollAnchor {
     el?.scrollTo({ top: el.scrollHeight, behavior: "instant" });
   }
 
-  // Auto-scroll when content height grows while pinned to bottom.
+  function setRestoreTarget(scrollTop: number): void {
+    restoreTarget = scrollTop;
+  }
+
+  function clearRestoreTarget(): void {
+    restoreTarget = null;
+  }
+
+  // Auto-scroll when content height grows while pinned to bottom,
+  // OR scroll to a restore target if one is pending.
   createEffect(() => {
     const el = paneEl();
     if (!el || !contentEl) return;
 
     let lastScrollHeight = el.scrollHeight;
     const observer = new ResizeObserver(() => {
-      if (suppressed()) return;
       const grew = el.scrollHeight > lastScrollHeight;
       lastScrollHeight = el.scrollHeight;
-      if (grew && isAtBottom()) {
+
+      if (!grew) return;
+
+      if (restoreTarget !== null) {
+        // Keep scrolling to the restore target on every growth until
+        // scrollHeight is large enough to actually reach it.
+        el.scrollTo({ top: restoreTarget, behavior: "instant" });
+        if (el.scrollHeight >= restoreTarget + el.clientHeight) {
+          // Content is tall enough — target is reachable, we're done.
+          restoreTarget = null;
+        }
+        // Update isAtBottom after restore scroll
+        setIsAtBottom(checkAtBottom(el));
+        return;
+      }
+
+      if (isAtBottom()) {
         el.scrollTo({ top: el.scrollHeight, behavior: "instant" });
       }
     });
@@ -120,7 +150,7 @@ export function useScrollAnchor(): ScrollAnchor {
     onScroll,
     onPaneMount,
     observeContent,
-    setSuppressed,
-    suppressed,
+    setRestoreTarget,
+    clearRestoreTarget,
   };
 }
