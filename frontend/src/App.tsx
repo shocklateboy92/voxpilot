@@ -1,20 +1,15 @@
 /**
  * Root application component.
  *
- * This module is lazy-loaded by index.tsx. By the time it executes,
- * store.ts has already completed its top-level await (init), so
- * the store is fully populated. We just need to start SSE streaming
- * and render the app shell.
+ * This module is dynamically imported by index.tsx. By the time it executes,
+ * store.ts has completed its top-level await (init) and all module-scope
+ * side effects in the import graph (including streaming.ts's SSE listener)
+ * have activated.
  */
 
 import { ErrorBoundary } from "solid-js";
 import { ChatView } from "./components/ChatView";
 import { ToastContainer } from "./components/ToastContainer";
-import { startStreaming } from "./streaming";
-
-// Activate SSE listener + reactive message loading.
-// The store is guaranteed to exist (store.ts TLA completed before this module loaded).
-startStreaming();
 
 export default function App() {
   return (

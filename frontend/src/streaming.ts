@@ -4,8 +4,9 @@
  * Bridges the OpenCode global event stream to SolidJS store with
  * requestAnimationFrame batching on the hot path (text parts).
  *
- * Call `startStreaming()` after the store is populated (from App.tsx)
- * to register the SSE listener and activate reactive message loading.
+ * SSE subscription and reactive message loading activate at module scope.
+ * store.ts uses top-level await, so ES module semantics guarantee the
+ * store is populated before this module's body executes.
  */
 
 import type { TextPart } from "@opencode-ai/sdk/v2/client";
@@ -265,47 +266,47 @@ function handleEvent(event: Event): void {
 }
 
 // ── Reactive message loading + SSE subscription ────────────────
-// Activated by startStreaming() after the store is populated.
+// store.ts uses top-level await, and this module imports from store.ts,
+// so ES module semantics guarantee the store is fully populated by the
+// time this module-level code executes.
 
-export function startStreaming(): void {
-  // Loads/clears messages when `activeSessionId` changes.
-  createEffect(() => {
-    const sid = activeSessionId();
+// Loads/clears messages when `activeSessionId` changes.
+createEffect(() => {
+  const sid = activeSessionId();
 
-    // Reset streaming state on every switch
-    stopRafLoop();
-    pendingTextPart = null;
-    updatedPartIds.clear();
-    setStore("sessionError", false);
-    setStore("errorMessage", null);
+  // Reset streaming state on every switch
+  stopRafLoop();
+  pendingTextPart = null;
+  updatedPartIds.clear();
+  setStore("sessionError", false);
+  setStore("errorMessage", null);
 
-    if (sid) {
-      const dir = activeSession()?.directory;
-      void fetchMessages(sid, dir).then((msgs) => {
-        if (activeSessionId() === sid) replaceMessages(msgs);
-      });
-      // Fetch git branch for the new session's directory
-      void fetchGitBranch(dir).then((branch) => {
-        if (activeSessionId() === sid) {
-          setStore("gitBranch", branch);
-        }
-      });
-    } else {
-      replaceMessages([]);
-      setStore("gitBranch", null);
-    }
-  });
-
-  // Global SSE subscription
-  if (import.meta.hot) {
-    import.meta.hot.dispose(() => {
-      removeEventListener(handleEvent);
-      stopRafLoop();
+  if (sid) {
+    const dir = activeSession()?.directory;
+    void fetchMessages(sid, dir).then((msgs) => {
+      if (activeSessionId() === sid) replaceMessages(msgs);
     });
+    // Fetch git branch for the new session's directory
+    void fetchGitBranch(dir).then((branch) => {
+      if (activeSessionId() === sid) {
+        setStore("gitBranch", branch);
+      }
+    });
+  } else {
+    replaceMessages([]);
+    setStore("gitBranch", null);
   }
+});
 
-  addEventListener(handleEvent);
+// Global SSE subscription
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    removeEventListener(handleEvent);
+    stopRafLoop();
+  });
 }
+
+addEventListener(handleEvent);
 
 // ── Exported action functions ───────────────────────────────────
 
