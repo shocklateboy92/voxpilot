@@ -20,6 +20,7 @@ export function QuestionBlock(props: Props) {
   // Starts empty; entries are created on demand via toggleOption/setCustom.
   const [answers, setAnswers] = createSignal<QuestionAnswer[]>([]);
   const [customInputs, setCustomInputs] = createSignal<string[]>([]);
+  const [submitting, setSubmitting] = createSignal(false);
 
   function toggleOption(qIndex: number, label: string): void {
     const q = props.request.questions[qIndex];
@@ -61,20 +62,24 @@ export function QuestionBlock(props: Props) {
   }
 
   async function handleSubmit(): Promise<void> {
+    setSubmitting(true);
     try {
       const dir = activeSession()?.directory;
       await replyToQuestion(props.request.id, answers(), dir);
     } catch (err: unknown) {
+      setSubmitting(false);
       const msg = err instanceof Error ? err.message : "Unknown error";
       setStore("errorMessage", `Question error: ${msg}`);
     }
   }
 
   async function handleReject(): Promise<void> {
+    setSubmitting(true);
     try {
       const dir = activeSession()?.directory;
       await rejectQuestion(props.request.id, dir);
     } catch (err: unknown) {
+      setSubmitting(false);
       const msg = err instanceof Error ? err.message : "Unknown error";
       setStore("errorMessage", `Question error: ${msg}`);
     }
@@ -100,6 +105,7 @@ export function QuestionBlock(props: Props) {
                       type="button"
                       class={`question-option${selected() ? " selected" : ""}`}
                       title={opt.description}
+                      disabled={submitting()}
                       onClick={() => toggleOption(qIndex(), opt.label)}
                     >
                       {opt.label}
@@ -114,6 +120,7 @@ export function QuestionBlock(props: Props) {
                 type="text"
                 placeholder="Or type a custom answer…"
                 value={customInputs()[qIndex()] ?? ""}
+                disabled={submitting()}
                 onInput={(e) => setCustom(qIndex(), e.currentTarget.value)}
               />
             </Show>
@@ -124,7 +131,7 @@ export function QuestionBlock(props: Props) {
         <button
           type="button"
           class="btn btn-success btn-sm"
-          disabled={!allAnswered()}
+          disabled={!allAnswered() || submitting()}
           onClick={() => void handleSubmit()}
         >
           Submit
@@ -132,6 +139,7 @@ export function QuestionBlock(props: Props) {
         <button
           type="button"
           class="btn btn-danger btn-sm"
+          disabled={submitting()}
           onClick={() => void handleReject()}
         >
           Reject

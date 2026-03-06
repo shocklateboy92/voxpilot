@@ -5,11 +5,13 @@
  * to populate createStore() before any consumer module executes.
  */
 
-import type { Project, Session } from "./api-client";
+import type { PermissionRequest, Project, QuestionRequest, Session } from "./api-client";
 import {
   client,
   fetchAgents,
   fetchCurrentProject,
+  fetchPendingPermissions,
+  fetchPendingQuestions,
   fetchProjects,
 } from "./api-client";
 import type { AppState } from "./types";
@@ -42,6 +44,42 @@ async function fetchAllSessions(projects: Project[]): Promise<Session[]> {
   return unique;
 }
 
+/**
+ * Fetch all pending permissions across all projects.
+ * Returns a Record keyed by sessionID (at most one per session).
+ */
+async function fetchAllPendingPermissions(
+  projects: Project[],
+): Promise<Record<string, PermissionRequest>> {
+  const perms = (
+    await Promise.all(projects.map((p) => fetchPendingPermissions(p.worktree)))
+  ).flat();
+
+  const map: Record<string, PermissionRequest> = {};
+  for (const perm of perms) {
+    map[perm.sessionID] = perm;
+  }
+  return map;
+}
+
+/**
+ * Fetch all pending questions across all projects.
+ * Returns a Record keyed by sessionID (at most one per session).
+ */
+async function fetchAllPendingQuestions(
+  projects: Project[],
+): Promise<Record<string, QuestionRequest>> {
+  const questions = (
+    await Promise.all(projects.map((p) => fetchPendingQuestions(p.worktree)))
+  ).flat();
+
+  const map: Record<string, QuestionRequest> = {};
+  for (const q of questions) {
+    map[q.sessionID] = q;
+  }
+  return map;
+}
+
 export async function init(): Promise<AppState> {
   // Fetch all bootstrap data in parallel
   const [projectList, current, agentList] = await Promise.all([
@@ -50,8 +88,12 @@ export async function init(): Promise<AppState> {
     fetchAgents(),
   ]);
 
-  // Sessions depend on projects (multi-project aggregation)
-  const sessionList = await fetchAllSessions(projectList);
+  // Sessions and pending prompts depend on projects (multi-project aggregation)
+  const [sessionList, sessionPermissions, sessionQuestions] = await Promise.all([
+    fetchAllSessions(projectList),
+    fetchAllPendingPermissions(projectList),
+    fetchAllPendingQuestions(projectList),
+  ]);
 
   return {
     sessions: sessionList,
@@ -65,8 +107,8 @@ export async function init(): Promise<AppState> {
     sessionError: false,
     errorMessage: null,
     sessionStatuses: {},
-    sessionPermissions: {},
-    sessionQuestions: {},
+    sessionPermissions,
+    sessionQuestions,
     sessionErrors: {},
   };
 }
