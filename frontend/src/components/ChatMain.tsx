@@ -15,13 +15,9 @@
 
 import ChevronDown from "lucide-solid/icons/chevron-down";
 import { createEffect, For, Show } from "solid-js";
-import { activeSessionId } from "../navigation";
+import { activeSessionId, pendingPermission, pendingQuestion } from "../navigation";
 import { useScrollAnchor } from "../scroll-anchor";
-import {
-  pendingPermission,
-  pendingQuestion,
-  store,
-} from "../store";
+import { store } from "../store";
 import { MessageBubble } from "./MessageBubble";
 import { QuestionBlock } from "./QuestionBlock";
 import { ToolConfirmBlock } from "./ToolConfirmBlock";

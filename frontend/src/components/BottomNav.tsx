@@ -4,8 +4,7 @@
 
 import { createSignal, Show } from "solid-js";
 import Plus from "lucide-solid/icons/plus";
-import { handleNewSession } from "../navigation";
-import { activeSession, isNewSessionPage } from "../store";
+import { activeSession, handleNewSession, isNewSessionPage } from "../navigation";
 import { SessionPicker } from "./SessionPicker";
 
 export function BottomNav() {

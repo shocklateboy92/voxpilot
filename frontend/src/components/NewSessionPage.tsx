@@ -20,9 +20,9 @@ import {
   Show,
 } from "solid-js";
 import { createWorktree, fetchWorktrees } from "../api-client";
-import { createSessionAndSend, navigateNext } from "../navigation";
+import { createSessionAndSend, navigateNext, rootSessions } from "../navigation";
 import { selectedAgent } from "../preferences";
-import { rootSessions, store } from "../store";
+import { store } from "../store";
 import { AgentPicker } from "./AgentPicker";
 import { SwipeablePane } from "./SwipeablePane";
 

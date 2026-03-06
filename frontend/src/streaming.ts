@@ -23,13 +23,12 @@ import type { Message } from "@opencode-ai/sdk/v2/client";
 import { createEffect } from "solid-js";
 import { produce } from "solid-js/store";
 import {
-  activeSession,
   ensureAssistantMessage,
   replaceMessages,
   setStore,
   upsertPart,
 } from "./store";
-import { activeSessionId } from "./navigation";
+import { activeSession, activeSessionId } from "./navigation";
 import { selectedAgent } from "./preferences";
 import { extractErrorMessage, showToast } from "./toast";
 

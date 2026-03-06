@@ -8,7 +8,8 @@ import type {
 } from "@opencode-ai/sdk/v2/client";
 import { createSignal, For, Show } from "solid-js";
 import { rejectQuestion, replyToQuestion } from "../api-client";
-import { activeSession, setStore } from "../store";
+import { activeSession } from "../navigation";
+import { setStore } from "../store";
 
 interface Props {
   request: QuestionRequest;

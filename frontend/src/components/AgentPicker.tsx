@@ -7,7 +7,8 @@
 
 import { For, Show } from "solid-js";
 import { selectedAgent, setSelectedAgent } from "../preferences";
-import { isStreaming, store } from "../store";
+import { isStreaming } from "../navigation";
+import { store } from "../store";
 
 export function AgentPicker() {
   return (

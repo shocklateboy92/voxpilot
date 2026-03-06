@@ -12,10 +12,11 @@ import { Show } from "solid-js";
 import {
   canNavigateNext,
   canNavigatePrev,
+  isNewSessionPage,
   navigateNext,
   navigatePrev,
 } from "../navigation";
-import { isNewSessionPage, store } from "../store";
+import { store } from "../store";
 import { AgentPicker } from "./AgentPicker";
 import { BottomNav } from "./BottomNav";
 import {

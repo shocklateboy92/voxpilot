@@ -1,9 +1,7 @@
 /**
  * Session navigation — activeSessionId signal, URL hash sync,
- * session switching, creation, deletion.
- *
- * Absorbs the old sessions.ts. Imports from store.ts for store
- * access and derived state.
+ * session switching, creation, deletion, and derived accessors
+ * that depend on activeSessionId.
  */
 
 import { createEffect, createSignal } from "solid-js";
@@ -13,14 +11,7 @@ import {
   deleteSession,
   sendPromptAsync,
 } from "./api-client";
-import {
-  activeRootIndex,
-  activeSession,
-  isNewSessionPage,
-  rootSessions,
-  setStore,
-  store,
-} from "./store";
+import { setStore, store } from "./store";
 
 // ── Active session ID ───────────────────────────────────────────
 
@@ -61,6 +52,77 @@ createEffect(() => {
     setActiveSessionId(undefined);
   }
 });
+
+// ── Derived accessors ───────────────────────────────────────────
+// These combine activeSessionId with store data. They live here
+// (rather than store.ts) to keep the dependency one-way:
+// navigation.ts → store.ts (no circular imports).
+
+/** The currently active session summary, or undefined. */
+export const activeSession = () => {
+  const id = activeSessionId();
+  return store.sessions.find((s) => s.id === id);
+};
+
+/** Top-level (root) sessions only — sessions without a parentID. */
+export const rootSessions = () => {
+  return store.sessions.filter((s) => !s.parentID);
+};
+
+/** Whether we're on the "new session" page (no active session selected). */
+export const isNewSessionPage = () => activeSessionId() === undefined;
+
+/**
+ * Index of the active session within rootSessions(), or -1 if on the new session page.
+ * Layout: [new session page (-1)] [0: most recent] [1] ... [N-1: oldest]
+ */
+export const activeRootIndex = () => {
+  const id = activeSessionId();
+  if (!id) return -1;
+  const idx = rootSessions().findIndex((s) => s.id === id);
+  return idx >= 0 ? idx : -1;
+};
+
+/** Whether we're waiting for an assistant response (derived from messages store). */
+export const isStreaming = () => {
+  if (store.sessionError) return false;
+
+  const len = store.messages.length;
+  if (len === 0) return false;
+  const last = store.messages[len - 1];
+  if (!last) return false;
+
+  // If the last message is a user message (optimistic), we're waiting for the assistant
+  if (last.info.role === "user") {
+    return true;
+  }
+
+  // Last message is an assistant message — still streaming until time.completed is set
+  return !last.info.time.completed;
+};
+
+/** Pending permission for the active session (derived from cross-session store). */
+export const pendingPermission = () => {
+  const id = activeSessionId();
+  if (!id) return null;
+  return store.sessionPermissions[id] ?? null;
+};
+
+/** Pending question for the active session (derived from cross-session store). */
+export const pendingQuestion = () => {
+  const id = activeSessionId();
+  if (!id) return null;
+  return store.sessionQuestions[id] ?? null;
+};
+
+/** Whether a session needs attention (permission, question, error, or waiting). */
+export function sessionNeedsAttention(id: string): boolean {
+  return (
+    id in store.sessionPermissions ||
+    id in store.sessionQuestions ||
+    id in store.sessionErrors
+  );
+}
 
 // ── Navigation helpers ──────────────────────────────────────────
 

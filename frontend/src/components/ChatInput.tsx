@@ -9,7 +9,7 @@
 
 import ArrowUp from "lucide-solid/icons/arrow-up";
 import Square from "lucide-solid/icons/square";
-import { isStreaming } from "../store";
+import { isStreaming } from "../navigation";
 import { abortCurrentSession, sendUserMessage } from "../streaming";
 
 export interface ChatInputProps {
