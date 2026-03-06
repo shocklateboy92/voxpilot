@@ -17,7 +17,6 @@ import {
   fetchGitBranch,
   fetchMessages,
   removeEventListener,
-  respondToPermission,
   sendPromptAsync,
 } from "./api-client";
 import type { Message } from "@opencode-ai/sdk/v2/client";
@@ -365,26 +364,5 @@ export async function abortCurrentSession(): Promise<void> {
     await abortSession(sessionId, dir);
   } catch (err: unknown) {
     showToast(`Failed to stop: ${extractErrorMessage(err)}`);
-  }
-}
-
-/**
- * Respond to a pending permission request.
- */
-export async function respondToConfirm(
-  requestID: string,
-  reply: "once" | "always" | "reject",
-): Promise<void> {
-  const sid = activeSessionId();
-  if (sid) {
-    setStore("sessionPermissions", produce((draft) => { delete draft[sid]; }));
-  }
-
-  try {
-    const dir = activeSession()?.directory;
-    await respondToPermission(requestID, reply, dir);
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
-    setStore("errorMessage", `Permission error: ${msg}`);
   }
 }

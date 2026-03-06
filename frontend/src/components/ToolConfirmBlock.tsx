@@ -2,15 +2,20 @@
  * Permission prompt — Allow once / Always allow / Reject buttons.
  */
 
+import { createSignal } from "solid-js";
 import Lock from "lucide-solid/icons/lock";
+import { respondToPermission } from "../api-client";
+import { activeSession } from "../navigation";
+import { setStore } from "../store";
 import type { PendingPermission } from "../store";
-import { respondToConfirm } from "../streaming";
 
 interface Props {
   permission: PendingPermission;
 }
 
 export function ToolConfirmBlock(props: Props) {
+  const [submitting, setSubmitting] = createSignal(false);
+
   const metadata = () => {
     try {
       return JSON.stringify(props.permission.metadata, null, 2);
@@ -18,6 +23,18 @@ export function ToolConfirmBlock(props: Props) {
       return String(props.permission.metadata);
     }
   };
+
+  async function handleReply(reply: "once" | "always" | "reject"): Promise<void> {
+    setSubmitting(true);
+    try {
+      const dir = activeSession()?.directory;
+      await respondToPermission(props.permission.id, reply, dir);
+    } catch (err: unknown) {
+      setSubmitting(false);
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      setStore("errorMessage", `Permission error: ${msg}`);
+    }
+  }
 
   return (
     <div class="tool-confirm">
@@ -29,19 +46,22 @@ export function ToolConfirmBlock(props: Props) {
       <div class="tool-confirm-actions">
         <button
           class="btn btn-success btn-sm"
-          onClick={() => void respondToConfirm(props.permission.id, "once")}
+          disabled={submitting()}
+          onClick={() => void handleReply("once")}
         >
           Allow once
         </button>
         <button
           class="btn btn-success btn-sm"
-          onClick={() => void respondToConfirm(props.permission.id, "always")}
+          disabled={submitting()}
+          onClick={() => void handleReply("always")}
         >
           Always allow
         </button>
         <button
           class="btn btn-danger btn-sm"
-          onClick={() => void respondToConfirm(props.permission.id, "reject")}
+          disabled={submitting()}
+          onClick={() => void handleReply("reject")}
         >
           Reject
         </button>
