@@ -27,14 +27,19 @@ describe("formatAndDiff", () => {
     expect(result.hunks.length).toBe(0);
   });
 
-  it("falls back gracefully for unknown file types", async () => {
+  it("passes through unknown file types without formatting", async () => {
+    const before = "hello world";
+    const after = "hello new world";
     const result = await formatAndDiff({
-      before: "hello world",
-      after: "hello new world",
+      before,
+      after,
       filePath: "unknown.xyz",
       printWidth: 80,
     });
 
+    // Passthrough: content should be returned exactly as-is
+    expect(result.formattedBefore).toBe(before);
+    expect(result.formattedAfter).toBe(after);
     expect(result.html).toContain("fulltext-file");
   });
 
@@ -58,6 +63,71 @@ describe("formatAndDiff", () => {
     expect(result40.formattedAfter.split("\n").length).toBeGreaterThanOrEqual(
       result120.formattedAfter.split("\n").length,
     );
+  });
+
+  it("formats Python files with ruff", async () => {
+    const result = await formatAndDiff({
+      before: "x = 1\n",
+      after: "x = 2\ny = 3\n",
+      filePath: "test.py",
+      printWidth: 80,
+    });
+
+    expect(result.formattedBefore).toBeDefined();
+    expect(result.formattedAfter).toBeDefined();
+    expect(result.hunks.length).toBeGreaterThan(0);
+    expect(result.html).toContain("fulltext-file");
+  });
+
+  it("respects printWidth for Python formatting", async () => {
+    const longLine =
+      'x = {"a": 1, "b": 2, "c": 3, "d": 4, "e": 5, "f": 6, "g": 7, "h": 8}\n';
+    const result40 = await formatAndDiff({
+      before: "",
+      after: longLine,
+      filePath: "test.py",
+      printWidth: 40,
+    });
+    const result120 = await formatAndDiff({
+      before: "",
+      after: longLine,
+      filePath: "test.py",
+      printWidth: 120,
+    });
+
+    // With narrow width, ruff should break the line into more lines
+    expect(result40.formattedAfter.split("\n").length).toBeGreaterThan(
+      result120.formattedAfter.split("\n").length,
+    );
+  });
+
+  it("formats .pyi stub files with ruff", async () => {
+    const result = await formatAndDiff({
+      before: "def foo(x:int)->str: ...\n",
+      after: "def foo(x:int, y:int)->str: ...\n",
+      filePath: "stubs/types.pyi",
+      printWidth: 80,
+    });
+
+    expect(result.formattedBefore).toBeDefined();
+    expect(result.formattedAfter).toBeDefined();
+    // Ruff should normalize spacing around type annotations
+    expect(result.formattedAfter).toContain(": int");
+    expect(result.formattedAfter).toContain("-> str");
+  });
+
+  it("falls back gracefully when ruff encounters a syntax error", async () => {
+    const badPython = "def foo(\n";
+    const result = await formatAndDiff({
+      before: badPython,
+      after: badPython,
+      filePath: "bad.py",
+      printWidth: 80,
+    });
+
+    // Should return unformatted content without crashing
+    expect(result.formattedAfter).toBe(badPython);
+    expect(result.hunks.length).toBe(0);
   });
 
   it("fullTextLine matches actual line in formatted output for small context gaps", async () => {

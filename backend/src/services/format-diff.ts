@@ -20,12 +20,11 @@ interface FormatDiffResult {
 export async function formatAndDiff(
   input: FormatDiffInput,
 ): Promise<FormatDiffResult> {
-  const parser = detectParser(input.filePath);
-  const options: prettier.Options = { printWidth: input.printWidth, parser };
+  const formatter = detectFormatter(input.filePath);
 
   const [formattedBefore, formattedAfter] = await Promise.all([
-    tryFormat(input.before, options),
-    tryFormat(input.after, options),
+    tryFormat(input.before, formatter, input.printWidth, input.filePath),
+    tryFormat(input.after, formatter, input.printWidth, input.filePath),
   ]);
 
   const changes = diffLines(formattedBefore, formattedAfter);
@@ -43,33 +42,111 @@ export async function formatAndDiff(
   return { formattedBefore, formattedAfter, hunks, html };
 }
 
-function detectParser(filePath: string): string {
-  const ext = filePath.split(".").pop() ?? "";
-  const map: Record<string, string> = {
-    ts: "typescript",
-    tsx: "typescript",
-    js: "babel",
-    jsx: "babel",
-    json: "json",
-    css: "css",
-    html: "html",
-    md: "markdown",
-    yaml: "yaml",
-    yml: "yaml",
-    graphql: "graphql",
-  };
-  return map[ext] ?? "babel";
+// ---------------------------------------------------------------------------
+// Formatter detection
+// ---------------------------------------------------------------------------
+
+type FormatterKind =
+  | { type: "prettier"; parser: string }
+  | { type: "ruff" }
+  | { type: "passthrough" };
+
+const prettierExtensions: Record<string, string> = {
+  ts: "typescript",
+  tsx: "typescript",
+  js: "babel",
+  jsx: "babel",
+  json: "json",
+  css: "css",
+  html: "html",
+  md: "markdown",
+  yaml: "yaml",
+  yml: "yaml",
+  graphql: "graphql",
+};
+
+const ruffExtensions = new Set(["py", "pyi"]);
+
+function detectFormatter(filePath: string): FormatterKind {
+  const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
+
+  const prettierParser = prettierExtensions[ext];
+  if (prettierParser) {
+    return { type: "prettier", parser: prettierParser };
+  }
+
+  if (ruffExtensions.has(ext)) {
+    return { type: "ruff" };
+  }
+
+  return { type: "passthrough" };
 }
+
+// ---------------------------------------------------------------------------
+// Format dispatch
+// ---------------------------------------------------------------------------
 
 async function tryFormat(
   content: string,
-  options: prettier.Options,
+  formatter: FormatterKind,
+  printWidth: number,
+  filePath: string,
 ): Promise<string> {
   try {
-    return await prettier.format(content, options);
+    switch (formatter.type) {
+      case "prettier":
+        return await prettier.format(content, {
+          printWidth,
+          parser: formatter.parser,
+        });
+      case "ruff":
+        return await formatWithRuff(content, printWidth, filePath);
+      case "passthrough":
+        return content;
+    }
   } catch {
     return content;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Ruff formatter (Python)
+// ---------------------------------------------------------------------------
+
+async function formatWithRuff(
+  content: string,
+  printWidth: number,
+  filePath: string,
+): Promise<string> {
+  const proc = Bun.spawn(
+    [
+      "ruff",
+      "format",
+      "--line-length",
+      String(printWidth),
+      "--stdin-filename",
+      filePath,
+      "-",
+    ],
+    {
+      stdin: new Blob([content]),
+      stdout: "pipe",
+      stderr: "pipe",
+    },
+  );
+
+  const [rawStdout, rawStderr] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ]);
+
+  const exitCode = await proc.exited;
+
+  if (exitCode !== 0) {
+    throw new Error(`ruff format failed (exit ${exitCode}): ${rawStderr}`);
+  }
+
+  return rawStdout;
 }
 
 /**
