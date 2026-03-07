@@ -49,6 +49,7 @@ export async function formatAndDiff(
 type FormatterKind =
   | { type: "prettier"; parser: string }
   | { type: "ruff" }
+  | { type: "clang-format" }
   | { type: "passthrough" };
 
 const prettierExtensions: Record<string, string> = {
@@ -67,6 +68,17 @@ const prettierExtensions: Record<string, string> = {
 
 const ruffExtensions = new Set(["py", "pyi"]);
 
+const clangFormatExtensions = new Set([
+  "c",
+  "cc",
+  "cpp",
+  "cxx",
+  "h",
+  "hh",
+  "hpp",
+  "hxx",
+]);
+
 function detectFormatter(filePath: string): FormatterKind {
   const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
 
@@ -77,6 +89,10 @@ function detectFormatter(filePath: string): FormatterKind {
 
   if (ruffExtensions.has(ext)) {
     return { type: "ruff" };
+  }
+
+  if (clangFormatExtensions.has(ext)) {
+    return { type: "clang-format" };
   }
 
   return { type: "passthrough" };
@@ -101,6 +117,8 @@ async function tryFormat(
         });
       case "ruff":
         return await formatWithRuff(content, printWidth, filePath);
+      case "clang-format":
+        return await formatWithClangFormat(content, printWidth, filePath);
       case "passthrough":
         return content;
     }
@@ -144,6 +162,41 @@ async function formatWithRuff(
 
   if (exitCode !== 0) {
     throw new Error(`ruff format failed (exit ${exitCode}): ${rawStderr}`);
+  }
+
+  return rawStdout;
+}
+
+// ---------------------------------------------------------------------------
+// clang-format formatter (C/C++)
+// ---------------------------------------------------------------------------
+
+async function formatWithClangFormat(
+  content: string,
+  printWidth: number,
+  filePath: string,
+): Promise<string> {
+  const style = `{ColumnLimit: ${printWidth}, AlignAfterOpenBracket: BlockIndent}`;
+  const proc = Bun.spawn(
+    ["clang-format", `--style=${style}`, `--assume-filename=${filePath}`],
+    {
+      stdin: new Blob([content]),
+      stdout: "pipe",
+      stderr: "pipe",
+    },
+  );
+
+  const [rawStdout, rawStderr] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ]);
+
+  const exitCode = await proc.exited;
+
+  if (exitCode !== 0) {
+    throw new Error(
+      `clang-format failed (exit ${exitCode}): ${rawStderr}`,
+    );
   }
 
   return rawStdout;

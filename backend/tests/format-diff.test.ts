@@ -130,6 +130,90 @@ describe("formatAndDiff", () => {
     expect(result.hunks.length).toBe(0);
   });
 
+  it("formats C++ files with clang-format", async () => {
+    const result = await formatAndDiff({
+      before: "int x = 1;\n",
+      after: "int x = 2;\nint y = 3;\n",
+      filePath: "test.cpp",
+      printWidth: 80,
+    });
+
+    expect(result.formattedBefore).toBeDefined();
+    expect(result.formattedAfter).toBeDefined();
+    expect(result.hunks.length).toBeGreaterThan(0);
+    expect(result.html).toContain("fulltext-file");
+  });
+
+  it("respects printWidth for C++ formatting", async () => {
+    const longLine =
+      "void doSomething(int alpha, int beta, int gamma, int delta, int epsilon) { return; }\n";
+    const result40 = await formatAndDiff({
+      before: "",
+      after: longLine,
+      filePath: "test.cpp",
+      printWidth: 40,
+    });
+    const result120 = await formatAndDiff({
+      before: "",
+      after: longLine,
+      filePath: "test.cpp",
+      printWidth: 120,
+    });
+
+    // With narrow width, clang-format should break the line into more lines
+    expect(result40.formattedAfter.split("\n").length).toBeGreaterThan(
+      result120.formattedAfter.split("\n").length,
+    );
+  });
+
+  it("uses BlockIndent to avoid deep alignment in C++", async () => {
+    const code =
+      "some_long_function_name(first_arg, second_arg, third_arg, fourth_arg);\n";
+    const result = await formatAndDiff({
+      before: "",
+      after: code,
+      filePath: "test.cpp",
+      printWidth: 50,
+    });
+
+    // With BlockIndent, args should NOT be aligned to the opening paren.
+    // Instead they should use a fixed indent (typically 4 spaces).
+    const lines = result.formattedAfter.split("\n").filter(Boolean);
+    for (const line of lines.slice(1)) {
+      // No continuation line should have more than 8 leading spaces
+      // (BlockIndent uses a small fixed indent, not paren-alignment)
+      const indent = line.match(/^(\s*)/)?.[1]?.length ?? 0;
+      expect(indent).toBeLessThanOrEqual(8);
+    }
+  });
+
+  it("formats C header files with clang-format", async () => {
+    const result = await formatAndDiff({
+      before: "int foo(int x);\n",
+      after: "int foo(int x, int y);\n",
+      filePath: "include/utils.h",
+      printWidth: 80,
+    });
+
+    expect(result.formattedBefore).toBeDefined();
+    expect(result.formattedAfter).toBeDefined();
+    expect(result.html).toContain("fulltext-file");
+  });
+
+  it("falls back gracefully when clang-format encounters a syntax error", async () => {
+    const badCpp = "int foo(\n";
+    const result = await formatAndDiff({
+      before: badCpp,
+      after: badCpp,
+      filePath: "bad.cpp",
+      printWidth: 80,
+    });
+
+    // Should return unformatted content without crashing
+    expect(result.formattedAfter).toBe(badCpp);
+    expect(result.hunks.length).toBe(0);
+  });
+
   it("fullTextLine matches actual line in formatted output for small context gaps", async () => {
     // Regression: when two changes are separated by 4-6 context lines,
     // the second change's fullTextLine was miscalculated, causing
