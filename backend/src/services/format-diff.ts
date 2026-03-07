@@ -2,6 +2,7 @@ import { diffLines } from "diff";
 import * as prettier from "prettier";
 import { renderFullFileHtml } from "./diff-render";
 import type { DiffHunk, DiffLine } from "./diff-types";
+import { languageForFile, reflowComments } from "./reflow-comments";
 
 interface FormatDiffInput {
   before: string;
@@ -27,19 +28,28 @@ export async function formatAndDiff(
     tryFormat(input.after, formatter, input.printWidth, input.filePath),
   ]);
 
-  const changes = diffLines(formattedBefore, formattedAfter);
+  // Reflow comments to fit printWidth (formatters don't touch comment prose)
+  const commentLang = languageForFile(input.filePath);
+  const reflowedBefore = commentLang
+    ? reflowComments(formattedBefore, commentLang, input.printWidth)
+    : formattedBefore;
+  const reflowedAfter = commentLang
+    ? reflowComments(formattedAfter, commentLang, input.printWidth)
+    : formattedAfter;
+
+  const changes = diffLines(reflowedBefore, reflowedAfter);
   const hunks = buildHunks(changes);
 
   // Use file path as a stable file ID
   const fileId = input.filePath.replace(/[^a-zA-Z0-9._/-]/g, "_");
-  const html = renderFullFileHtml(
-    fileId,
-    input.filePath,
-    formattedAfter,
-    hunks,
-  );
+  const html = renderFullFileHtml(fileId, input.filePath, reflowedAfter, hunks);
 
-  return { formattedBefore, formattedAfter, hunks, html };
+  return {
+    formattedBefore: reflowedBefore,
+    formattedAfter: reflowedAfter,
+    hunks,
+    html,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -194,9 +204,7 @@ async function formatWithClangFormat(
   const exitCode = await proc.exited;
 
   if (exitCode !== 0) {
-    throw new Error(
-      `clang-format failed (exit ${exitCode}): ${rawStderr}`,
-    );
+    throw new Error(`clang-format failed (exit ${exitCode}): ${rawStderr}`);
   }
 
   return rawStdout;
