@@ -22,6 +22,7 @@ if (!_global.__ocClient) {
     hostname: "*",
     port: OC_PORT,
     config: {
+      permission: "allow",
       mcp: {
         voxpilot: {
           type: "remote",
