@@ -58,3 +58,11 @@ clean:
 
 # Run everything (install, lint, typecheck, test)
 check: install lint typecheck test
+
+# Run dev servers with tsnet HTTPS proxy (accessible on tailnet)
+dev-tailscale:
+    trap 'kill 0' EXIT; \
+    bun run --hot backend/src/index.ts & \
+    (cd frontend && npm run dev) & \
+    (cd tsnet-proxy && go run .) & \
+    wait
