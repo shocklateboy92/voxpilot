@@ -6,6 +6,7 @@ import { closeDb, getDb } from "./db";
 import { createMcpRouter } from "./mcp";
 import { proxy } from "./proxy";
 import { createReviewRouter } from "./routes/review";
+import { startIdleInhibitor } from "./services/idle-inhibit";
 
 const APP_PORT = Number(process.env.VOXPILOT_PORT ?? 8000);
 const OC_PORT = Number(process.env.VOXPILOT_OC_PORT ?? 4097);
@@ -32,6 +33,7 @@ if (!_global.__ocClient) {
   _global.__ocClient = client;
   _global.__ocServer = server;
   console.log(`OpenCode server started at ${server.url}`);
+  void startIdleInhibitor(client);
 } else {
   console.log("OpenCode server already running (hot reload), skipping restart");
 }
