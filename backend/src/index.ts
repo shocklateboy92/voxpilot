@@ -6,6 +6,7 @@ import { closeDb, getDb } from "./db";
 import { createMcpRouter } from "./mcp";
 import { proxy } from "./proxy";
 import { createReviewRouter } from "./routes/review";
+import { createConfigRouter } from "./routes/config";
 import { startIdleInhibitor } from "./services/idle-inhibit";
 
 const APP_PORT = Number(process.env.VOXPILOT_PORT ?? 8000);
@@ -53,7 +54,8 @@ const workDir = process.cwd();
 
 export const app = appBase
   .route("/mcp", createMcpRouter())
-  .route("/api/review", createReviewRouter(workDir));
+  .route("/api/review", createReviewRouter(workDir))
+  .route("/api/config", createConfigRouter());
 
 // Proxy and static don't need RPC types — keep imperative
 const OC_PREFIX = "/oc";

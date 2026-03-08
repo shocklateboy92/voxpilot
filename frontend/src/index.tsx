@@ -2,6 +2,8 @@ import type { Component } from "solid-js";
 import { createSignal, Show } from "solid-js";
 import { Dynamic, render } from "solid-js/web";
 import { Spinner } from "./components/Spinner";
+import { OfflineOverlay } from "./components/OfflineOverlay";
+import { rpc } from "./rpc";
 import { extractErrorMessage, showToast } from "./toast";
 import "./style.css";
 
@@ -23,18 +25,43 @@ window.addEventListener(
 // so that no app-level Suspense boundary exists — stray createResource
 // calls in child components can never tear down the component tree.
 const [AppComponent, setAppComponent] = createSignal<Component>();
+const [offline, setOffline] = createSignal(false);
+
+function isNetworkError(err: unknown): boolean {
+  return err instanceof TypeError && /fetch|network/i.test(err.message);
+}
 
 import("./App").then(
-  (m) => setAppComponent(() => m.default),
-  (err) => showToast(extractErrorMessage(err)),
+  (m) => {
+    setAppComponent(() => m.default);
+    // Persist wake URL for offline fallback
+    rpc.api.config
+      .$get()
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.wakeUrl) {
+          localStorage.setItem("voxpilot:wakeUrl", data.wakeUrl);
+        }
+      })
+      .catch(() => {});
+  },
+  (err) => {
+    if (isNetworkError(err)) {
+      setOffline(true);
+    } else {
+      showToast(extractErrorMessage(err));
+    }
+  },
 );
 
 const root = document.getElementById("root");
 if (root) {
   render(
     () => (
-      <Show when={AppComponent()} fallback={<Spinner fullscreen />}>
-        {(App) => <Dynamic component={App()} />}
+      <Show when={!offline()} fallback={<OfflineOverlay />}>
+        <Show when={AppComponent()} fallback={<Spinner fullscreen />}>
+          {(App) => <Dynamic component={App()} />}
+        </Show>
       </Show>
     ),
     root,
