@@ -1,5 +1,5 @@
 import { createSignal, onCleanup, onMount } from "solid-js";
-import { WifiOff } from "lucide-solid";
+import WifiOff from "lucide-solid/icons/wifi-off";
 import { rpc } from "../rpc";
 
 export function OfflineOverlay() {

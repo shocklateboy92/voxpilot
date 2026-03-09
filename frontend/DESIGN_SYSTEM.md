@@ -103,7 +103,10 @@ All buttons use the `.btn` base class with optional modifiers. Combine them:
 Use [Lucide](https://lucide.dev/) via `lucide-solid`. Import individual icons:
 
 ```tsx
-import { Settings, Check, X, Loader } from "lucide-solid";
+import Settings from "lucide-solid/icons/settings";
+import Check from "lucide-solid/icons/check";
+import X from "lucide-solid/icons/x";
+import Loader from "lucide-solid/icons/loader";
 
 <Settings size={14} />
 <Loader size={14} class="icon-spin" />
