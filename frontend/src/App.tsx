@@ -10,6 +10,7 @@
 import { ErrorBoundary } from "solid-js";
 import { ChatView } from "./components/ChatView";
 import { ToastContainer } from "./components/ToastContainer";
+import "./wake-lock"; // Keep screen awake while AI sessions are busy
 
 export default function App() {
   return (
