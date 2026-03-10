@@ -1018,13 +1018,11 @@ h1 {
    ═══════════════════════════════════════════════ */
 
 .question-block {
-  background: var(--color-border);
-  border: 1px solid var(--color-info);
-  border-radius: 6px;
+  background: var(--color-surface-dark);
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
   padding: 0.75rem;
-  margin: 0.25rem 0;
-  align-self: flex-start;
-  max-width: 90%;
+  margin-top: 0.6rem;
 }
 
 .question-item {
@@ -1038,7 +1036,7 @@ h1 {
 .question-header {
   font-size: 0.8rem;
   font-weight: 600;
-  color: var(--color-info-light);
+  color: var(--color-muted);
   margin-bottom: 0.25rem;
 }
 
@@ -1049,29 +1047,51 @@ h1 {
 
 .question-options {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
+  flex-direction: column;
+  gap: 0.5rem;
   margin-bottom: 0.4rem;
 }
 
 .question-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
   background: var(--color-option-bg);
   color: var(--color-text);
-  border: 1px solid var(--color-option-border);
-  border-radius: 4px;
-  padding: 0.25rem 0.6rem;
-  font-size: 0.8rem;
-  cursor: pointer;
+  border-color: var(--color-option-border);
+  white-space: normal;
+  height: auto;
 }
 
 .question-option:hover {
-  border-color: var(--color-info);
+  border-color: var(--color-accent);
 }
 
 .question-option.selected {
-  background: var(--color-info-dark);
-  border-color: var(--color-info);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
   color: var(--color-white);
+}
+
+.question-option-label {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.question-option-desc {
+  font-size: 0.75rem;
+  font-weight: normal;
+  color: var(--color-muted);
+  margin-top: 0.15rem;
+  line-height: 1.3;
+}
+
+.question-option.selected .question-option-desc {
+  color: var(--color-white);
+  opacity: 0.8;
 }
 
 .question-custom-input {
@@ -1087,7 +1107,7 @@ h1 {
 
 .question-custom-input:focus {
   outline: none;
-  border-color: var(--color-info);
+  border-color: var(--color-accent);
 }
 
 .question-actions {

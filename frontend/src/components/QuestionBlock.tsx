@@ -7,6 +7,7 @@ import type {
   QuestionRequest,
 } from "@opencode-ai/sdk/v2/client";
 import { createSignal, For, Show } from "solid-js";
+import Check from "lucide-solid/icons/check";
 import { rejectQuestion, replyToQuestion } from "../api-client";
 import { activeSession } from "../navigation";
 import { setStore } from "../store";
@@ -103,12 +104,21 @@ export function QuestionBlock(props: Props) {
                   return (
                     <button
                       type="button"
-                      class={`question-option${selected() ? " selected" : ""}`}
-                      title={opt.description}
+                      class={`btn btn-sm question-option${selected() ? " selected" : ""}`}
                       disabled={submitting()}
                       onClick={() => toggleOption(qIndex(), opt.label)}
                     >
-                      {opt.label}
+                      <span class="question-option-label">
+                        <Show when={selected()}>
+                          <Check size={14} />
+                        </Show>
+                        {opt.label}
+                      </span>
+                      <Show when={opt.description}>
+                        <span class="question-option-desc">
+                          {opt.description}
+                        </span>
+                      </Show>
                     </button>
                   );
                 }}
