@@ -852,6 +852,11 @@ h1 {
   border-radius: 0.5rem;
   font-size: 0.8rem;
   overflow: hidden;
+  margin-top: 0.6rem;
+}
+
+.tool-block + .tool-block {
+  margin-top: 0;
 }
 
 .tool-block[open] {
