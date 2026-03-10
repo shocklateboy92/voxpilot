@@ -68,12 +68,20 @@ export function ContextUsageBar() {
           <span class="context-label">
             <Show
               when={ctx().limit}
-              fallback={<>{formatTokens(ctx().total)} tokens</>}
+              fallback={
+                <span class="context-detail">
+                  {formatTokens(ctx().total)} tokens
+                </span>
+              }
             >
               {(limit) => (
                 <>
-                  {formatTokens(ctx().total)} / {formatTokens(limit())} tokens (
-                  {ctx().percentage}%)
+                  <span class="context-detail">
+                    {formatTokens(ctx().total)} / {formatTokens(limit())} tokens{" "}
+                  </span>
+                  <span class="context-percentage">
+                    ({ctx().percentage}%)
+                  </span>
                 </>
               )}
             </Show>
