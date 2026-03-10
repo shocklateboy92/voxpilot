@@ -10,8 +10,7 @@ import { For, Show } from "solid-js";
 import { renderMarkdown } from "../markdown";
 import type { MessageWithParts } from "../types";
 import { store } from "../store";
-import { ChangesetCard } from "./ChangesetCard";
-import { ToolPartBlock } from "./ToolPartBlock";
+import { ToolCallRenderer } from "./ToolCallRenderer";
 
 /**
  * Attach a touchstart listener that stops propagation when the touch
@@ -102,13 +101,7 @@ export function MessageBubble(props: Props) {
         <p>{textContent()}</p>
       </Show>
       <For each={toolParts()}>
-        {(part) =>
-          part.tool === "voxpilot_show_diff" ? (
-            <ChangesetCard part={part} />
-          ) : (
-            <ToolPartBlock part={part} />
-          )
-        }
+        {(part) => <ToolCallRenderer part={part} />}
       </For>
     </div>
   );

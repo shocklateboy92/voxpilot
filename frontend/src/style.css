@@ -924,6 +924,56 @@ h1 {
   align-items: center;
 }
 
+.tool-summary-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-badge {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  background: var(--color-subtle-bg);
+  color: var(--color-muted);
+  flex-shrink: 0;
+}
+
+.tool-todo-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--color-text);
+  padding: 0.15rem 0;
+}
+
+.tool-todo-item .todo-status {
+  color: var(--color-muted);
+  flex-shrink: 0;
+  width: 1.2rem;
+  text-align: center;
+}
+
+.tool-todo-item.todo-completed {
+  color: var(--color-muted);
+  text-decoration: line-through;
+}
+
+.tool-todo-item.todo-in-progress {
+  color: var(--color-accent);
+}
+
+.tool-description {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  padding: 0.3rem 0.7rem;
+  border-top: 1px solid var(--color-border);
+  font-style: italic;
+}
+
 .tool-confirm {
   background: var(--color-border);
   border: 1px solid var(--color-warning);
