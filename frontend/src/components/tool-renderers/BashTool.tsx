@@ -17,6 +17,9 @@ export function BashTool(props: { part: ToolPart }): JSX.Element {
       <Show when={description()}>
         {(desc) => <div class="tool-description">{desc()}</div>}
       </Show>
+      <Show when={command()}>
+        {(cmd) => <div class="tool-arguments">{cmd()}</div>}
+      </Show>
       <OutputSection state={props.part.state} />
     </details>
   );
