@@ -36,7 +36,7 @@ export function QuestionBlock(props: Props) {
           next[qIndex] = [...current, label];
         }
       } else {
-        next[qIndex] = [label];
+        next[qIndex] = current.includes(label) ? [] : [label];
       }
       return next;
     });
@@ -125,10 +125,10 @@ export function QuestionBlock(props: Props) {
               </For>
             </div>
             <Show when={q.custom !== false}>
-              <input
+              <textarea
                 class="question-custom-input"
-                type="text"
                 placeholder="Or type a custom answer…"
+                rows={2}
                 value={customInputs()[qIndex()] ?? ""}
                 disabled={submitting()}
                 onInput={(e) => setCustom(qIndex(), e.currentTarget.value)}
