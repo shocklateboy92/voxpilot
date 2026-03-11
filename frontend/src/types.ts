@@ -11,7 +11,7 @@ import type {
   QuestionRequest,
   SessionStatus,
 } from "@opencode-ai/sdk/v2/client";
-import type { Agent, Message, MessageWithParts, Part, Project, Session } from "./api-client";
+import type { Agent, Message, MessageWithParts, Part, Project, SdkFile, Session } from "./api-client";
 
 export type { Session, Message, Part, MessageWithParts, Project };
 
@@ -28,6 +28,7 @@ export interface AppState {
   // ── Per-active-session (fetched on session switch, updated by SSE) ──
   messages: MessageWithParts[];
   gitBranch: string | null;
+  changedFiles: SdkFile[];
   sessionError: boolean;
   errorMessage: string | null;
 

@@ -14,6 +14,7 @@ import type { Event, MessageWithParts } from "./api-client";
 import {
   abortSession,
   addEventListener,
+  fetchFileStatus,
   fetchGitBranch,
   fetchMessages,
   removeEventListener,
@@ -35,6 +36,7 @@ import { extractErrorMessage, showToast } from "./toast";
 let pendingTextPart: TextPart | null = null;
 let rafId: number | null = null;
 let isRafLoopRunning = false;
+let fileStatusDebounceId: ReturnType<typeof setTimeout> | null = null;
 
 /**
  * Tracks part IDs that have received a full `message.part.updated` event.
@@ -261,6 +263,25 @@ function handleEvent(event: Event): void {
       }
       break;
     }
+
+    case "file.watcher.updated": {
+      // Debounce file status refresh — file watcher events fire rapidly
+      // during operations like git checkout or builds.
+      const dir = activeSession()?.directory;
+      if (!dir) break;
+      if (fileStatusDebounceId !== null) clearTimeout(fileStatusDebounceId);
+      fileStatusDebounceId = setTimeout(() => {
+        fileStatusDebounceId = null;
+        const currentSid = activeSessionId();
+        if (!currentSid) return;
+        void fetchFileStatus(dir).then((files) => {
+          if (activeSessionId() === currentSid) {
+            setStore("changedFiles", files);
+          }
+        });
+      }, 500);
+      break;
+    }
   }
 }
 
@@ -291,9 +312,16 @@ createEffect(() => {
         setStore("gitBranch", branch);
       }
     });
+    // Fetch working tree file status for the new session's directory
+    void fetchFileStatus(dir).then((files) => {
+      if (activeSessionId() === sid) {
+        setStore("changedFiles", files);
+      }
+    });
   } else {
     replaceMessages([]);
     setStore("gitBranch", null);
+    setStore("changedFiles", []);
   }
 });
 

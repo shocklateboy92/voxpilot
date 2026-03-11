@@ -104,6 +104,7 @@ export async function init(): Promise<AppState> {
     currentProject: current,
     messages: [],
     gitBranch: null,
+    changedFiles: [],
     sessionError: false,
     errorMessage: null,
     sessionStatuses: {},

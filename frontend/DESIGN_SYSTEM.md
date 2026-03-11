@@ -161,7 +161,7 @@ Test both themes. The `color-scheme: light dark` declaration on `:root` tells th
 
 - **No raw colors outside `:root`.** Always use `var(--color-*)`.
 - **No ID selectors.** Use classes. Only exception: `#root` (Solid mount point).
-- **No `@media` breakpoints.** This is a mobile-only app.
+- **Mobile-only layout.** No desktop/tablet layout variants (side navs, multi-column grids, etc.). `@media` queries are fine for progressive disclosure within the mobile layout (e.g., hiding detail text at narrow widths).
 - **Max 1 blank line** between selectors within a section.
 - New selectors go in the appropriate numbered section.
 - **Wide content scrolls independently.** `<pre>` and `<table>` elements in markdown are wrapped in a `.scroll-wrapper` div with `overflow-x: auto`. Touches inside these wrappers call `stopPropagation()` so the swipe gesture handler never sees them.

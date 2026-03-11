@@ -76,8 +76,17 @@ export function ContextUsageBar() {
             >
               {(limit) => (
                 <>
-                  <span class="context-detail">
-                    {formatTokens(ctx().total)} / {formatTokens(limit())} tokens{" "}
+                  <span class="context-total">
+                    {formatTokens(ctx().total)}
+                  </span>
+                  <span class="context-limit">
+                    /
+                  </span>
+                  <span class="context-limit">
+                    {formatTokens(limit())}
+                  </span>
+                  <span class="context-total">
+                    tokens
                   </span>
                   <span class="context-percentage">
                     ({ctx().percentage}%)

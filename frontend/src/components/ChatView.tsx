@@ -7,8 +7,9 @@
  * inside a ContentShell.
  */
 
+import Check from "lucide-solid/icons/check";
 import GitBranch from "lucide-solid/icons/git-branch";
-import { Show } from "solid-js";
+import { createMemo, Show } from "solid-js";
 import {
   canNavigateNext,
   canNavigatePrev,
@@ -31,6 +32,19 @@ import { NewSessionPage } from "./NewSessionPage";
 import { ReviewOverlay } from "./ReviewOverlay";
 
 export function ChatView() {
+  const changeCounts = createMemo(() => {
+    const files = store.changedFiles;
+    let added = 0;
+    let modified = 0;
+    let deleted = 0;
+    for (const f of files) {
+      if (f.status === "added") added++;
+      else if (f.status === "modified") modified++;
+      else if (f.status === "deleted") deleted++;
+    }
+    return { total: files.length, added, modified, deleted };
+  });
+
   return (
     <main class="app">
       <Show when={!isNewSessionPage()} fallback={<NewSessionPage />}>
@@ -41,10 +55,29 @@ export function ChatView() {
               fallback={<span class="status-bar-branch-placeholder" />}
             >
               {(branch) => (
-                <span class="status-bar-branch" title={branch()}>
-                  <GitBranch size={14} />
-                  {branch()}
-                </span>
+                <>
+                  <GitBranch size={14} class="wt-icon-fixed" />
+                  <span class="wt-branch" title={branch()}>
+                    {branch()}
+                  </span>
+                  <Show
+                    when={changeCounts().total > 0}
+                    fallback={
+                      <>
+                        <span class="wt-separator">·</span>
+                        <Check size={14} class="wt-check" />
+                        <span class="wt-label">clean</span>
+                      </>
+                    }
+                  >
+                    <span class="wt-separator">·</span>
+                    <span class="wt-count">{changeCounts().total}</span>
+                    <span class="wt-label">changed</span>
+                    <span class="wt-breakdown">
+                      (+{changeCounts().added} ~{changeCounts().modified} -{changeCounts().deleted})
+                    </span>
+                  </Show>
+                </>
               )}
             </Show>
           }

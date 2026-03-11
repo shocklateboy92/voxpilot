@@ -12,6 +12,7 @@ import type {
   Event,
   EventWorktreeFailed,
   EventWorktreeReady,
+  File as SdkFile,
   GlobalEvent,
   Message,
   Part,
@@ -24,7 +25,7 @@ import type {
 } from "@opencode-ai/sdk/v2/client";
 import { createOpencodeClient } from "@opencode-ai/sdk/v2/client";
 
-export type { Event, Agent, Project, Session, Message, Part, PermissionRequest, QuestionRequest, QuestionAnswer, Worktree };
+export type { Event, Agent, Project, Session, Message, Part, PermissionRequest, QuestionRequest, QuestionAnswer, Worktree, SdkFile };
 
 export type MessageWithParts = {
   info: Message;
@@ -156,6 +157,15 @@ export async function fetchGitBranch(directory?: string): Promise<string | null>
     return result.data?.branch ?? null;
   } catch {
     return null;
+  }
+}
+
+export async function fetchFileStatus(directory?: string): Promise<SdkFile[]> {
+  try {
+    const result = await client.file.status({ directory });
+    return result.data ?? [];
+  } catch {
+    return [];
   }
 }
 
