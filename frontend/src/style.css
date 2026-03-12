@@ -1787,12 +1787,14 @@ h1 {
    ═══════════════════════════════════════════════ */
 
 .offline-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 100dvh;
   padding: 1rem;
-  background: var(--color-bg);
+  background: var(--color-overlay);
 }
 
 .offline-card {
@@ -1833,8 +1835,12 @@ h1 {
   margin: 0;
 }
 
+.offline-dismiss-btn {
+  font-size: 0.8rem;
+}
+
 .offline-poll-hint {
   font-size: 0.75rem;
   color: var(--color-muted);
-  margin-top: 0.5rem;
+  margin-top: 0.25rem;
 }

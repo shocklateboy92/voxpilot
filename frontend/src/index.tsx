@@ -25,11 +25,6 @@ window.addEventListener(
 // so that no app-level Suspense boundary exists — stray createResource
 // calls in child components can never tear down the component tree.
 const [AppComponent, setAppComponent] = createSignal<Component>();
-const [offline, setOffline] = createSignal(false);
-
-function isNetworkError(err: unknown): boolean {
-  return err instanceof TypeError && /fetch|network/i.test(err.message);
-}
 
 import("./App").then(
   (m) => {
@@ -45,24 +40,18 @@ import("./App").then(
       })
       .catch(() => {});
   },
-  (err) => {
-    if (isNetworkError(err)) {
-      setOffline(true);
-    } else {
-      showToast(extractErrorMessage(err));
-    }
-  },
+  (err) => showToast(extractErrorMessage(err)),
 );
 
 const root = document.getElementById("root");
 if (root) {
   render(
     () => (
-      <Show when={!offline()} fallback={<OfflineOverlay />}>
+      <OfflineOverlay>
         <Show when={AppComponent()} fallback={<Spinner fullscreen />}>
           {(App) => <Dynamic component={App()} />}
         </Show>
-      </Show>
+      </OfflineOverlay>
     ),
     root,
   );
