@@ -293,10 +293,18 @@ h1 {
     background 0.15s,
     opacity 0.15s;
   text-decoration: none;
+  background: var(--color-subtle-bg);
+  color: var(--color-text);
+}
+.btn:hover {
+  background: var(--color-bg);
+}
+
+.btn-primary {
   background: var(--color-accent);
   color: var(--color-white);
 }
-.btn:hover {
+.btn-primary:hover {
   background: var(--color-accent-hover);
 }
 
@@ -524,6 +532,10 @@ h1 {
   content: " ▾";
   color: var(--color-muted);
   font-size: 0.7rem;
+}
+
+.fork-btn {
+  margin-right: 0.25rem;
 }
 
 .new-chat-btn {
@@ -1153,29 +1165,47 @@ h1 {
 }
 
 /* ═══════════════════════════════════════════════
-   10. SESSION PICKER
+   10. OVERLAYS & SESSION PICKER
    ═══════════════════════════════════════════════ */
 
-.session-picker-overlay {
+.overlay-backdrop {
   position: fixed;
   inset: 0;
   background: var(--color-overlay);
   z-index: 100;
   display: flex;
+  outline: none;
+}
+
+.overlay-bottom {
   align-items: flex-end;
   justify-content: center;
 }
 
-.session-picker {
+.overlay-center {
+  align-items: center;
+  justify-content: center;
+}
+
+.overlay-panel {
   background: var(--color-surface);
-  border-radius: 1rem 1rem 0 0;
   width: 100%;
   max-width: 32rem;
-  max-height: 80vh;
   display: flex;
   flex-direction: column;
   padding-bottom: var(--safe-bottom);
   text-align: left;
+}
+
+.overlay-panel-bottom {
+  border-radius: 1rem 1rem 0 0;
+  max-height: 80vh;
+}
+
+.overlay-panel-center {
+  border-radius: 1rem;
+  max-height: 80vh;
+  margin: 1rem;
 }
 
 .picker-header {
@@ -1254,6 +1284,85 @@ h1 {
 .picker-new-chat {
   margin: 0.5rem 1rem;
   margin-bottom: 0.75rem;
+}
+
+/* ── Fork overlay ─────────────────────────────── */
+
+.fork-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1rem 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.fork-header h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.fork-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem 0;
+}
+
+.fork-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: background 0.1s;
+  min-height: 48px;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--color-text);
+  text-align: left;
+  font: inherit;
+}
+
+.fork-item:hover:not(:disabled) {
+  background: var(--color-bg);
+}
+
+.fork-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.fork-item-turn {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-accent);
+  min-width: 3.5rem;
+}
+
+.fork-item-preview {
+  flex: 1;
+  font-size: 0.85rem;
+  color: var(--color-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fork-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 0.5rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.fork-empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--color-muted);
+  font-size: 0.9rem;
 }
 
 /* ═══════════════════════════════════════════════

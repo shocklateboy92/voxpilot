@@ -121,6 +121,19 @@ export async function abortSession(sessionID: string, directory?: string): Promi
   await client.session.abort({ sessionID, directory });
 }
 
+export async function forkSession(
+  sessionID: string,
+  messageID?: string,
+  directory?: string,
+): Promise<Session> {
+  const result = await client.session.fork({ sessionID, messageID, directory });
+  if (!result.data)
+    throw new Error(
+      "Failed to fork session: " + JSON.stringify(result.error),
+    );
+  return result.data;
+}
+
 export async function respondToPermission(
   requestID: string,
   reply: "once" | "always" | "reject",

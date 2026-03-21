@@ -73,7 +73,7 @@ export function ChatInput(props: ChatInputProps) {
       ) : (
         <button
           type="submit"
-          class="btn btn-icon"
+          class="btn btn-primary btn-icon"
           aria-label="Send"
         >
           <ArrowUp size={18} />

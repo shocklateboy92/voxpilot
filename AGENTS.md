@@ -20,6 +20,14 @@ Prefer letting types propagate through inference rather than duplicating type de
 
 When working on UI components or design, read and follow `frontend/DESIGN_SYSTEM.md`.
 
+### Error Handling
+
+Do not wrap async event handlers in try/catch to show error toasts. The app has a global error handler that catches unhandled promise rejections and displays them automatically.
+
+### CSS Classes
+
+Use SolidJS `classList` for conditional classes. Do not build class strings with template literals or concatenation.
+
 ## Dependencies
 
 Always use the latest version of any new dependencies you introduce.

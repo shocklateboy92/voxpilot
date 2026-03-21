@@ -73,7 +73,7 @@ function OfflineCard(props: {
 
       <Show when={props.wakeUrl}>
         <button
-          class="btn offline-wake-btn"
+          class="btn btn-primary offline-wake-btn"
           onClick={handleWake}
           disabled={status() === "waking"}
         >

@@ -192,7 +192,7 @@ export function NewSessionPage() {
                 />
                 <button
                   type="button"
-                  class="btn"
+                  class="btn btn-primary"
                   onClick={() => void handleCreateWorktree()}
                   disabled={busy()}
                 >
@@ -218,7 +218,7 @@ export function NewSessionPage() {
             />
             <button
               type="submit"
-              class="btn btn-icon"
+              class="btn btn-primary btn-icon"
               disabled={busy()}
               aria-label="Send"
             >

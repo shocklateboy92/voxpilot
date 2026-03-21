@@ -9,6 +9,7 @@
 import Trash2 from "lucide-solid/icons/trash-2";
 import X from "lucide-solid/icons/x";
 import { createMemo, For, Show } from "solid-js";
+import { Overlay } from "./Overlay";
 import {
   activeSessionId,
   handleDeleteSession,
@@ -74,8 +75,7 @@ export function SessionPicker(props: SessionPickerProps) {
   });
 
   return (
-    <div class="session-picker-overlay" onClick={() => props.onClose()}>
-      <div class="session-picker" onClick={(e) => e.stopPropagation()}>
+    <Overlay onClose={props.onClose} class="session-picker">
         <div class="picker-header">
           <h2>Sessions</h2>
           <button class="btn btn-ghost" onClick={() => props.onClose()}>
@@ -123,7 +123,7 @@ export function SessionPicker(props: SessionPickerProps) {
           </For>
         </div>
         <button
-          class="btn picker-new-chat"
+          class="btn btn-primary picker-new-chat"
           onClick={() => {
             handleNewSession();
             props.onClose();
@@ -131,7 +131,6 @@ export function SessionPicker(props: SessionPickerProps) {
         >
           + New chat
         </button>
-      </div>
-    </div>
+    </Overlay>
   );
 }
