@@ -45,7 +45,7 @@ export function chatPaneMount(el: HTMLDivElement): void {
   anchor.onPaneMount(el);
 }
 
-/** Floating scroll-to-bottom button — render in ContentShell's overlay slot. */
+/** Scroll-to-bottom button — render in ContentShell's composer stack. */
 export function ChatScrollButton() {
   return (
     <Show when={!anchor.isAtBottom()}>

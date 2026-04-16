@@ -6,19 +6,15 @@
 
 import { createEffect, createSignal } from "solid-js";
 import { produce } from "solid-js/store";
-import {
-  createSession,
-  deleteSession,
-  sendPromptAsync,
-} from "./api-client";
+import { createSession, deleteSession, sendPromptAsync } from "./api-client";
 import { setStore, store } from "./store";
 
 // ── Active session ID ───────────────────────────────────────────
 
 /** ID of the currently active session. */
-export const [activeSessionId, setActiveSessionId] = createSignal<string | undefined>(
-  window.location.hash.slice(1) || undefined,
-);
+export const [activeSessionId, setActiveSessionId] = createSignal<
+  string | undefined
+>(window.location.hash.slice(1) || undefined);
 
 // Sync signal → URL hash
 createEffect(() => {
@@ -233,18 +229,23 @@ export async function createSessionAndSend(
   content: string,
   agent: string,
   directory?: string,
+  model?: { providerID: string; modelID: string },
+  variant?: string,
 ): Promise<void> {
   const session = await createSession(undefined, directory);
 
   // Optimistically insert the new session
-  setStore("sessions", produce((list) => {
-    if (list.some((s) => s.id === session.id)) return; // already exists
-    list.push(session);
-    list.sort((a, b) => b.time.updated - a.time.updated);
-  }));
+  setStore(
+    "sessions",
+    produce((list) => {
+      if (list.some((s) => s.id === session.id)) return; // already exists
+      list.push(session);
+      list.sort((a, b) => b.time.updated - a.time.updated);
+    }),
+  );
 
   setActiveSessionId(session.id);
-  await sendPromptAsync(session.id, content, agent, directory);
+  await sendPromptAsync(session.id, content, agent, directory, model, variant);
 }
 
 /** Delete a session and adjust navigation. */
@@ -255,10 +256,30 @@ export async function handleDeleteSession(sessionId: string): Promise<void> {
 
   // Remove from store synchronously
   setStore("sessions", (prev) => prev.filter((s) => s.id !== sessionId));
-  setStore("sessionStatuses", produce((draft) => { delete draft[sessionId]; }));
-  setStore("sessionPermissions", produce((draft) => { delete draft[sessionId]; }));
-  setStore("sessionQuestions", produce((draft) => { delete draft[sessionId]; }));
-  setStore("sessionErrors", produce((draft) => { delete draft[sessionId]; }));
+  setStore(
+    "sessionStatuses",
+    produce((draft) => {
+      delete draft[sessionId];
+    }),
+  );
+  setStore(
+    "sessionPermissions",
+    produce((draft) => {
+      delete draft[sessionId];
+    }),
+  );
+  setStore(
+    "sessionQuestions",
+    produce((draft) => {
+      delete draft[sessionId];
+    }),
+  );
+  setStore(
+    "sessionErrors",
+    produce((draft) => {
+      delete draft[sessionId];
+    }),
+  );
 
   const list = store.sessions;
 

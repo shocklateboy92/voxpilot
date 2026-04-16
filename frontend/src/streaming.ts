@@ -9,7 +9,9 @@
  * store is populated before this module's body executes.
  */
 
-import type { TextPart } from "@opencode-ai/sdk/v2/client";
+import type { Message, TextPart } from "@opencode-ai/sdk/v2/client";
+import { createEffect } from "solid-js";
+import { produce } from "solid-js/store";
 import type { Event, MessageWithParts } from "./api-client";
 import {
   abortSession,
@@ -20,17 +22,14 @@ import {
   removeEventListener,
   sendPromptAsync,
 } from "./api-client";
-import type { Message } from "@opencode-ai/sdk/v2/client";
-import { createEffect } from "solid-js";
-import { produce } from "solid-js/store";
+import { activeSession, activeSessionId } from "./navigation";
+import { selectedAgent, selectedModel, selectedVariant } from "./preferences";
 import {
   ensureAssistantMessage,
   replaceMessages,
   setStore,
   upsertPart,
 } from "./store";
-import { activeSession, activeSessionId } from "./navigation";
-import { selectedAgent } from "./preferences";
 import { extractErrorMessage, showToast } from "./toast";
 
 let pendingTextPart: TextPart | null = null;
@@ -143,7 +142,10 @@ function handleEvent(event: Event): void {
       if (updatedPartIds.has(partID)) return;
 
       if (pendingTextPart && pendingTextPart.id === partID) {
-        pendingTextPart = { ...pendingTextPart, text: pendingTextPart.text + delta };
+        pendingTextPart = {
+          ...pendingTextPart,
+          text: pendingTextPart.text + delta,
+        };
       } else {
         ensureAssistantMessage(messageID, sid);
         pendingTextPart = {
@@ -166,28 +168,56 @@ function handleEvent(event: Event): void {
       const { sessionID, status } = event.properties;
       setStore("sessionStatuses", sessionID, status);
       if (status.type === "busy") {
-        setStore("sessionErrors", produce((draft) => { delete draft[sessionID]; }));
+        setStore(
+          "sessionErrors",
+          produce((draft) => {
+            delete draft[sessionID];
+          }),
+        );
       }
       break;
     }
 
     case "session.created": {
       const info = event.properties.info;
-      setStore("sessions", produce((list) => {
-        if (list.some((s) => s.id === info.id)) return; // already exists (optimistic)
-        list.push(info);
-        list.sort((a, b) => b.time.updated - a.time.updated);
-      }));
+      setStore(
+        "sessions",
+        produce((list) => {
+          if (list.some((s) => s.id === info.id)) return; // already exists (optimistic)
+          list.push(info);
+          list.sort((a, b) => b.time.updated - a.time.updated);
+        }),
+      );
       break;
     }
 
     case "session.deleted": {
       const info = event.properties.info;
       setStore("sessions", (prev) => prev.filter((s) => s.id !== info.id));
-      setStore("sessionStatuses", produce((draft) => { delete draft[info.id]; }));
-      setStore("sessionPermissions", produce((draft) => { delete draft[info.id]; }));
-      setStore("sessionQuestions", produce((draft) => { delete draft[info.id]; }));
-      setStore("sessionErrors", produce((draft) => { delete draft[info.id]; }));
+      setStore(
+        "sessionStatuses",
+        produce((draft) => {
+          delete draft[info.id];
+        }),
+      );
+      setStore(
+        "sessionPermissions",
+        produce((draft) => {
+          delete draft[info.id];
+        }),
+      );
+      setStore(
+        "sessionQuestions",
+        produce((draft) => {
+          delete draft[info.id];
+        }),
+      );
+      setStore(
+        "sessionErrors",
+        produce((draft) => {
+          delete draft[info.id];
+        }),
+      );
       break;
     }
 
@@ -196,12 +226,15 @@ function handleEvent(event: Event): void {
       if (info.time.archived) {
         setStore("sessions", (prev) => prev.filter((s) => s.id !== info.id));
       } else {
-        setStore("sessions", produce((list) => {
-          const idx = list.findIndex((s) => s.id === info.id);
-          if (idx >= 0) list[idx] = info;
-          else list.push(info);
-          list.sort((a, b) => b.time.updated - a.time.updated);
-        }));
+        setStore(
+          "sessions",
+          produce((list) => {
+            const idx = list.findIndex((s) => s.id === info.id);
+            if (idx >= 0) list[idx] = info;
+            else list.push(info);
+            list.sort((a, b) => b.time.updated - a.time.updated);
+          }),
+        );
       }
       break;
     }
@@ -238,7 +271,12 @@ function handleEvent(event: Event): void {
 
     case "permission.replied": {
       const props = event.properties;
-      setStore("sessionPermissions", produce((draft) => { delete draft[props.sessionID]; }));
+      setStore(
+        "sessionPermissions",
+        produce((draft) => {
+          delete draft[props.sessionID];
+        }),
+      );
       break;
     }
 
@@ -251,7 +289,12 @@ function handleEvent(event: Event): void {
     case "question.replied":
     case "question.rejected": {
       const props = event.properties;
-      setStore("sessionQuestions", produce((draft) => { delete draft[props.sessionID]; }));
+      setStore(
+        "sessionQuestions",
+        produce((draft) => {
+          delete draft[props.sessionID];
+        }),
+      );
       break;
     }
 
@@ -358,19 +401,29 @@ export async function sendUserMessage(content: string): Promise<boolean> {
     } as Message,
     parts: [],
   };
-  setStore("messages", produce((msgs) => { msgs.push(optimistic); }));
+  setStore(
+    "messages",
+    produce((msgs) => {
+      msgs.push(optimistic);
+    }),
+  );
 
   try {
     const agent = selectedAgent();
+    const model = selectedModel();
+    const variant = selectedVariant();
     const dir = activeSession()?.directory;
-    await sendPromptAsync(sessionId, content, agent, dir);
+    await sendPromptAsync(sessionId, content, agent, dir, model, variant);
     return true;
   } catch (err: unknown) {
     // Remove the optimistic message on failure
-    setStore("messages", produce((msgs) => {
-      const idx = msgs.findIndex((m) => m.info.id === "__optimistic__");
-      if (idx >= 0) msgs.splice(idx, 1);
-    }));
+    setStore(
+      "messages",
+      produce((msgs) => {
+        const idx = msgs.findIndex((m) => m.info.id === "__optimistic__");
+        if (idx >= 0) msgs.splice(idx, 1);
+      }),
+    );
     const msg = err instanceof Error ? err.message : "Unknown error";
     setStore("errorMessage", `Failed to send: ${msg}`);
     return false;

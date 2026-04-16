@@ -20,10 +20,15 @@ import {
   Show,
 } from "solid-js";
 import { createWorktree, fetchWorktrees } from "../api-client";
-import { createSessionAndSend, navigateNext, rootSessions } from "../navigation";
-import { selectedAgent } from "../preferences";
+import {
+  createSessionAndSend,
+  navigateNext,
+  rootSessions,
+} from "../navigation";
+import { selectedAgent, selectedModel, selectedVariant } from "../preferences";
 import { store } from "../store";
 import { AgentPicker } from "./AgentPicker";
+import { ModelPicker } from "./ModelPicker";
 import { SwipeablePane } from "./SwipeablePane";
 
 const ALWAYS_FALSE = () => false as const;
@@ -93,7 +98,13 @@ export function NewSessionPage() {
 
     setSending(true);
     try {
-      await createSessionAndSend(value, selectedAgent(), directory);
+        await createSessionAndSend(
+          value,
+          selectedAgent(),
+          directory,
+          selectedModel(),
+          selectedVariant(),
+        );
     } finally {
       setSending(false);
     }
@@ -204,6 +215,7 @@ export function NewSessionPage() {
           </Show>
 
           <AgentPicker />
+          <ModelPicker />
 
           <form class="chat-form" onSubmit={(e) => void handleSubmit(e)}>
             <textarea
