@@ -41,6 +41,8 @@ export interface ContentShellProps {
 
   /** Optional slot rendered between the content and the chat input (e.g. AgentPicker). */
   aboveInput?: JSX.Element;
+  /** Optional element rendered at the top of the composer stack (e.g. scroll button). */
+  composerOverlay?: JSX.Element;
   /** Optional callback fired after a message is sent from the chat input. */
   onSend?: () => void;
 
@@ -69,8 +71,11 @@ export function ContentShell(props: ContentShellProps) {
           {props.children}
         </SwipeablePane>
       </div>
-      {props.aboveInput}
-      <ChatInput onSend={props.onSend} />
+      <div class="composer-stack">
+        {props.composerOverlay}
+        {props.aboveInput}
+        <ChatInput onSend={props.onSend} />
+      </div>
     </>
   );
 }

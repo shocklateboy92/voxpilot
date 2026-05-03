@@ -8,6 +8,7 @@
 import type { TextPart, ToolPart } from "@opencode-ai/sdk/v2/client";
 import { For, Show } from "solid-js";
 import { renderMarkdown } from "../markdown";
+import { formatVariantLabel, resolveModelName } from "../model-utils";
 import type { MessageWithParts } from "../types";
 import { store } from "../store";
 import { ToolCallRenderer } from "./ToolCallRenderer";
@@ -61,6 +62,35 @@ export function MessageBubble(props: Props) {
     return store.agents.find((a) => a.name === name)?.color;
   };
 
+  /** The model ID that produced this assistant message, if available. */
+  const modelID = () => {
+    const info = props.msg.info;
+    if (info.role !== "assistant") return undefined;
+    return info.modelID;
+  };
+
+  /** The provider ID for this assistant message, if available. */
+  const providerID = () => {
+    const info = props.msg.info;
+    if (info.role !== "assistant") return undefined;
+    return info.providerID;
+  };
+
+  /** Resolved display name for the model (falls back to raw modelID). */
+  const modelDisplayName = () => {
+    const pid = providerID();
+    const mid = modelID();
+    if (!pid || !mid) return mid;
+    return resolveModelName(pid, mid);
+  };
+
+  /** The selected model variant/thinking level, if available. */
+  const modelVariant = () => {
+    const info = props.msg.info;
+    if (info.role !== "assistant") return undefined;
+    return info.variant;
+  };
+
   /** Whether this message is still being streamed (assistant, not yet completed). */
   const isInProgress = () => {
     const info = props.msg.info;
@@ -77,21 +107,35 @@ export function MessageBubble(props: Props) {
         streaming: isInProgress() && !!textContent(),
       }}
     >
-      <Show when={role() === "assistant" && agentName()}>
-        <span
-          class="agent-badge"
-          style={
-            agentColor()
-              ? {
-                  background: `${agentColor()}20`,
-                  color: agentColor(),
-                  border: `1px solid ${agentColor()}40`,
-                }
-              : undefined
-          }
-        >
-          {agentName()}
-        </span>
+      <Show
+        when={role() === "assistant" && (agentName() || modelID() || modelVariant())}
+      >
+        <div class="message-meta">
+          <Show when={agentName()}>
+            <span
+              class="agent-badge"
+              style={
+                agentColor()
+                  ? {
+                      background: `${agentColor()}20`,
+                      color: agentColor(),
+                      border: `1px solid ${agentColor()}40`,
+                    }
+                  : undefined
+              }
+            >
+              {agentName()}
+            </span>
+          </Show>
+          <Show when={modelID()}>
+            <span class="model-badge">
+              {modelDisplayName()}
+              <Show when={modelVariant()}>
+                {(variant) => <>{` · ${formatVariantLabel(variant())}`}</>}
+              </Show>
+            </span>
+          </Show>
+        </div>
       </Show>
       <Show when={role() === "assistant" && textContent()}>
         {/* eslint-disable-next-line solid/no-innerhtml -- intentional: markdown renderer produces trusted HTML */}

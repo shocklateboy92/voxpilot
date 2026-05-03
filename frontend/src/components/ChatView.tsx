@@ -20,14 +20,10 @@ import {
 import { store } from "../store";
 import { AgentPicker } from "./AgentPicker";
 import { BottomNav } from "./BottomNav";
-import {
-  anchor,
-  ChatMain,
-  chatPaneMount,
-  ChatScrollButton,
-} from "./ChatMain";
+import { anchor, ChatMain, ChatScrollButton, chatPaneMount } from "./ChatMain";
 import { ContentShell } from "./ContentShell";
 import { ContextUsageBar } from "./ContextUsageBar";
+import { ModelPicker } from "./ModelPicker";
 import { NewSessionPage } from "./NewSessionPage";
 import { ReviewOverlay } from "./ReviewOverlay";
 
@@ -74,7 +70,8 @@ export function ChatView() {
                     <span class="wt-count">{changeCounts().total}</span>
                     <span class="wt-label">changed</span>
                     <span class="wt-breakdown">
-                      (+{changeCounts().added} ~{changeCounts().modified} -{changeCounts().deleted})
+                      (+{changeCounts().added} ~{changeCounts().modified} -
+                      {changeCounts().deleted})
                     </span>
                   </Show>
                 </>
@@ -89,8 +86,13 @@ export function ChatView() {
           paneClass="messages"
           onPaneMount={chatPaneMount}
           onScroll={anchor.onScroll}
-          overlay={<ChatScrollButton />}
-          aboveInput={<AgentPicker />}
+          composerOverlay={<ChatScrollButton />}
+          aboveInput={
+            <div class="composer-controls">
+              <AgentPicker />
+              <ModelPicker />
+            </div>
+          }
         >
           <ChatMain />
         </ContentShell>

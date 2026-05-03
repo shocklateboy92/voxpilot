@@ -12,7 +12,6 @@ import type {
   Event,
   EventWorktreeFailed,
   EventWorktreeReady,
-  File as SdkFile,
   GlobalEvent,
   Message,
   Part,
@@ -20,12 +19,25 @@ import type {
   Project,
   QuestionAnswer,
   QuestionRequest,
+  File as SdkFile,
   Session,
   Worktree,
 } from "@opencode-ai/sdk/v2/client";
 import { createOpencodeClient } from "@opencode-ai/sdk/v2/client";
 
-export type { Event, Agent, Project, Session, Message, Part, PermissionRequest, QuestionRequest, QuestionAnswer, Worktree, SdkFile };
+export type {
+  Agent,
+  Event,
+  Message,
+  Part,
+  PermissionRequest,
+  Project,
+  QuestionAnswer,
+  QuestionRequest,
+  SdkFile,
+  Session,
+  Worktree,
+};
 
 export type MessageWithParts = {
   info: Message;
@@ -82,7 +94,10 @@ void (async () => {
 
 // ── Session API ─────────────────────────────────────────────────
 
-export async function createSession(title?: string, directory?: string): Promise<Session> {
+export async function createSession(
+  title?: string,
+  directory?: string,
+): Promise<Session> {
   const result = await client.session.create({ title, directory });
   if (!result.data)
     throw new Error(
@@ -91,7 +106,10 @@ export async function createSession(title?: string, directory?: string): Promise
   return result.data;
 }
 
-export async function deleteSession(sessionID: string, directory?: string): Promise<void> {
+export async function deleteSession(
+  sessionID: string,
+  directory?: string,
+): Promise<void> {
   await client.session.delete({ sessionID, directory });
 }
 
@@ -108,16 +126,23 @@ export async function sendPromptAsync(
   text: string,
   agent?: string,
   directory?: string,
+  model?: { providerID: string; modelID: string },
+  variant?: string,
 ): Promise<void> {
   await client.session.promptAsync({
     sessionID,
     parts: [{ type: "text", text }],
     agent,
     directory,
+    model,
+    variant,
   });
 }
 
-export async function abortSession(sessionID: string, directory?: string): Promise<void> {
+export async function abortSession(
+  sessionID: string,
+  directory?: string,
+): Promise<void> {
   await client.session.abort({ sessionID, directory });
 }
 
@@ -128,9 +153,7 @@ export async function forkSession(
 ): Promise<Session> {
   const result = await client.session.fork({ sessionID, messageID, directory });
   if (!result.data)
-    throw new Error(
-      "Failed to fork session: " + JSON.stringify(result.error),
-    );
+    throw new Error("Failed to fork session: " + JSON.stringify(result.error));
   return result.data;
 }
 
@@ -150,21 +173,30 @@ export async function replyToQuestion(
   await client.question.reply({ requestID, answers, directory });
 }
 
-export async function rejectQuestion(requestID: string, directory?: string): Promise<void> {
+export async function rejectQuestion(
+  requestID: string,
+  directory?: string,
+): Promise<void> {
   await client.question.reject({ requestID, directory });
 }
 
-export async function fetchPendingPermissions(directory?: string): Promise<PermissionRequest[]> {
+export async function fetchPendingPermissions(
+  directory?: string,
+): Promise<PermissionRequest[]> {
   const result = await client.permission.list({ directory });
   return (result.data ?? []) as PermissionRequest[];
 }
 
-export async function fetchPendingQuestions(directory?: string): Promise<QuestionRequest[]> {
+export async function fetchPendingQuestions(
+  directory?: string,
+): Promise<QuestionRequest[]> {
   const result = await client.question.list({ directory });
   return (result.data ?? []) as QuestionRequest[];
 }
 
-export async function fetchGitBranch(directory?: string): Promise<string | null> {
+export async function fetchGitBranch(
+  directory?: string,
+): Promise<string | null> {
   try {
     const result = await client.vcs.get({ directory });
     return result.data?.branch ?? null;
@@ -209,6 +241,15 @@ export async function fetchCurrentProject(): Promise<Project | undefined> {
   }
 }
 
+export async function fetchProviders() {
+  try {
+    const result = await client.provider.list();
+    return result.data ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 // ── Worktree API ────────────────────────────────────────────────
 
 /** Default timeout for waiting for worktree.ready (30 seconds). */
@@ -219,7 +260,10 @@ export async function fetchWorktrees(directory: string): Promise<string[]> {
   return result.data ?? [];
 }
 
-export async function createWorktree(directory: string, name?: string): Promise<Worktree> {
+export async function createWorktree(
+  directory: string,
+  name?: string,
+): Promise<Worktree> {
   const result = await client.worktree.create({
     directory,
     worktreeCreateInput: name ? { name } : undefined,
@@ -236,7 +280,11 @@ export async function createWorktree(directory: string, name?: string): Promise<
   await new Promise<void>((resolve, reject) => {
     const timeoutId = setTimeout(() => {
       removeEventListener(listener);
-      reject(new Error(`Timed out waiting for worktree "${worktreeName}" to be ready`));
+      reject(
+        new Error(
+          `Timed out waiting for worktree "${worktreeName}" to be ready`,
+        ),
+      );
     }, WORKTREE_READY_TIMEOUT_MS);
 
     function listener(event: Event): void {
