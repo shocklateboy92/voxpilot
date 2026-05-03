@@ -12,6 +12,7 @@
 import type { Message, TextPart } from "@opencode-ai/sdk/v2/client";
 import { createEffect } from "solid-js";
 import { produce } from "solid-js/store";
+import { effectiveAgent } from "./agent-selection";
 import type { Event, MessageWithParts } from "./api-client";
 import {
   abortSession,
@@ -23,7 +24,7 @@ import {
   sendPromptAsync,
 } from "./api-client";
 import { activeSession, activeSessionId } from "./navigation";
-import { selectedAgent, selectedModel, selectedVariant } from "./preferences";
+import { selectedModel, selectedVariant } from "./preferences";
 import {
   ensureAssistantMessage,
   replaceMessages,
@@ -409,7 +410,7 @@ export async function sendUserMessage(content: string): Promise<boolean> {
   );
 
   try {
-    const agent = selectedAgent();
+    const agent = effectiveAgent();
     const model = selectedModel();
     const variant = selectedVariant();
     const dir = activeSession()?.directory;

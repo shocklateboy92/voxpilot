@@ -19,13 +19,14 @@ import {
   onMount,
   Show,
 } from "solid-js";
+import { effectiveAgent } from "../agent-selection";
 import { createWorktree, fetchWorktrees } from "../api-client";
 import {
   createSessionAndSend,
   navigateNext,
   rootSessions,
 } from "../navigation";
-import { selectedAgent, selectedModel, selectedVariant } from "../preferences";
+import { selectedModel, selectedVariant } from "../preferences";
 import { store } from "../store";
 import { AgentPicker } from "./AgentPicker";
 import { ModelPicker } from "./ModelPicker";
@@ -98,13 +99,13 @@ export function NewSessionPage() {
 
     setSending(true);
     try {
-        await createSessionAndSend(
-          value,
-          selectedAgent(),
-          directory,
-          selectedModel(),
-          selectedVariant(),
-        );
+      await createSessionAndSend(
+        value,
+        effectiveAgent(),
+        directory,
+        selectedModel(),
+        selectedVariant(),
+      );
     } finally {
       setSending(false);
     }

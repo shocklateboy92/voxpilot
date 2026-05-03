@@ -2,23 +2,15 @@
  * User preferences — persisted to localStorage.
  *
  * Extracted from store.ts so components and streaming.ts can read/write
- * the selected agent/model without importing the full store.
+ * the selected model without importing the full store.
+ *
+ * Agent selection is intentionally NOT persisted — see agent-selection.ts.
  */
 
 import { createEffect, createSignal } from "solid-js";
 
-const AGENT_STORAGE_KEY = "voxpilot-selected-agent";
 const MODEL_STORAGE_KEY = "voxpilot-selected-model";
 const MODEL_VARIANT_STORAGE_KEY = "voxpilot-selected-model-variant";
-
-/** Currently selected agent name (persisted to localStorage). */
-export const [selectedAgent, setSelectedAgent] = createSignal<string>(
-  localStorage.getItem(AGENT_STORAGE_KEY) ?? "build",
-);
-
-createEffect(() => {
-  localStorage.setItem(AGENT_STORAGE_KEY, selectedAgent());
-});
 
 /**
  * Selected model as "providerID/modelID" (persisted to localStorage).

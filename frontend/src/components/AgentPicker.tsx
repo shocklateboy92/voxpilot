@@ -6,7 +6,7 @@
  */
 
 import { For, Show } from "solid-js";
-import { selectedAgent, setSelectedAgent } from "../preferences";
+import { effectiveAgent, setEffectiveAgent } from "../agent-selection";
 import { isStreaming } from "../navigation";
 import { store } from "../store";
 
@@ -20,9 +20,9 @@ export function AgentPicker() {
               type="button"
               class="agent-segmented-btn"
               classList={{
-                "agent-segmented-btn-active": agent.name === selectedAgent(),
+                "agent-segmented-btn-active": agent.name === effectiveAgent(),
               }}
-              onClick={() => setSelectedAgent(agent.name)}
+              onClick={() => setEffectiveAgent(agent.name)}
               disabled={isStreaming()}
               title={agent.description}
             >
