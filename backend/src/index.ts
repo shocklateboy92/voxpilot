@@ -1,3 +1,5 @@
+import { existsSync, statSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { createOpencode } from "@opencode-ai/sdk/v2";
 import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
@@ -5,12 +7,79 @@ import { cors } from "hono/cors";
 import { closeDb, getDb } from "./db";
 import { createMcpRouter } from "./mcp";
 import { proxy } from "./proxy";
-import { createReviewRouter } from "./routes/review";
 import { createConfigRouter } from "./routes/config";
+import { createReviewRouter } from "./routes/review";
 import { startIdleInhibitor } from "./services/idle-inhibit";
+
+// Build-time injected version. Default for source/dev runs.
+declare const BUILD_VERSION: string;
+const VERSION =
+  typeof BUILD_VERSION !== "undefined" ? BUILD_VERSION : "0.0.0-dev";
+
+// CLI flag handling -- early exit before any side effects.
+if (process.argv.includes("--version") || process.argv.includes("-v")) {
+  console.log(VERSION);
+  process.exit(0);
+}
+if (process.argv.includes("--help") || process.argv.includes("-h")) {
+  console.log(`VoxPilot ${VERSION}
+
+Usage: voxpilot [options]
+
+Options:
+  -v, --version    Print version and exit
+  -h, --help       Print this help and exit
+
+Environment:
+  VOXPILOT_PORT             HTTP port (default 8000)
+  VOXPILOT_OC_PORT          Embedded OpenCode server port (default 4097)
+  VOXPILOT_DB_PATH          SQLite database path (default voxpilot.db)
+  VOXPILOT_WAKE_URL         Optional Home Assistant webhook for Wake-on-LAN
+
+Requires the 'opencode' binary on PATH (https://opencode.ai/docs).`);
+  process.exit(0);
+}
+
+// Preflight: opencode must be on PATH. The SDK does spawn("opencode", ...)
+// which would fail later with a confusing ENOENT; surface it immediately.
+function checkOpencodeOnPath(): boolean {
+  const pathEnv = process.env.PATH ?? "";
+  const dirs = pathEnv.split(":").filter(Boolean);
+  for (const dir of dirs) {
+    const candidate = resolve(dir, "opencode");
+    try {
+      const st = statSync(candidate);
+      // Must be a regular file (not a directory). On POSIX, we additionally
+      // require it to be executable by anyone -- close enough; if it's not
+      // executable by us, exec() will fail and surface a real error.
+      if (st.isFile() && (st.mode & 0o111) !== 0) return true;
+    } catch {
+      // ENOENT or permission denied; try next dir.
+    }
+  }
+  return false;
+}
+
+if (!checkOpencodeOnPath()) {
+  console.error(
+    "VoxPilot: 'opencode' binary not found on PATH.\n" +
+      "  Install it from https://opencode.ai/docs (e.g. `pacman -S opencode`,\n" +
+      "  `brew install anomalyco/tap/opencode`, or `curl -fsSL https://opencode.ai/install | bash`).",
+  );
+  process.exit(1);
+}
 
 const APP_PORT = Number(process.env.VOXPILOT_PORT ?? 8000);
 const OC_PORT = Number(process.env.VOXPILOT_OC_PORT ?? 4097);
+
+// Resolve the static assets directory. In production (compiled binary),
+// the `static/` folder sits next to the binary. In development (running from
+// source), it lives at backend/static (i.e. ../static relative to src/).
+const staticRoot = (() => {
+  const beside = resolve(dirname(process.execPath), "static");
+  if (existsSync(beside)) return beside;
+  return resolve(import.meta.dir, "../static");
+})();
 
 // Cache OpenCode server across hot reloads (globalThis survives Bun reloads)
 const _global = globalThis as typeof globalThis & {
@@ -60,8 +129,8 @@ export const app = appBase
 // Proxy and static don't need RPC types — keep imperative
 const OC_PREFIX = "/oc";
 app.all(`${OC_PREFIX}/*`, proxy(ocServer.url, OC_PREFIX));
-app.use("/*", serveStatic({ root: "./static" }));
-app.use("/*", serveStatic({ root: "./static", path: "index.html" }));
+app.use("/*", serveStatic({ root: staticRoot }));
+app.use("/*", serveStatic({ root: staticRoot, path: "index.html" }));
 
 export type AppType = typeof app;
 
@@ -75,6 +144,8 @@ export default {
   fetch: app.fetch,
   idleTimeout: 255,
   onListen(server: { hostname: string; port: number }) {
-    console.log(`VoxPilot running on http://${server.hostname}:${server.port}`);
+    console.log(
+      `VoxPilot ${VERSION} running on http://${server.hostname}:${server.port}`,
+    );
   },
 };

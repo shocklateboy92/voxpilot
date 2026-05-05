@@ -1,0 +1,20 @@
+[Unit]
+Description=VoxPilot self-hosted AI coding assistant
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/.local/share/voxpilot
+ExecStart=%h/.local/share/voxpilot/voxpilot
+# Restart on transient failures, but stop trying after 3 failures in 60s so we
+# don't loop forever when something is genuinely broken (e.g. opencode missing).
+Restart=on-failure
+RestartSec=5
+StartLimitBurst=3
+StartLimitIntervalSec=60
+# opencode may live in any of these install locations; cover them all.
+Environment=PATH=%h/.bun/bin:%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+
+[Install]
+WantedBy=default.target

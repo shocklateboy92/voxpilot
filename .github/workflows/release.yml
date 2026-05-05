@@ -1,0 +1,94 @@
+name: Release
+
+# Build a release tarball on every push to main and publish to GitHub Releases.
+# Each commit gets its own release tagged v0.1.<count>+<sha> and is marked as
+# the `latest` release.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Need write access to create releases + tags. Need id-token for keyless
+# sigstore attestations.
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    # Allow only one release build at a time on main; cancel any in-progress
+    # release if a newer commit lands while we're building.
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # build-release.sh uses `git rev-list --count HEAD` for the version,
+          # which needs the full commit history.
+          fetch-depth: 0
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache-dependency-path: tsnet-proxy/go.sum
+
+      - name: Build release tarball
+        id: build
+        run: |
+          scripts/build-release.sh bun-linux-x64
+          # Surface paths + version to downstream steps.
+          tarball="$(ls dist/release/voxpilot-*.tar.gz)"
+          version="$(cat dist/stage/voxpilot/VERSION)"
+          {
+            echo "tarball=$tarball"
+            echo "tarball_basename=$(basename "$tarball")"
+            echo "checksum=$tarball.sha256"
+            echo "version=$version"
+            # Tag form: v0.1.<count>+<sha>. GitHub allows '+' in tag names.
+            echo "tag=v$version"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Generate build provenance attestation
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ steps.build.outputs.tarball }}
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag='${{ steps.build.outputs.tag }}'
+          version='${{ steps.build.outputs.version }}'
+          tarball='${{ steps.build.outputs.tarball }}'
+          checksum='${{ steps.build.outputs.checksum }}'
+
+          # Use --target to attach the tag to the current commit in case it
+          # doesn't already exist.
+          gh release create "$tag" \
+            --target "$GITHUB_SHA" \
+            --title "v$version" \
+            --notes "Automated release from commit \`$GITHUB_SHA\`.
+
+          See the README inside the tarball for install instructions." \
+            --latest \
+            "$tarball" \
+            "$checksum"
