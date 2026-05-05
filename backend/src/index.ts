@@ -1,8 +1,7 @@
-import { existsSync, statSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { statSync } from "node:fs";
+import { resolve } from "node:path";
 import { createOpencode } from "@opencode-ai/sdk/v2";
 import { Hono } from "hono";
-import { serveStatic } from "hono/bun";
 import { cors } from "hono/cors";
 import { closeDb, getDb } from "./db";
 import { createMcpRouter } from "./mcp";
@@ -34,7 +33,10 @@ Environment:
   VOXPILOT_PORT             HTTP port (default 8000)
   VOXPILOT_OC_PORT          Embedded OpenCode server port (default: auto-pick)
   VOXPILOT_DB_PATH          SQLite database path (default voxpilot.db)
-  VOXPILOT_WAKE_URL         Optional Home Assistant webhook for Wake-on-LAN
+
+VoxPilot is a headless API server. The frontend is served by the gateway
+(see gateway/ in the source tree, deployed as a Docker container).
+Use voxpilot-tunnel to expose this backend through a remote gateway.
 
 Requires the 'opencode' binary on PATH (https://opencode.ai/docs).`);
   process.exit(0);
@@ -75,14 +77,10 @@ const APP_PORT = Number(process.env.VOXPILOT_PORT ?? 8000);
 // The actual port is reported by the SDK via `server.url`.
 const OC_PORT = Number(process.env.VOXPILOT_OC_PORT ?? 0);
 
-// Resolve the static assets directory. In production (compiled binary),
-// the `static/` folder sits next to the binary. In development (running from
-// source), it lives at backend/static (i.e. ../static relative to src/).
-const staticRoot = (() => {
-  const beside = resolve(dirname(process.execPath), "static");
-  if (existsSync(beside)) return beside;
-  return resolve(import.meta.dir, "../static");
-})();
+// VoxPilot is a headless API server. The frontend is served by the gateway
+// (gateway/ in the source tree, deployed as a Docker container in front of
+// the fleet of backends). In dev, Vite serves the frontend on :3000 and
+// proxies /api and /oc here. There is no in-binary static-file serving.
 
 // Cache OpenCode server across hot reloads (globalThis survives Bun reloads)
 const _global = globalThis as typeof globalThis & {
@@ -129,11 +127,9 @@ export const app = appBase
   .route("/api/review", createReviewRouter(workDir))
   .route("/api/config", createConfigRouter());
 
-// Proxy and static don't need RPC types — keep imperative
+// Proxy doesn't need RPC types -- keep imperative
 const OC_PREFIX = "/oc";
 app.all(`${OC_PREFIX}/*`, proxy(ocServer.url, OC_PREFIX));
-app.use("/*", serveStatic({ root: staticRoot }));
-app.use("/*", serveStatic({ root: staticRoot, path: "index.html" }));
 
 export type AppType = typeof app;
 

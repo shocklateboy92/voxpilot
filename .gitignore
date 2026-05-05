@@ -41,3 +41,7 @@ Thumbs.db
 
 # Go / tsnet-proxy
 tsnet-proxy/tsnet-proxy
+gateway/gateway
+gateway/voxpilot-gateway
+tunnel-client/tunnel-client
+tunnel-client/voxpilot-tunnel
