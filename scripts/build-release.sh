@@ -55,15 +55,16 @@ echo "==> Building VoxPilot ${VERSION} for ${TARGET} (${OS_ARCH})"
 rm -rf "$STAGE" "$OUTDIR"
 mkdir -p "$STAGE" "$OUTDIR"
 
+# --- backend deps (frontend imports types via @backend alias, so backend
+#     node_modules must exist before frontend build) ----------------------
+echo "==> Installing backend dependencies"
+( cd backend && bun install --frozen-lockfile 2>/dev/null || bun install )
+
 # --- frontend -------------------------------------------------------------
 echo "==> Installing frontend dependencies"
 ( cd frontend && npm install --no-audit --no-fund )
 echo "==> Building frontend"
 ( cd frontend && npm run build )
-
-# --- backend deps ---------------------------------------------------------
-echo "==> Installing backend dependencies"
-( cd backend && bun install --frozen-lockfile 2>/dev/null || bun install )
 
 # --- backend binary -------------------------------------------------------
 echo "==> Compiling VoxPilot binary (target=${TARGET})"
