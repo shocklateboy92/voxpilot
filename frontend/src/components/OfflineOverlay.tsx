@@ -1,6 +1,7 @@
 import type { JSX } from "solid-js";
 import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import WifiOff from "lucide-solid/icons/wifi-off";
+import { backendStorageKey } from "../backend-base";
 import { rpc } from "../rpc";
 
 const PROBE_INTERVAL = 5_000;
@@ -130,10 +131,10 @@ export function OfflineOverlay(props: { children: JSX.Element }) {
       const data = await r.json();
       if (data.wakeUrl) {
         setWakeUrl(data.wakeUrl);
-        localStorage.setItem("voxpilot:wakeUrl", data.wakeUrl);
+        localStorage.setItem(backendStorageKey("wakeUrl"), data.wakeUrl);
       }
     } catch {
-      const stored = localStorage.getItem("voxpilot:wakeUrl");
+      const stored = localStorage.getItem(backendStorageKey("wakeUrl"));
       if (stored) setWakeUrl(stored);
     }
 

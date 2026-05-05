@@ -5,29 +5,40 @@ deployment. Browsers reach it over HTTPS (terminated by Caddy upstream),
 backend hosts reach it via outbound WebSocket tunnels, and the gateway
 brokers HTTP requests between the two.
 
-In Phase 1 (this PR), the gateway is a thin proxy + tunnel server. The
-frontend is not yet embedded; the picker UI and WoL endpoints land in
-later phases.
+The gateway also serves the VoxPilot frontend (embedded via `embed.FS`):
+the picker page at `/`, and the chat app at `/backends/<name>/...`.
 
 ## Routing
 
-| Path                              | Handled by                         |
-| --------------------------------- | ---------------------------------- |
-| `GET  /api/gateway/tunnel`        | WebSocket; tunnel clients connect  |
-| `GET  /api/gateway/instances`     | JSON list of registered backends   |
-| `*    /backends/{name}/...`       | Proxied to that backend's tunnel   |
-| `*    /...`                       | 404 (Phase 2: frontend assets)     |
+| Path                                       | Handled by                              |
+| ------------------------------------------ | --------------------------------------- |
+| `GET  /api/gateway/tunnel`                 | WebSocket; tunnel clients connect       |
+| `GET  /api/gateway/instances`              | JSON list of registered backends        |
+| `*    /backends/{name}/(api\|oc\|mcp)/...` | Proxied to that backend's tunnel        |
+| `*    /backends/{name}/...` (other paths)  | SPA fallback to embedded `index.html`   |
+| `*    /assets/*`, `/icon-*.png`, etc.      | Embedded frontend assets                |
+| `*    /`                                   | Embedded frontend (renders the picker)  |
 
-Path stripping: a request for `/backends/devbox/api/health` arrives at the
-backend as `/api/health`. The original `Host` header is preserved.
+Path stripping for tunneled paths: a request for
+`/backends/devbox/api/health` arrives at the backend as `/api/health`.
+The original `Host` header is preserved.
+
+The frontend bundle uses `window.location.pathname` at module load to
+detect its prefix (see `frontend/src/backend-base.ts`):
+
+- `/` -> picker mode (lists registered backends)
+- `/backends/<name>/...` -> SPA boots, all `/api` and `/oc` calls go to
+  `/backends/<name>/api/...` and `/backends/<name>/oc/...`
+- Anything else -> standalone mode (Vite dev), API calls go to root
 
 ## Configuration
 
-| Env var                     | Default | Notes                                      |
-| --------------------------- | ------- | ------------------------------------------ |
-| `VPGW_BIND`                 | `:8080` | HTTP listen address                        |
-| `VPGW_TUNNEL_TOKEN`         | _none_  | **Required.** Shared secret for tunnels.   |
-| `VPGW_HEARTBEAT_TIMEOUT`    | `60s`   | Mark instance offline after this gap       |
+| Env var                     | Default | Notes                                           |
+| --------------------------- | ------- | ----------------------------------------------- |
+| `VPGW_BIND`                 | `:8080` | HTTP listen address                             |
+| `VPGW_TUNNEL_TOKEN`         | _none_  | **Required.** Shared secret for tunnels.        |
+| `VPGW_HEARTBEAT_TIMEOUT`    | `60s`   | Mark instance offline after this gap            |
+| `VPGW_FRONTEND_DIR`         | _empty_ | Override the embedded frontend (point at `frontend/dist`) |
 
 ## Tunnel protocol
 
@@ -46,39 +57,42 @@ SSE responses unbuffered.
 
 ## Build
 
+The gateway expects the frontend bundle at `gateway/static/`. Build the
+frontend first:
+
 ```sh
-go build -o voxpilot-gateway ./...
+( cd frontend && npm run build && cp -r dist/* ../gateway/static/ )
+go build -o voxpilot-gateway ./gateway/...
 ```
 
-A Dockerfile lives alongside this README (Phase 4 will wire it into the
-release pipeline).
+The release pipeline (Phase 4) will wire this together via Docker.
 
 ## Local smoke test
 
 ```sh
-# Terminal 1: gateway
+# Terminal 1: real VoxPilot backend
+( cd backend && VOXPILOT_PORT=18000 bun run src/index.ts )
+
+# Terminal 2: gateway with frontend embedded
 VPGW_BIND=:18080 VPGW_TUNNEL_TOKEN=dev ./voxpilot-gateway
 
-# Terminal 2: a fake local backend
-python3 -m http.server 18000
-
-# Terminal 3: tunnel client (from ../tunnel-client)
+# Terminal 3: tunnel client
 VOXPILOT_GATEWAY_URL=ws://127.0.0.1:18080/api/gateway/tunnel \
   VOXPILOT_GATEWAY_TOKEN=dev \
-  VOXPILOT_INSTANCE_NAME=smoke \
+  VOXPILOT_INSTANCE_NAME=devbox \
   VOXPILOT_LOCAL_URL=http://127.0.0.1:18000 \
   ./voxpilot-tunnel
 
-# Terminal 4: hit the gateway
-curl http://127.0.0.1:18080/api/gateway/instances
-curl http://127.0.0.1:18080/backends/smoke/
+# Browser:
+#   http://localhost:18080/                  -> picker
+#   http://localhost:18080/backends/devbox/  -> chat app
 ```
 
-## Known limitations (Phase 1)
+## Known limitations
 
 - No persistent state. Gateway restart loses all registrations until clients
   reconnect (a few seconds with default backoff).
 - No WebSocket proxying through the tunnel. SSE works; raw WS upgrades do
   not. VoxPilot does not currently use WS upstream of the tunnel.
-- No frontend serving. Picker UI lands in Phase 2.
 - No WoL endpoint. Lands in Phase 3.
+- Frontend/backend version skew not yet detected/warned. Lands in Phase 3.
