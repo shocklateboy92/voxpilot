@@ -8,6 +8,12 @@
 #   dist/release/voxpilot-<version>-<os>-<arch>.tar.gz
 #   dist/release/voxpilot-<version>-<os>-<arch>.tar.gz.sha256
 #
+# This produces the *backend host* tarball: voxpilot binary + voxpilot-tunnel
+# sidecar + drizzle migrations + systemd units. The gateway is shipped
+# separately as a Docker image (see gateway/Dockerfile + the release
+# workflow); the frontend bundle lives in the gateway image, not in this
+# tarball.
+#
 # Both this script and the GitHub Actions workflow call into here so the build
 # is reproducible from a developer machine.
 
@@ -37,7 +43,7 @@ case "$TARGET" in
   *) echo "build-release: unknown target '$TARGET'" >&2; exit 1 ;;
 esac
 
-# Map Bun target to Go GOOS/GOARCH for tsnet-proxy cross-compilation.
+# Map Bun target to Go GOOS/GOARCH for tunnel-client cross-compilation.
 case "$TARGET" in
   bun-linux-x64*)   GOOS=linux  GOARCH=amd64 ;;
   bun-linux-arm64)  GOOS=linux  GOARCH=arm64 ;;
@@ -55,16 +61,10 @@ echo "==> Building VoxPilot ${VERSION} for ${TARGET} (${OS_ARCH})"
 rm -rf "$STAGE" "$OUTDIR"
 mkdir -p "$STAGE" "$OUTDIR"
 
-# --- backend deps (frontend imports types via @backend alias, so backend
-#     node_modules must exist before frontend build) ----------------------
+# --- backend deps (no frontend build needed in this tarball; the gateway
+#     image owns the frontend) ------------------------------------------
 echo "==> Installing backend dependencies"
 ( cd backend && bun install --frozen-lockfile 2>/dev/null || bun install )
-
-# --- frontend -------------------------------------------------------------
-echo "==> Installing frontend dependencies"
-( cd frontend && npm install --no-audit --no-fund )
-echo "==> Building frontend"
-( cd frontend && npm run build )
 
 # --- backend binary -------------------------------------------------------
 echo "==> Compiling VoxPilot binary (target=${TARGET})"
@@ -80,15 +80,16 @@ echo "==> Compiling VoxPilot binary (target=${TARGET})"
     src/index.ts \
     --outfile "$ROOT/$STAGE/voxpilot" )
 
-# --- tsnet-proxy (Go) -----------------------------------------------------
-echo "==> Building tsnet-proxy (GOOS=${GOOS} GOARCH=${GOARCH})"
-( cd tsnet-proxy && \
+# --- voxpilot-tunnel (Go) ------------------------------------------------
+echo "==> Building voxpilot-tunnel (GOOS=${GOOS} GOARCH=${GOARCH})"
+( cd tunnel-client && \
   GOOS="$GOOS" GOARCH="$GOARCH" CGO_ENABLED=0 \
-  go build -trimpath -ldflags="-s -w" -o "$ROOT/$STAGE/tsnet-proxy" . )
+  go build -trimpath \
+    -ldflags="-s -w -X main.version=${VERSION}" \
+    -o "$ROOT/$STAGE/voxpilot-tunnel" . )
 
 # --- assemble stage -------------------------------------------------------
 echo "==> Assembling tarball contents"
-cp -r frontend/dist "$STAGE/static"
 cp -r backend/drizzle "$STAGE/drizzle"
 cp -r packaging/systemd "$STAGE/systemd"
 cp packaging/README.md "$STAGE/README.md"

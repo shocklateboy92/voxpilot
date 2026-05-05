@@ -47,22 +47,31 @@ format:
 build:
     cd frontend && npm run build
 
-# Build frontend and copy to backend static dir
-build-static: build
-    rm -rf backend/static/assets
-    cp -r frontend/dist/* backend/static/
-
 # Clean build artifacts
 clean:
-    rm -rf frontend/dist backend/tsconfig.tsbuildinfo
+    rm -rf frontend/dist backend/tsconfig.tsbuildinfo gateway/static/assets
 
 # Run everything (install, lint, typecheck, test)
 check: install lint typecheck test
 
-# Run dev servers with tsnet HTTPS proxy (accessible on tailnet)
-dev-tailscale:
+# Run a local gateway against `just dev` -- builds the frontend, points
+# the gateway at frontend/dist via VPGW_FRONTEND_DIR (so changes to
+# frontend code can be picked up with another `just build` without
+# rebuilding the gateway binary), runs gateway + tunnel-client + backend
+# all together. The gateway listens on :18080 by default; visit
+# http://localhost:18080/ for the picker.
+dev-gateway:
     trap 'kill 0' EXIT; \
+    cd frontend && npm run build && cd .. ; \
+    VPGW_BIND=:18080 \
+      VPGW_TUNNEL_TOKEN=dev \
+      VPGW_FRONTEND_DIR=$(pwd)/frontend/dist \
+      go run ./gateway & \
     bun run --hot backend/src/index.ts & \
-    (cd frontend && npm run dev) & \
-    (cd tsnet-proxy && go run .) & \
+    sleep 1 ; \
+    VOXPILOT_GATEWAY_URL=ws://127.0.0.1:18080/api/gateway/tunnel \
+      VOXPILOT_GATEWAY_TOKEN=dev \
+      VOXPILOT_INSTANCE_NAME=dev \
+      VOXPILOT_LOCAL_URL=http://127.0.0.1:8000 \
+      go run ./tunnel-client & \
     wait

@@ -1,0 +1,29 @@
+[Unit]
+Description=VoxPilot tunnel client (joins this backend to a remote gateway)
+After=network-online.target voxpilot.service
+Wants=network-online.target
+BindsTo=voxpilot.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/.local/share/voxpilot
+EnvironmentFile=%h/.config/voxpilot/tunnel.env
+ExecStart=%h/.local/share/voxpilot/voxpilot-tunnel
+Restart=on-failure
+RestartSec=5
+# Burst higher than the backend unit because exponential backoff lives
+# inside the tunnel-client itself; the supervisor only fires when the
+# process exits non-zero (which it doesn't on transient network errors,
+# only on misconfiguration).
+StartLimitBurst=3
+StartLimitIntervalSec=60
+# tunnel.env should set at minimum:
+#   VOXPILOT_GATEWAY_URL=wss://voxpilot.example.com/api/gateway/tunnel
+#   VOXPILOT_GATEWAY_TOKEN=<shared secret with the gateway>
+# Optional:
+#   VOXPILOT_INSTANCE_NAME=devbox        (defaults to hostname)
+#   VOXPILOT_LOCAL_URL=http://127.0.0.1:8000
+#   VOXPILOT_WAKE_URL=https://homeassistant/api/webhook/<id>
+
+[Install]
+WantedBy=default.target
