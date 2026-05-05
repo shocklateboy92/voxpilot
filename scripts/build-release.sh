@@ -68,7 +68,8 @@ echo "==> Building frontend"
 
 # --- backend binary -------------------------------------------------------
 echo "==> Compiling VoxPilot binary (target=${TARGET})"
-# --define injects the version as a string literal at build time.
+# --define injects the version as a string literal at build time. The binary
+# itself disables Bun.serve dev mode by checking BUILD_VERSION at runtime.
 # --minify + --sourcemap follows Bun's production recommendation.
 ( cd backend && bun build \
     --compile \
