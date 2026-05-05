@@ -83,7 +83,7 @@ Browser (SolidJS)
   ├── hc<AppType>() ───► POST /api/review/ref-diff     ──► format-diff service ──► Prettier + diff
   │                      GET  /api/review/ref-diff/cache/:id ──► SQLite lookup
   │
-  ├── OpenCode SDK  ───► ALL /oc/*  ───► proxy ───► OpenCode server (:4097)
+  ├── OpenCode SDK  ───► ALL /oc/*  ───► proxy ───► OpenCode server (auto-picked port)
   │   client                                          ├── sessions, messages, prompts
   │                                                   ├── permissions, questions
   │                                                   ├── SSE event stream
@@ -133,7 +133,7 @@ Schema changes: edit `schema.ts`, run `bunx drizzle-kit generate` to create migr
 | Variable | Default | Purpose |
 |---|---|---|
 | VOXPILOT_PORT | 8000 | HTTP server port |
-| VOXPILOT_OC_PORT | 4097 | Embedded OpenCode server port |
+| VOXPILOT_OC_PORT | 0 (auto-pick) | Embedded OpenCode server port |
 | VOXPILOT_DB_PATH | voxpilot.db | SQLite database path |
 | VOXPILOT_LLM_BASE_URL | http://localhost:11434/v1 | OpenAI-compatible inference URL |
 | VOXPILOT_LLM_API_KEY | ollama | API key for inference |

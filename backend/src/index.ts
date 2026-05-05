@@ -32,7 +32,7 @@ Options:
 
 Environment:
   VOXPILOT_PORT             HTTP port (default 8000)
-  VOXPILOT_OC_PORT          Embedded OpenCode server port (default 4097)
+  VOXPILOT_OC_PORT          Embedded OpenCode server port (default: auto-pick)
   VOXPILOT_DB_PATH          SQLite database path (default voxpilot.db)
   VOXPILOT_WAKE_URL         Optional Home Assistant webhook for Wake-on-LAN
 
@@ -70,7 +70,10 @@ if (!checkOpencodeOnPath()) {
 }
 
 const APP_PORT = Number(process.env.VOXPILOT_PORT ?? 8000);
-const OC_PORT = Number(process.env.VOXPILOT_OC_PORT ?? 4097);
+// 0 = let the OS pick a free port (avoids conflicts when multiple VoxPilot
+// instances run on the same machine, e.g. production service + dev process).
+// The actual port is reported by the SDK via `server.url`.
+const OC_PORT = Number(process.env.VOXPILOT_OC_PORT ?? 0);
 
 // Resolve the static assets directory. In production (compiled binary),
 // the `static/` folder sits next to the binary. In development (running from

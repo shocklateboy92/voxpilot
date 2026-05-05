@@ -100,7 +100,7 @@ Environment variables (set in the unit's `EnvironmentFile=` or `Environment=`):
 | Variable | Default | Purpose |
 |---|---|---|
 | `VOXPILOT_PORT` | `8000` | HTTP server port |
-| `VOXPILOT_OC_PORT` | `4097` | Embedded OpenCode server port |
+| `VOXPILOT_OC_PORT` | auto-pick | Embedded OpenCode server port (0 = OS picks a free one) |
 | `VOXPILOT_DB_PATH` | `voxpilot.db` (relative to WorkingDirectory) | SQLite path |
 | `VOXPILOT_WAKE_URL` | (unset) | Optional Home Assistant webhook for Wake-on-LAN |
 
