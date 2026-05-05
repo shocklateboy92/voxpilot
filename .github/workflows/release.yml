@@ -1,26 +1,30 @@
 name: Release
 
-# Build a release tarball on every push to main and publish to GitHub Releases.
-# Each commit gets its own release tagged v0.1.<count>+<sha> and is marked as
-# the `latest` release.
+# Build a release on every push to master and publish to GitHub Releases.
+# Each commit gets:
+#   - A backend tarball (voxpilot binary + voxpilot-tunnel + systemd units)
+#     attached to a tag `v0.1.<count>+<sha>`, marked as the latest release.
+#   - A gateway Docker image pushed to ghcr.io with both `latest` and the
+#     version-derived tag.
 
 on:
   push:
     branches: [master]
   workflow_dispatch:
 
-# Need write access to create releases + tags. Need id-token for keyless
-# sigstore attestations.
+# Need write access for releases + tags + ghcr packages. id-token for
+# keyless sigstore attestations.
 permissions:
   contents: write
   id-token: write
   attestations: write
+  packages: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
-    # Allow only one release build at a time on main; cancel any in-progress
+    # Allow only one release build at a time on master; cancel any in-progress
     # release if a newer commit lands while we're building.
     concurrency:
       group: release-${{ github.ref }}
@@ -47,10 +51,10 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
-          cache-dependency-path: tsnet-proxy/go.sum
+          go-version: "1.24"
+          cache-dependency-path: tunnel-client/go.sum
 
-      - name: Build release tarball
+      - name: Build backend release tarball
         id: build
         run: |
           scripts/build-release.sh bun-linux-x64
@@ -64,12 +68,39 @@ jobs:
             echo "version=$version"
             # Tag form: v0.1.<count>+<sha>. GitHub allows '+' in tag names.
             echo "tag=v$version"
+            # Docker tags don't allow '+'; use '-' instead.
+            echo "image_tag=$(echo "$version" | tr '+' '-')"
           } >> "$GITHUB_OUTPUT"
 
       - name: Generate build provenance attestation
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: ${{ steps.build.outputs.tarball }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push gateway image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: gateway/Dockerfile
+          push: true
+          # Lowercase the owner/repo for OCI compatibility.
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/voxpilot-gateway:latest
+            ghcr.io/${{ github.repository_owner }}/voxpilot-gateway:${{ steps.build.outputs.image_tag }}
+          build-args: |
+            VERSION=${{ steps.build.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Create GitHub Release
         env:
@@ -78,17 +109,29 @@ jobs:
           set -euo pipefail
           tag='${{ steps.build.outputs.tag }}'
           version='${{ steps.build.outputs.version }}'
+          image_tag='${{ steps.build.outputs.image_tag }}'
           tarball='${{ steps.build.outputs.tarball }}'
           checksum='${{ steps.build.outputs.checksum }}'
 
-          # Use --target to attach the tag to the current commit in case it
-          # doesn't already exist.
+          owner_lc=$(echo "${{ github.repository_owner }}" | tr 'A-Z' 'a-z')
+
           gh release create "$tag" \
             --target "$GITHUB_SHA" \
             --title "v$version" \
             --notes "Automated release from commit \`$GITHUB_SHA\`.
 
-          See the README inside the tarball for install instructions." \
+          ## Backend host
+
+          Download the tarball below; see the README inside for install
+          instructions.
+
+          ## Gateway
+
+          \`\`\`sh
+          docker pull ghcr.io/${owner_lc}/voxpilot-gateway:${image_tag}
+          # or
+          docker pull ghcr.io/${owner_lc}/voxpilot-gateway:latest
+          \`\`\`" \
             --latest \
             "$tarball" \
             "$checksum"

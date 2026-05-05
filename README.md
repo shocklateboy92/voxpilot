@@ -25,12 +25,12 @@ just dev                     # Start backend (:8000) + frontend (:3000)
 | `just dev` | Run both servers concurrently |
 | `just dev-backend` | Backend only (Bun with hot reload on :8000) |
 | `just dev-frontend` | Frontend only (Vite on :3000, proxies to :8000) |
+| `just dev-gateway` | Backend + tunnel + gateway, all wired up locally |
 | `just test` | Run backend tests |
 | `just lint` | Biome + tsc type checking |
 | `just typecheck` | tsc --noEmit for both packages |
 | `just format` | Biome auto-fix |
 | `just build` | Production frontend build |
-| `just build-static` | Build + copy to backend/static/ |
 | `just check` | install + lint + typecheck + test |
 
 ## Stack

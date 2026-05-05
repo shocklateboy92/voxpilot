@@ -39,8 +39,7 @@ Thumbs.db
 *.db-shm
 *.db-wal
 
-# Go / tsnet-proxy
-tsnet-proxy/tsnet-proxy
+# Go
 gateway/gateway
 gateway/voxpilot-gateway
 tunnel-client/tunnel-client
