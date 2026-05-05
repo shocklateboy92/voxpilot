@@ -2169,3 +2169,57 @@ h1 {
 .picker-version {
   font-family: var(--font-mono);
 }
+
+.picker-row {
+  /* Override: wake button needs to live next to the link */
+  display: flex;
+  flex-direction: column;
+}
+
+.picker-row-offline .picker-link {
+  /* Offline rows aren't clickable in a useful way until woken; keep the
+   * link but don't underline it on hover. */
+  cursor: default;
+}
+
+.picker-wake-btn {
+  align-self: stretch;
+  background: var(--color-option-bg);
+  color: var(--color-text);
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  border-bottom-left-radius: 0.5rem;
+  border-bottom-right-radius: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.picker-wake-btn:hover:not(:disabled) {
+  background: var(--color-accent);
+  color: var(--color-white);
+}
+
+.picker-wake-btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.picker-skew {
+  font-size: 0.7rem;
+  color: var(--color-warning);
+  border: 1px solid var(--color-warning);
+  border-radius: 0.25rem;
+  padding: 0.05rem 0.35rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.picker-footer {
+  margin-top: 1rem;
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  text-align: center;
+  font-family: var(--font-mono);
+}

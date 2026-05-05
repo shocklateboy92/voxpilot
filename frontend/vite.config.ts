@@ -5,6 +5,11 @@ import { VitePWA } from "vite-plugin-pwa";
 
 const apiTarget = process.env.VOXPILOT_API_TARGET ?? "http://127.0.0.1:8000";
 
+// Version baked into the bundle so the picker can warn about
+// frontend/backend skew. Set by the release pipeline; falls back to a
+// dev marker when running locally.
+const buildVersion = process.env.VOXPILOT_VERSION ?? "0.0.0-dev";
+
 export default defineConfig({
   plugins: [
     solidPlugin(),
@@ -78,5 +83,8 @@ export default defineConfig({
   build: {
     target: "es2022",
     outDir: "dist",
+  },
+  define: {
+    __VOXPILOT_FRONTEND_VERSION__: JSON.stringify(buildVersion),
   },
 });

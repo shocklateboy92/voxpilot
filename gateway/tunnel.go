@@ -116,8 +116,8 @@ func (h *tunnelHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Printf("tunnel: %s connected (version=%s)", inst.name, inst.version)
 	}
 	defer func() {
-		h.registry.remove(inst.name, sess)
-		log.Printf("tunnel: %s disconnected", inst.name)
+		h.registry.markDisconnected(inst.name, sess)
+		log.Printf("tunnel: %s disconnected (instance retained for wake-on-lan)", inst.name)
 	}()
 
 	// Read heartbeats from the control stream until the client goes away.
