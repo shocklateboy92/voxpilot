@@ -14,19 +14,31 @@ import (
 	"github.com/hashicorp/yamux"
 )
 
-// proxyHandler routes /backends/{name}/... to the named instance's tunnel.
-// Path-prefix stripping: the backend sees the request at the same path it
-// would if it were called directly (e.g. /backends/devbox/api/health
-// becomes /api/health).
+// proxyHandler routes /backends/{name}/{api|oc|mcp}/... to the named
+// instance's tunnel. Anything else under /backends/{name}/ is the
+// frontend (handled by the static handler with SPA fallback).
+//
+// Path-prefix stripping: /backends/devbox/api/health becomes /api/health
+// at the backend. The original Host header is preserved.
 type proxyHandler struct {
 	registry *registry
+	// next is the handler to fall back to when the path is under
+	// /backends/<name>/ but not one of the proxied subpaths -- i.e.,
+	// requests for the SPA itself. Typically the static file server.
+	next http.Handler
 }
 
+// proxiedSubpaths are the path segments (immediately after the backend
+// name) that get tunneled to the backend. Everything else under
+// /backends/<name>/ is served by the SPA (index.html with SPA fallback).
+var proxiedSubpaths = []string{"api", "oc", "mcp"}
+
 func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// /backends/{name}/...  -> name = first segment after the prefix
+	// /backends/{name}/{...}  -- name is the first segment, then "/".
 	rest := strings.TrimPrefix(r.URL.Path, "/backends/")
 	if rest == r.URL.Path {
-		http.NotFound(w, r)
+		// Shouldn't happen given the mux pattern, but be defensive.
+		h.next.ServeHTTP(w, r)
 		return
 	}
 	slash := strings.IndexByte(rest, '/')
@@ -40,6 +52,34 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if name == "" {
 		http.NotFound(w, r)
+		return
+	}
+
+	// Decide whether to tunnel or to serve the SPA. The first segment of
+	// `tail` after the leading slash determines this.
+	tailFirst := ""
+	if len(tail) > 1 {
+		if i := strings.IndexByte(tail[1:], '/'); i >= 0 {
+			tailFirst = tail[1 : 1+i]
+		} else {
+			tailFirst = tail[1:]
+		}
+	}
+	isProxied := false
+	for _, p := range proxiedSubpaths {
+		if tailFirst == p {
+			isProxied = true
+			break
+		}
+	}
+	if !isProxied {
+		// SPA fallback. Strip just /backends/<name> so the static handler
+		// resolves assets and falls back to index.html. Asset requests
+		// (e.g. /backends/devbox/assets/main.js) thus resolve to the
+		// static FS at /assets/main.js.
+		r2 := r.Clone(r.Context())
+		r2.URL.Path = tail
+		h.next.ServeHTTP(w, r2)
 		return
 	}
 

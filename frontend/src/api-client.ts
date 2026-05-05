@@ -24,6 +24,7 @@ import type {
   Worktree,
 } from "@opencode-ai/sdk/v2/client";
 import { createOpencodeClient } from "@opencode-ai/sdk/v2/client";
+import { BACKEND_PREFIX } from "./backend-base";
 
 export type {
   Agent,
@@ -45,7 +46,7 @@ export type MessageWithParts = {
 };
 
 export const client = createOpencodeClient({
-  baseUrl: `${window.location.origin}/oc`,
+  baseUrl: `${window.location.origin}${BACKEND_PREFIX}/oc`,
 });
 
 // ── Global SSE event stream ─────────────────────────────────────

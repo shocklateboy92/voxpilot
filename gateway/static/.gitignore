@@ -1,0 +1,5 @@
+# Built frontend assets are produced by `npm run build` in frontend/
+# and copied in by the build pipeline; never commit them.
+*
+!.keep
+!.gitignore

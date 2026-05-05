@@ -2071,3 +2071,101 @@ h1 {
   color: var(--color-muted);
   margin-top: 0.25rem;
 }
+
+/* ── Picker page ──────────────────────────────────────────────────
+ * Standalone view at "/" when the gateway has no backend selected.
+ * Intentionally minimal: this loads instead of the full app and
+ * should feel like a system menu, not a feature surface.
+ */
+
+.picker-root {
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.picker-header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.picker-subtitle {
+  margin: 0.25rem 0 0;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+.picker-status {
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+.picker-error {
+  color: var(--color-error);
+}
+
+.picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.picker-row {
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  background: var(--color-surface);
+  transition: border-color 0.1s, background 0.1s;
+}
+
+.picker-row-online:hover {
+  border-color: var(--color-accent);
+}
+
+.picker-row-offline {
+  opacity: 0.6;
+}
+
+.picker-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  text-decoration: none;
+  color: var(--color-text);
+}
+
+.picker-name {
+  font-weight: 500;
+  font-family: var(--font-mono);
+}
+
+.picker-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+
+.picker-status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--color-muted);
+  display: inline-block;
+}
+
+.picker-status-dot.online {
+  background: var(--color-ok);
+}
+
+.picker-version {
+  font-family: var(--font-mono);
+}

@@ -60,13 +60,24 @@ func main() {
 	mux.HandleFunc("GET /api/gateway/instances", func(w http.ResponseWriter, r *http.Request) {
 		writeInstances(w, registry)
 	})
-	mux.Handle("/backends/", &proxyHandler{registry: registry})
 
-	// Phase 1 fallback: anything else is a 404. Phase 2 will replace this
-	// with embedded frontend assets + SPA fallback.
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, "not found", http.StatusNotFound)
-	})
+	// Frontend: embedded SolidJS bundle, with SPA fallback to index.html
+	// for any path that doesn't match an asset. The bundle handles both
+	// the picker (rendered when path = "/") and the chat app (rendered
+	// for /backends/<name>/...).
+	staticH, err := newStaticHandler()
+	if err != nil {
+		log.Fatalf("frontend: %v", err)
+	}
+
+	// /backends/{name}/(api|oc|mcp)/... -> proxy to the backend.
+	// /backends/{name}/<anything else>  -> serve the SPA (with prefix
+	// stripped so asset URLs resolve correctly).
+	mux.Handle("/backends/", &proxyHandler{registry: registry, next: staticH})
+
+	// Root: picker page (and any client-side route under "/" that the
+	// SPA might add later).
+	mux.Handle("/", staticH)
 
 	srv := &http.Server{
 		Addr:    bind,
