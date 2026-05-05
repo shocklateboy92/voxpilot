@@ -8,6 +8,7 @@
  */
 
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { FRONTEND_VERSION } from "./backend-base";
 
 type InstanceView = {
   name: string;
@@ -75,18 +76,26 @@ export function Picker() {
             fallback={<p class="picker-status">Loading...</p>}
           >
             <p class="picker-status picker-error">
-              Could not load backends: {(state() as { message: string }).message}
+              Could not load backends:{" "}
+              {(state() as { message: string }).message}
             </p>
           </Show>
         }
       >
-        <PickerList state={state} />
+        <PickerList state={state} onChange={refresh} />
       </Show>
+      <footer class="picker-footer">
+        gateway frontend{" "}
+        <span class="picker-version">{FRONTEND_VERSION}</span>
+      </footer>
     </div>
   );
 }
 
-function PickerList(props: { state: () => FetchState }) {
+function PickerList(props: {
+  state: () => FetchState;
+  onChange: () => Promise<void>;
+}) {
   const instances = () => {
     const s = props.state();
     return s.kind === "ok" ? s.instances : [];
@@ -97,14 +106,21 @@ function PickerList(props: { state: () => FetchState }) {
       fallback={<p class="picker-status">No backends registered yet.</p>}
     >
       <ul class="picker-list">
-        <For each={instances()}>{(inst) => <PickerRow inst={inst} />}</For>
+        <For each={instances()}>
+          {(inst) => <PickerRow inst={inst} onWake={props.onChange} />}
+        </For>
       </ul>
     </Show>
   );
 }
 
-function PickerRow(props: { inst: InstanceView }) {
+function PickerRow(props: {
+  inst: InstanceView;
+  onWake: () => Promise<void>;
+}) {
   const href = () => `/backends/${encodeURIComponent(props.inst.name)}/`;
+  const skew = () =>
+    Boolean(props.inst.version) && props.inst.version !== FRONTEND_VERSION;
   return (
     <li
       classList={{
@@ -116,6 +132,14 @@ function PickerRow(props: { inst: InstanceView }) {
       <a class="picker-link" href={href()}>
         <span class="picker-name">{props.inst.name}</span>
         <span class="picker-meta">
+          <Show when={skew()}>
+            <span
+              class="picker-skew"
+              title={`Backend version ${props.inst.version} differs from gateway frontend ${FRONTEND_VERSION}; the UI may not load correctly.`}
+            >
+              skew
+            </span>
+          </Show>
           <span
             classList={{
               "picker-status-dot": true,
@@ -126,6 +150,55 @@ function PickerRow(props: { inst: InstanceView }) {
           <span class="picker-version">{props.inst.version || "unknown"}</span>
         </span>
       </a>
+      <Show when={!props.inst.online && props.inst.has_wake}>
+        <WakeButton name={props.inst.name} onWake={props.onWake} />
+      </Show>
     </li>
+  );
+}
+
+function WakeButton(props: { name: string; onWake: () => Promise<void> }) {
+  const [busy, setBusy] = createSignal(false);
+  const [status, setStatus] = createSignal<string>("");
+
+  async function handleClick(e: MouseEvent) {
+    e.preventDefault();
+    if (busy()) return;
+    setBusy(true);
+    setStatus("waking...");
+    try {
+      const resp = await fetch(
+        `/api/gateway/wake/${encodeURIComponent(props.name)}`,
+        { method: "POST" },
+      );
+      const body = (await resp.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+      };
+      if (resp.ok && body.ok !== false) {
+        setStatus("sent");
+      } else {
+        setStatus(body.error || `wake failed (HTTP ${resp.status})`);
+      }
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+      // Refresh the instance list -- if the host comes back up quickly,
+      // it'll show as online on the next poll.
+      void props.onWake();
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      class="picker-wake-btn"
+      disabled={busy()}
+      onClick={handleClick}
+      title={status() || "Send Wake-on-LAN webhook"}
+    >
+      {busy() ? "waking..." : status() || "wake"}
+    </button>
   );
 }

@@ -14,6 +14,8 @@ the picker page at `/`, and the chat app at `/backends/<name>/...`.
 | ------------------------------------------ | --------------------------------------- |
 | `GET  /api/gateway/tunnel`                 | WebSocket; tunnel clients connect       |
 | `GET  /api/gateway/instances`              | JSON list of registered backends        |
+| `GET  /api/gateway/info`                   | `{gateway_version}`                     |
+| `POST /api/gateway/wake/{name}`            | Forwards to that backend's `wake_url`   |
 | `*    /backends/{name}/(api\|oc\|mcp)/...` | Proxied to that backend's tunnel        |
 | `*    /backends/{name}/...` (other paths)  | SPA fallback to embedded `index.html`   |
 | `*    /assets/*`, `/icon-*.png`, etc.      | Embedded frontend assets                |
@@ -38,7 +40,30 @@ detect its prefix (see `frontend/src/backend-base.ts`):
 | `VPGW_BIND`                 | `:8080` | HTTP listen address                             |
 | `VPGW_TUNNEL_TOKEN`         | _none_  | **Required.** Shared secret for tunnels.        |
 | `VPGW_HEARTBEAT_TIMEOUT`    | `60s`   | Mark instance offline after this gap            |
+| `VPGW_DATA_DIR`             | _empty_ | If set, persist registry to `<dir>/instances.json` so wake-on-LAN works after gateway restart |
 | `VPGW_FRONTEND_DIR`         | _empty_ | Override the embedded frontend (point at `frontend/dist`) |
+
+Gateway version is injected at build time:
+
+```sh
+go build -ldflags="-X main.version=$(git describe --tags --always)" -o voxpilot-gateway ./...
+```
+
+Frontend version is injected at build time via the `VOXPILOT_VERSION`
+environment variable read by Vite. The picker compares the two and shows
+a "skew" warning per backend if they differ.
+
+## Wake-on-LAN
+
+Each tunnel client may report a `wake_url` (a Home Assistant webhook
+URL or any HTTP endpoint that triggers a WoL packet). The gateway
+persists this in `instances.json` so it survives both the backend going
+offline and the gateway restarting.
+
+`POST /api/gateway/wake/{name}` causes the gateway to POST to that URL
+(no body, 10s timeout) and returns the upstream status as JSON. The
+picker UI exposes this as a "wake" button next to offline backends that
+have a `wake_url` configured.
 
 ## Tunnel protocol
 
@@ -90,9 +115,5 @@ VOXPILOT_GATEWAY_URL=ws://127.0.0.1:18080/api/gateway/tunnel \
 
 ## Known limitations
 
-- No persistent state. Gateway restart loses all registrations until clients
-  reconnect (a few seconds with default backoff).
 - No WebSocket proxying through the tunnel. SSE works; raw WS upgrades do
   not. VoxPilot does not currently use WS upstream of the tunnel.
-- No WoL endpoint. Lands in Phase 3.
-- Frontend/backend version skew not yet detected/warned. Lands in Phase 3.

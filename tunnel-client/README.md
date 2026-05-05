@@ -29,7 +29,7 @@ a `yamux` client session, and:
 | `VOXPILOT_GATEWAY_TOKEN`    | _none_               | **Required.** Shared with gateway. |
 | `VOXPILOT_LOCAL_URL`        | `http://127.0.0.1:8000` | Where the backend listens       |
 | `VOXPILOT_INSTANCE_NAME`    | `os.Hostname()`      | Becomes `/backends/<name>/...`     |
-| `VOXPILOT_WAKE_URL`         | _empty_              | Optional HA webhook (Phase 3)      |
+| `VOXPILOT_WAKE_URL`         | _empty_              | Optional URL the gateway POSTs to wake this host (e.g. an HA webhook that broadcasts a WoL packet). Reported at registration; persisted by the gateway so wake works even when this client is offline. |
 | `VOXPILOT_VERSION`          | `0.0.0-dev`          | Build-time injected normally       |
 
 ## Reconnection

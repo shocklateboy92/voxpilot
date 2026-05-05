@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -26,6 +27,12 @@ import (
 	"syscall"
 	"time"
 )
+
+// version is the gateway+frontend bundle version, injected at build
+// time via -ldflags="-X main.version=...". The frontend bundle has its
+// own version baked in via Vite's `define`; both should match for any
+// given gateway image.
+var version = "0.0.0-dev"
 
 func envOr(key, fallback string) string {
 	if v, ok := os.LookupEnv(key); ok {
@@ -40,6 +47,7 @@ func main() {
 	if tunnelToken == "" {
 		log.Fatal("VPGW_TUNNEL_TOKEN must be set (shared secret presented by tunnel clients)")
 	}
+	dataDir := envOr("VPGW_DATA_DIR", "")
 
 	heartbeatTimeout := 60 * time.Second
 	if v := os.Getenv("VPGW_HEARTBEAT_TIMEOUT"); v != "" {
@@ -50,7 +58,7 @@ func main() {
 		heartbeatTimeout = d
 	}
 
-	registry := newRegistry(heartbeatTimeout)
+	registry := newRegistry(heartbeatTimeout, dataDir)
 
 	mux := http.NewServeMux()
 	mux.Handle("GET /api/gateway/tunnel", &tunnelHandler{
@@ -60,6 +68,14 @@ func main() {
 	mux.HandleFunc("GET /api/gateway/instances", func(w http.ResponseWriter, r *http.Request) {
 		writeInstances(w, registry)
 	})
+	mux.HandleFunc("GET /api/gateway/info", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"gateway_version": version,
+		})
+	})
+	mux.Handle("POST /api/gateway/wake/{name}", &wakeHandler{registry: registry})
 
 	// Frontend: embedded SolidJS bundle, with SPA fallback to index.html
 	// for any path that doesn't match an asset. The bundle handles both
@@ -102,7 +118,7 @@ func main() {
 		registry.closeAll()
 	}()
 
-	log.Printf("voxpilot-gateway listening on %s", bind)
+	log.Printf("voxpilot-gateway %s listening on %s", version, bind)
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("listen: %v", err)
 	}

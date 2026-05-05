@@ -69,6 +69,16 @@ export const BACKEND_NAME = name;
 export const PICKER_MODE = pickerMode;
 
 /**
+ * Bundle version, injected at build time by Vite's `define`. The picker
+ * surfaces this and warns when a backend reports a different version.
+ */
+declare const __VOXPILOT_FRONTEND_VERSION__: string;
+export const FRONTEND_VERSION =
+  typeof __VOXPILOT_FRONTEND_VERSION__ !== "undefined"
+    ? __VOXPILOT_FRONTEND_VERSION__
+    : "0.0.0-dev";
+
+/**
  * Build a localStorage key that's automatically scoped to the current
  * backend, so the same browser can hold separate state per backend
  * without collisions. In standalone mode (no backend name) the key is
