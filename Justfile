@@ -60,11 +60,3 @@ clean:
 
 # Run everything (install, lint, typecheck, test)
 check: install lint typecheck test
-
-# Run dev servers with tsnet HTTPS proxy (accessible on tailnet)
-dev-tailscale:
-    trap 'kill 0' EXIT; \
-    VOXPILOT_PORT=8001 bun run --hot backend/src/index.ts & \
-    (cd frontend && VOXPILOT_API_TARGET=http://127.0.0.1:8001 npm run dev) & \
-    (cd tsnet-proxy && go run .) & \
-    wait

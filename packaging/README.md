@@ -41,22 +41,6 @@ To make it survive logout / start at boot:
 sudo loginctl enable-linger "$USER"
 ```
 
-### Optional: Tailscale exposure (tsnet-proxy)
-
-```sh
-mkdir -p ~/.config/voxpilot
-cat > ~/.config/voxpilot/tsnet.env <<EOF
-TS_HOSTNAME=voxpilot
-TS_AUTHKEY=tskey-auth-...    # from https://login.tailscale.com/admin/settings/keys
-EOF
-chmod 600 ~/.config/voxpilot/tsnet.env
-
-ln -sfn ~/.local/share/voxpilot/systemd/voxpilot-tsnet.service \
-        ~/.config/systemd/user/voxpilot-tsnet.service
-systemctl --user daemon-reload
-systemctl --user enable --now voxpilot-tsnet.service
-```
-
 ## Update
 
 Re-extract the tarball over the existing install, then restart:
@@ -73,11 +57,9 @@ the rest of the files.
 ## Uninstall
 
 ```sh
-systemctl --user disable --now voxpilot.service voxpilot-tsnet.service
-rm ~/.config/systemd/user/voxpilot{,-tsnet}.service
+systemctl --user disable --now voxpilot.service
+rm ~/.config/systemd/user/voxpilot.service
 rm -rf ~/.local/share/voxpilot
-# Optionally:
-rm -rf ~/.config/voxpilot ~/.local/state/voxpilot-tsnet
 ```
 
 ## Files
@@ -85,7 +67,6 @@ rm -rf ~/.config/voxpilot ~/.local/state/voxpilot-tsnet
 ```
 voxpilot/
 ├── voxpilot              VoxPilot binary (Bun --compile)
-├── tsnet-proxy           Tailscale proxy binary (Go, optional)
 ├── drizzle/              SQLite migrations (auto-applied at startup)
 ├── static/               Built frontend assets
 ├── systemd/              systemd --user unit files
@@ -103,5 +84,3 @@ Environment variables (set in the unit's `EnvironmentFile=` or `Environment=`):
 | `VOXPILOT_OC_PORT` | auto-pick | Embedded OpenCode server port (0 = OS picks a free one) |
 | `VOXPILOT_DB_PATH` | `voxpilot.db` (relative to WorkingDirectory) | SQLite path |
 | `VOXPILOT_WAKE_URL` | (unset) | Optional Home Assistant webhook for Wake-on-LAN |
-
-For the tsnet proxy, see `~/.config/voxpilot/tsnet.env` (see Tailscale section above).

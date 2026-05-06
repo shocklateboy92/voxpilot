@@ -37,14 +37,6 @@ case "$TARGET" in
   *) echo "build-release: unknown target '$TARGET'" >&2; exit 1 ;;
 esac
 
-# Map Bun target to Go GOOS/GOARCH for tsnet-proxy cross-compilation.
-case "$TARGET" in
-  bun-linux-x64*)   GOOS=linux  GOARCH=amd64 ;;
-  bun-linux-arm64)  GOOS=linux  GOARCH=arm64 ;;
-  bun-darwin-x64)   GOOS=darwin GOARCH=amd64 ;;
-  bun-darwin-arm64) GOOS=darwin GOARCH=arm64 ;;
-esac
-
 OUTDIR="dist/release"
 STAGE="dist/stage/voxpilot"
 TARBALL="$OUTDIR/voxpilot-${VERSION}-${OS_ARCH}.tar.gz"
@@ -79,12 +71,6 @@ echo "==> Compiling VoxPilot binary (target=${TARGET})"
     --define "BUILD_VERSION=\"${VERSION}\"" \
     src/index.ts \
     --outfile "$ROOT/$STAGE/voxpilot" )
-
-# --- tsnet-proxy (Go) -----------------------------------------------------
-echo "==> Building tsnet-proxy (GOOS=${GOOS} GOARCH=${GOARCH})"
-( cd tsnet-proxy && \
-  GOOS="$GOOS" GOARCH="$GOARCH" CGO_ENABLED=0 \
-  go build -trimpath -ldflags="-s -w" -o "$ROOT/$STAGE/tsnet-proxy" . )
 
 # --- assemble stage -------------------------------------------------------
 echo "==> Assembling tarball contents"
