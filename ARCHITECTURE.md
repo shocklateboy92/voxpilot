@@ -166,7 +166,7 @@ Schema changes: edit `schema.ts`, run `bunx drizzle-kit generate` to create migr
 just install          # bun install (backend) + npm install (frontend)
 just dev              # Run both servers concurrently
 just dev-backend      # bun run --hot backend/src/index.ts
-just dev-frontend     # cd frontend && npm run dev (Vite on :3000, proxies /oc and /api to :8000)
+just dev-frontend     # cd frontend && npm run dev (Vite on :3000, proxies /oc and /api to :8001)
 just test             # cd backend && bun test
 just lint             # Biome check (both) + tsc --noEmit (frontend)
 just typecheck        # tsc --noEmit (both)

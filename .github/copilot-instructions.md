@@ -36,7 +36,7 @@ All commands run from the repository root using `just`:
 
 ```bash
 just install       # bun install (backend) + npm install (frontend)
-just dev           # Run both servers (backend :8000, frontend :3000)
+just dev           # Run both servers (backend :8001, frontend :3000)
 just test          # bun test (backend)
 just lint          # Biome check + tsc --noEmit
 just typecheck     # tsc --noEmit (both packages)

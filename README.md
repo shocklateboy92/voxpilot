@@ -14,7 +14,7 @@ Self-hosted, web-based AI coding assistant. Wraps the [OpenCode](https://opencod
 ```bash
 cp .env.example .env        # Configure LLM endpoint and model
 just install                 # Install dependencies
-just dev                     # Start backend (:8000) + frontend (:3000)
+just dev                     # Start backend (:8001) + frontend (:3000)
 ```
 
 ## Commands
@@ -23,8 +23,8 @@ just dev                     # Start backend (:8000) + frontend (:3000)
 |---|---|
 | `just install` | Install all dependencies (backend + frontend) |
 | `just dev` | Run both servers concurrently |
-| `just dev-backend` | Backend only (Bun with hot reload on :8000) |
-| `just dev-frontend` | Frontend only (Vite on :3000, proxies to :8000) |
+| `just dev-backend` | Backend only (Bun with hot reload on :8001) |
+| `just dev-frontend` | Frontend only (Vite on :3000, proxies to :8001) |
 | `just test` | Run backend tests |
 | `just lint` | Biome + tsc type checking |
 | `just typecheck` | tsc --noEmit for both packages |

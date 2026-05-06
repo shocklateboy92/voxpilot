@@ -9,20 +9,22 @@ install:
     cd backend && bun install
     cd frontend && npm install
 
+# Dev uses port 8001 to avoid conflict with the systemd VoxPilot service on :8000.
+
 # Run both frontend and backend dev servers
 dev:
     trap 'kill 0' EXIT; \
-    bun run --hot backend/src/index.ts & \
-    (cd frontend && npm run dev) & \
+    VOXPILOT_PORT=8001 bun run --hot backend/src/index.ts & \
+    (cd frontend && VOXPILOT_API_TARGET=http://127.0.0.1:8001 npm run dev) & \
     wait
 
 # Run backend dev server
 dev-backend:
-    bun run --hot backend/src/index.ts
+    VOXPILOT_PORT=8001 bun run --hot backend/src/index.ts
 
 # Run frontend dev server
 dev-frontend:
-    cd frontend && npm run dev
+    cd frontend && VOXPILOT_API_TARGET=http://127.0.0.1:8001 npm run dev
 
 # Run backend tests
 test:
@@ -62,7 +64,7 @@ check: install lint typecheck test
 # Run dev servers with tsnet HTTPS proxy (accessible on tailnet)
 dev-tailscale:
     trap 'kill 0' EXIT; \
-    bun run --hot backend/src/index.ts & \
-    (cd frontend && npm run dev) & \
+    VOXPILOT_PORT=8001 bun run --hot backend/src/index.ts & \
+    (cd frontend && VOXPILOT_API_TARGET=http://127.0.0.1:8001 npm run dev) & \
     (cd tsnet-proxy && go run .) & \
     wait
