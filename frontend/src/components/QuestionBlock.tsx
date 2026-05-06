@@ -104,7 +104,8 @@ export function QuestionBlock(props: Props) {
                   return (
                     <button
                       type="button"
-                      class={`btn btn-sm question-option${selected() ? " selected" : ""}`}
+                      class="btn btn-sm question-option"
+                      classList={{ selected: selected() }}
                       disabled={submitting()}
                       onClick={() => toggleOption(qIndex(), opt.label)}
                     >

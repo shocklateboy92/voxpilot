@@ -4,7 +4,7 @@
  * that depend on activeSessionId.
  */
 
-import { createEffect, createSignal } from "solid-js";
+import { createEffect, createRoot, createSignal } from "solid-js";
 import { produce } from "solid-js/store";
 import { createSession, deleteSession, sendPromptAsync } from "./api-client";
 import { setStore, store } from "./store";
@@ -16,37 +16,40 @@ export const [activeSessionId, setActiveSessionId] = createSignal<
   string | undefined
 >(window.location.hash.slice(1) || undefined);
 
-// Sync signal → URL hash
-createEffect(() => {
-  const id = activeSessionId();
-  if (id) {
-    history.replaceState(null, "", `#${id}`);
-  } else {
-    history.replaceState(null, "", window.location.pathname);
-  }
-});
-
 // Sync URL hash → signal (browser back/forward, manual edits)
 window.addEventListener("hashchange", () => {
   const hash = window.location.hash.slice(1);
   setActiveSessionId(hash || undefined);
 });
 
-// ── Session validation ──────────────────────────────────────────
+// Module-level reactive setup needs an owning root or Solid warns and any
+// onCleanup inside silently no-ops. The root lives for the document
+// lifetime, so it is never disposed.
+createRoot(() => {
+  // Sync signal → URL hash
+  createEffect(() => {
+    const id = activeSessionId();
+    if (id) {
+      history.replaceState(null, "", `#${id}`);
+    } else {
+      history.replaceState(null, "", window.location.pathname);
+    }
+  });
 
-/**
- * Reactive session validation: if activeSessionId points to a session
- * that doesn't exist in the store, redirect to the new session page.
- *
- * With the spinner gate, sessions are always loaded before the UI renders,
- * so no .loading guard is needed.
- */
-createEffect(() => {
-  const id = activeSessionId();
-  if (id === undefined) return; // Already on new session page
-  if (!store.sessions.some((s) => s.id === id)) {
-    setActiveSessionId(undefined);
-  }
+  // ── Session validation ────────────────────────────────────────
+  //
+  // Reactive session validation: if activeSessionId points to a session
+  // that doesn't exist in the store, redirect to the new session page.
+  //
+  // With the spinner gate, sessions are always loaded before the UI
+  // renders, so no .loading guard is needed.
+  createEffect(() => {
+    const id = activeSessionId();
+    if (id === undefined) return; // Already on new session page
+    if (!store.sessions.some((s) => s.id === id)) {
+      setActiveSessionId(undefined);
+    }
+  });
 });
 
 // ── Derived accessors ───────────────────────────────────────────

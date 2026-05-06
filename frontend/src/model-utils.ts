@@ -7,7 +7,7 @@
  *   so both ModelPicker and MessageBubble can resolve display names.
  */
 
-import { createResource } from "solid-js";
+import { createResource, createRoot } from "solid-js";
 import { fetchProviders } from "./api-client";
 
 /**
@@ -22,8 +22,13 @@ export function formatVariantLabel(variantID: string): string {
     .join(" ");
 }
 
-/** Shared cached resource for provider data. Fetched once per app lifecycle. */
-export const [providerData] = createResource(fetchProviders);
+/**
+ * Shared cached resource for provider data. Fetched once per app lifecycle.
+ *
+ * Wrapped in createRoot so the resource has an owner — without one Solid
+ * warns about disposal-less computations. The root is never disposed.
+ */
+export const [providerData] = createRoot(() => createResource(fetchProviders));
 
 /**
  * Look up a model's display name from provider metadata.

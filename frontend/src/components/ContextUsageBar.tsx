@@ -6,13 +6,14 @@
  * the model's context window limit from the provider API. This matches
  * the upstream OpenCode UI calculation.
  *
- * Uses createResource to fetch provider data once, and derives usage
- * reactively from the messages store.
+ * Provider data comes from the shared `providerData` resource so we don't
+ * issue a duplicate request, and usage is derived reactively from the
+ * messages store.
  */
 
 import type { AssistantMessage } from "@opencode-ai/sdk/v2/client";
-import { createMemo, createResource, Show } from "solid-js";
-import { client } from "../api-client";
+import { createMemo, Show } from "solid-js";
+import { providerData } from "../model-utils";
 import { store } from "../store";
 
 function formatTokens(n: number): string {
@@ -22,19 +23,13 @@ function formatTokens(n: number): string {
 }
 
 export function ContextUsageBar() {
-  const [providers] = createResource(
-    async () => {
-      const result = await client.provider.list();
-      return result.data;
-    },
-    { initialValue: undefined },
-  );
-
   const context = createMemo(() => {
     let lastAssistant: AssistantMessage | undefined;
     for (const msg of store.messages) {
       if (msg.info.role !== "assistant") continue;
-      const info = msg.info as AssistantMessage;
+      // Discriminated-union narrowing: msg.info.role === "assistant"
+      // narrows msg.info to AssistantMessage without a cast.
+      const info = msg.info;
       if (info.tokens && info.tokens.input > 0) {
         lastAssistant = info;
       }
@@ -47,12 +42,10 @@ export function ContextUsageBar() {
       t.input + t.output + t.reasoning + t.cache.read + t.cache.write;
     if (total <= 0) return undefined;
 
-    const providerData = providers();
+    const data = providerData();
     let limit: number | undefined;
-    if (providerData) {
-      const provider = providerData.all.find(
-        (p) => p.id === lastAssistant?.providerID,
-      );
+    if (data) {
+      const provider = data.all.find((p) => p.id === lastAssistant?.providerID);
       const model = provider?.models[lastAssistant.modelID];
       limit = model?.limit.context;
     }

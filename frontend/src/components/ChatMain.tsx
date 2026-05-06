@@ -14,7 +14,7 @@
  */
 
 import ChevronDown from "lucide-solid/icons/chevron-down";
-import { createEffect, For, Show } from "solid-js";
+import { createEffect, createRoot, For, Show } from "solid-js";
 import {
   activeSessionId,
   pendingPermission,
@@ -29,8 +29,13 @@ import { ToolConfirmBlock } from "./ToolConfirmBlock";
 /**
  * Shared scroll-anchor instance for the chat pane.
  * ChatView wires `anchor.onPaneMount` and `anchor.onScroll` to ContentShell.
+ *
+ * Wrapped in createRoot so the effect and ResizeObserver inside
+ * `useScrollAnchor` have an owner — without one, the `onCleanup` for the
+ * ResizeObserver silently no-ops and Solid emits a dev warning. The root
+ * lives for the document lifetime, so it is never disposed.
  */
-export const anchor = useScrollAnchor();
+export const anchor = createRoot(() => useScrollAnchor());
 
 /**
  * Module-level ref to the pane element, set by `chatPaneMount`.

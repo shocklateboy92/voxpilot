@@ -19,7 +19,7 @@
  * contexts without HTTPS).
  */
 
-import { createEffect } from "solid-js";
+import { createEffect, createRoot } from "solid-js";
 import { store } from "./store";
 
 let sentinel: WakeLockSentinel | null = null;
@@ -54,18 +54,22 @@ function release(): void {
 
 // ── Reactive wake lock management ───────────────────────────────
 
-createEffect(() => {
-  const anyBusy = Object.values(store.sessionStatuses).some(
-    (s) => s.type === "busy",
-  );
+// The effect needs an owning root so Solid doesn't warn about
+// disposal-less computations. The root lives for the document lifetime.
+createRoot(() => {
+  createEffect(() => {
+    const anyBusy = Object.values(store.sessionStatuses).some(
+      (s) => s.type === "busy",
+    );
 
-  if (anyBusy) {
-    shouldBeActive = true;
-    void acquire();
-  } else {
-    shouldBeActive = false;
-    release();
-  }
+    if (anyBusy) {
+      shouldBeActive = true;
+      void acquire();
+    } else {
+      shouldBeActive = false;
+      release();
+    }
+  });
 });
 
 // Re-acquire the wake lock when the page becomes visible again,

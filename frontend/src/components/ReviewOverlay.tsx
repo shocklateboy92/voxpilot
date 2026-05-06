@@ -265,8 +265,11 @@ export function ReviewOverlay() {
     const req = reviewFile();
     if (!req) return false;
 
-    const hasNextRegion =
-      cachedRegions.length > 0 && currentIndex() < cachedRegions.length - 1;
+    // Read regionCount() (signal) rather than cachedRegions.length (plain
+    // array) so the predicate is reactive — SwipeablePane forwards it into
+    // a JSX <Show> for the chevron arrows.
+    const total = regionCount();
+    const hasNextRegion = total > 0 && currentIndex() < total - 1;
     const hasNextFile = req.fileIndex < req.files.length - 1;
 
     return hasNextRegion || hasNextFile;
@@ -277,7 +280,7 @@ export function ReviewOverlay() {
     const req = reviewFile();
     if (!req) return false;
 
-    const hasPrevRegion = cachedRegions.length > 0 && currentIndex() > 0;
+    const hasPrevRegion = regionCount() > 0 && currentIndex() > 0;
     const hasPrevFile = req.fileIndex > 0;
 
     return hasPrevRegion || hasPrevFile;

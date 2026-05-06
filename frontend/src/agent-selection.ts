@@ -15,7 +15,7 @@
  * unused picker selection by design.
  */
 
-import { createEffect, createSignal } from "solid-js";
+import { createEffect, createRoot, createSignal } from "solid-js";
 import { activeSessionId } from "./navigation";
 import { store } from "./store";
 
@@ -26,9 +26,16 @@ const [currentAgentOverride, setCurrentAgentOverride] = createSignal<
 >(undefined);
 
 // Reset the override whenever the active conversation changes.
-createEffect(() => {
-  activeSessionId();
-  setCurrentAgentOverride(undefined);
+// Wrapped in createRoot so the effect has an owner — without this, Solid
+// emits a "computations created outside a `createRoot` or `render` will
+// never be disposed" dev warning, and any onCleanup inside would silently
+// no-op. The lifetime is the whole document anyway, so the root is never
+// disposed.
+createRoot(() => {
+  createEffect(() => {
+    activeSessionId();
+    setCurrentAgentOverride(undefined);
+  });
 });
 
 /**

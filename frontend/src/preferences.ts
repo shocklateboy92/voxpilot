@@ -7,7 +7,7 @@
  * Agent selection is intentionally NOT persisted — see agent-selection.ts.
  */
 
-import { createEffect, createSignal } from "solid-js";
+import { createEffect, createRoot, createSignal } from "solid-js";
 
 const MODEL_STORAGE_KEY = "voxpilot-selected-model";
 const MODEL_VARIANT_STORAGE_KEY = "voxpilot-selected-model-variant";
@@ -20,16 +20,20 @@ export const [selectedModelKey, setSelectedModelKey] = createSignal<string>(
   localStorage.getItem(MODEL_STORAGE_KEY) ?? "",
 );
 
-createEffect(() => {
-  localStorage.setItem(MODEL_STORAGE_KEY, selectedModelKey());
-});
-
 /** Selected model variant/thinking level (persisted to localStorage). */
 export const [selectedModelVariant, setSelectedModelVariant] =
   createSignal<string>(localStorage.getItem(MODEL_VARIANT_STORAGE_KEY) ?? "");
 
-createEffect(() => {
-  localStorage.setItem(MODEL_VARIANT_STORAGE_KEY, selectedModelVariant());
+// Persistence effects need an owning root so Solid doesn't warn about
+// disposal-less computations. The root lives for the document lifetime.
+createRoot(() => {
+  createEffect(() => {
+    localStorage.setItem(MODEL_STORAGE_KEY, selectedModelKey());
+  });
+
+  createEffect(() => {
+    localStorage.setItem(MODEL_VARIANT_STORAGE_KEY, selectedModelVariant());
+  });
 });
 
 /** Parse the selected model key into the { providerID, modelID } shape the SDK expects, or undefined for default. */
