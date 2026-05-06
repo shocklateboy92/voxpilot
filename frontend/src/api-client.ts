@@ -101,7 +101,7 @@ export async function createSession(
   const result = await client.session.create({ title, directory });
   if (!result.data)
     throw new Error(
-      "Failed to create session: " + JSON.stringify(result.error),
+      `Failed to create session: ${JSON.stringify(result.error)}`,
     );
   return result.data;
 }
@@ -153,7 +153,7 @@ export async function forkSession(
 ): Promise<Session> {
   const result = await client.session.fork({ sessionID, messageID, directory });
   if (!result.data)
-    throw new Error("Failed to fork session: " + JSON.stringify(result.error));
+    throw new Error(`Failed to fork session: ${JSON.stringify(result.error)}`);
   return result.data;
 }
 
@@ -270,7 +270,7 @@ export async function createWorktree(
   });
   if (!result.data)
     throw new Error(
-      "Failed to create worktree: " + JSON.stringify(result.error),
+      `Failed to create worktree: ${JSON.stringify(result.error)}`,
     );
 
   // The server populates the worktree asynchronously after returning.

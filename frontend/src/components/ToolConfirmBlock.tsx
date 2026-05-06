@@ -2,12 +2,12 @@
  * Permission prompt — Allow once / Always allow / Reject buttons.
  */
 
-import { createSignal } from "solid-js";
 import Lock from "lucide-solid/icons/lock";
+import { createSignal } from "solid-js";
 import { respondToPermission } from "../api-client";
 import { activeSession } from "../navigation";
-import { setStore } from "../store";
 import type { PendingPermission } from "../store";
+import { setStore } from "../store";
 
 interface Props {
   permission: PendingPermission;
@@ -24,7 +24,9 @@ export function ToolConfirmBlock(props: Props) {
     }
   };
 
-  async function handleReply(reply: "once" | "always" | "reject"): Promise<void> {
+  async function handleReply(
+    reply: "once" | "always" | "reject",
+  ): Promise<void> {
     setSubmitting(true);
     try {
       const dir = activeSession()?.directory;
@@ -45,6 +47,7 @@ export function ToolConfirmBlock(props: Props) {
       <pre class="tool-confirm-args">{metadata()}</pre>
       <div class="tool-confirm-actions">
         <button
+          type="button"
           class="btn btn-success btn-sm"
           disabled={submitting()}
           onClick={() => void handleReply("once")}
@@ -52,6 +55,7 @@ export function ToolConfirmBlock(props: Props) {
           Allow once
         </button>
         <button
+          type="button"
           class="btn btn-success btn-sm"
           disabled={submitting()}
           onClick={() => void handleReply("always")}
@@ -59,6 +63,7 @@ export function ToolConfirmBlock(props: Props) {
           Always allow
         </button>
         <button
+          type="button"
           class="btn btn-danger btn-sm"
           disabled={submitting()}
           onClick={() => void handleReply("reject")}

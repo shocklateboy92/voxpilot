@@ -33,7 +33,11 @@ function AppError(props: { error: unknown }) {
       <div class="app-error">
         <p>Something went wrong:</p>
         <pre>{message()}</pre>
-        <button class="btn btn-primary" onClick={() => window.location.reload()}>
+        <button
+          type="button"
+          class="btn btn-primary"
+          onClick={() => window.location.reload()}
+        >
           Reload
         </button>
       </div>

@@ -20,6 +20,7 @@ export function ToastContainer() {
           <div class="toast toast-error" role="alert">
             <span class="toast-message">{toast.message}</span>
             <button
+              type="button"
               class="toast-dismiss"
               onClick={() => dismiss(toast.id)}
               aria-label="Dismiss"

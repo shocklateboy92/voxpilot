@@ -1,7 +1,7 @@
 import type { ToolPart } from "@opencode-ai/sdk/v2/client";
 import Search from "lucide-solid/icons/search";
 import { type JSX, Show } from "solid-js";
-import { OutputSection, StatusIcon, inputString, isActive } from "./shared";
+import { inputString, isActive, OutputSection, StatusIcon } from "./shared";
 
 export function GrepTool(props: { part: ToolPart }): JSX.Element {
   const pattern = () => inputString(props.part.state, "pattern");

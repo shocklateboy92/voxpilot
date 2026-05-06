@@ -6,8 +6,8 @@ import type {
   QuestionAnswer,
   QuestionRequest,
 } from "@opencode-ai/sdk/v2/client";
-import { createSignal, For, Show } from "solid-js";
 import Check from "lucide-solid/icons/check";
+import { createSignal, For, Show } from "solid-js";
 import { rejectQuestion, replyToQuestion } from "../api-client";
 import { activeSession } from "../navigation";
 import { setStore } from "../store";

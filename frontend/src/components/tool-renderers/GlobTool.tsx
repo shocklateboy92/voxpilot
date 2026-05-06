@@ -1,7 +1,7 @@
 import type { ToolPart } from "@opencode-ai/sdk/v2/client";
 import FolderSearch from "lucide-solid/icons/folder-search";
 import { type JSX, Show } from "solid-js";
-import { OutputSection, StatusIcon, inputString, isActive } from "./shared";
+import { inputString, isActive, OutputSection, StatusIcon } from "./shared";
 
 export function GlobTool(props: { part: ToolPart }): JSX.Element {
   const pattern = () => inputString(props.part.state, "pattern");

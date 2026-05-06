@@ -1,7 +1,7 @@
 import type { ToolPart } from "@opencode-ai/sdk/v2/client";
 import ListChecks from "lucide-solid/icons/list-checks";
 import { For, type JSX, Show } from "solid-js";
-import { OutputSection, StatusIcon, isActive } from "./shared";
+import { isActive, OutputSection, StatusIcon } from "./shared";
 
 interface TodoItem {
   content: string;
@@ -13,7 +13,9 @@ function hasStringProp<K extends string>(
   obj: object,
   key: K,
 ): obj is object & Record<K, string> {
-  return key in obj && typeof (obj as Record<string, unknown>)[key] === "string";
+  return (
+    key in obj && typeof (obj as Record<string, unknown>)[key] === "string"
+  );
 }
 
 function isTodoItem(item: unknown): item is TodoItem {

@@ -1,7 +1,7 @@
 import type { ToolPart } from "@opencode-ai/sdk/v2/client";
 import Globe from "lucide-solid/icons/globe";
 import type { JSX } from "solid-js";
-import { OutputSection, StatusIcon, inputString, isActive } from "./shared";
+import { inputString, isActive, OutputSection, StatusIcon } from "./shared";
 
 export function WebFetchTool(props: { part: ToolPart }): JSX.Element {
   const hostname = () => {

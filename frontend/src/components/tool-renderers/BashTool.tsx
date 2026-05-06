@@ -1,7 +1,7 @@
 import type { ToolPart } from "@opencode-ai/sdk/v2/client";
 import Terminal from "lucide-solid/icons/terminal";
 import { type JSX, Show } from "solid-js";
-import { OutputSection, StatusIcon, inputString, isActive } from "./shared";
+import { inputString, isActive, OutputSection, StatusIcon } from "./shared";
 
 export function BashTool(props: { part: ToolPart }): JSX.Element {
   const command = () => inputString(props.part.state, "command");

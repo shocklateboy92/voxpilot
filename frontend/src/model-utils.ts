@@ -29,10 +29,7 @@ export const [providerData] = createResource(fetchProviders);
  * Look up a model's display name from provider metadata.
  * Returns the raw modelID if the provider/model is not found (graceful fallback).
  */
-export function resolveModelName(
-  providerID: string,
-  modelID: string,
-): string {
+export function resolveModelName(providerID: string, modelID: string): string {
   const data = providerData();
   if (!data) return modelID;
 

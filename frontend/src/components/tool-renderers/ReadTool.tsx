@@ -1,7 +1,14 @@
 import type { ToolPart } from "@opencode-ai/sdk/v2/client";
 import FileText from "lucide-solid/icons/file-text";
 import type { JSX } from "solid-js";
-import { OutputSection, StatusIcon, getTitle, inputString, isActive, stripProjectRoot } from "./shared";
+import {
+  getTitle,
+  inputString,
+  isActive,
+  OutputSection,
+  StatusIcon,
+  stripProjectRoot,
+} from "./shared";
 
 export function ReadTool(props: { part: ToolPart }): JSX.Element {
   const filePath = () => {

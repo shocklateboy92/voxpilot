@@ -1,7 +1,7 @@
 import type { ToolPart } from "@opencode-ai/sdk/v2/client";
 import MessageCircle from "lucide-solid/icons/message-circle";
 import type { JSX } from "solid-js";
-import { OutputSection, StatusIcon, getTitle, isActive } from "./shared";
+import { getTitle, isActive, OutputSection, StatusIcon } from "./shared";
 
 export function QuestionTool(props: { part: ToolPart }): JSX.Element {
   const title = () => {

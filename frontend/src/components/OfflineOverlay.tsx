@@ -1,6 +1,6 @@
+import WifiOff from "lucide-solid/icons/wifi-off";
 import type { JSX } from "solid-js";
 import { createSignal, onCleanup, onMount, Show } from "solid-js";
-import WifiOff from "lucide-solid/icons/wifi-off";
 import { rpc } from "../rpc";
 
 const PROBE_INTERVAL = 5_000;
@@ -29,9 +29,7 @@ function OfflineCard(props: {
   onDismiss?: () => void;
   onConnected: () => void;
 }) {
-  const [status, setStatus] = createSignal<"idle" | "waking" | "error">(
-    "idle",
-  );
+  const [status, setStatus] = createSignal<"idle" | "waking" | "error">("idle");
   const [errorMsg, setErrorMsg] = createSignal("");
 
   async function runProbe() {
@@ -73,6 +71,7 @@ function OfflineCard(props: {
 
       <Show when={props.wakeUrl}>
         <button
+          type="button"
           class="btn btn-primary offline-wake-btn"
           onClick={handleWake}
           disabled={status() === "waking"}
@@ -87,7 +86,11 @@ function OfflineCard(props: {
 
       <Show when={props.onDismiss}>
         {(dismiss) => (
-          <button class="btn btn-ghost offline-dismiss-btn" onClick={dismiss()}>
+          <button
+            type="button"
+            class="btn btn-ghost offline-dismiss-btn"
+            onClick={dismiss()}
+          >
             Dismiss
           </button>
         )}

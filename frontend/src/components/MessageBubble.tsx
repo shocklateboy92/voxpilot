@@ -9,8 +9,8 @@ import type { TextPart, ToolPart } from "@opencode-ai/sdk/v2/client";
 import { For, Show } from "solid-js";
 import { renderMarkdown } from "../markdown";
 import { formatVariantLabel, resolveModelName } from "../model-utils";
-import type { MessageWithParts } from "../types";
 import { store } from "../store";
+import type { MessageWithParts } from "../types";
 import { ToolCallRenderer } from "./ToolCallRenderer";
 
 /**
@@ -108,7 +108,9 @@ export function MessageBubble(props: Props) {
       }}
     >
       <Show
-        when={role() === "assistant" && (agentName() || modelID() || modelVariant())}
+        when={
+          role() === "assistant" && (agentName() || modelID() || modelVariant())
+        }
       >
         <div class="message-meta">
           <Show when={agentName()}>
@@ -138,15 +140,17 @@ export function MessageBubble(props: Props) {
         </div>
       </Show>
       <Show when={role() === "assistant" && textContent()}>
-        {/* eslint-disable-next-line solid/no-innerhtml -- intentional: markdown renderer produces trusted HTML */}
-        <div class="markdown-body" ref={guardScrollWrappers} innerHTML={renderMarkdown(textContent())} />
+        <div
+          class="markdown-body"
+          ref={guardScrollWrappers}
+          // eslint-disable-next-line solid/no-innerhtml -- intentional: markdown renderer produces trusted HTML
+          innerHTML={renderMarkdown(textContent())}
+        />
       </Show>
       <Show when={role() === "user" && textContent()}>
         <p>{textContent()}</p>
       </Show>
-      <For each={toolParts()}>
-        {(part) => <ToolCallRenderer part={part} />}
-      </For>
+      <For each={toolParts()}>{(part) => <ToolCallRenderer part={part} />}</For>
     </div>
   );
 }

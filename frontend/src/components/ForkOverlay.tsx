@@ -37,7 +37,7 @@ export function ForkOverlay(props: ForkOverlayProps) {
       .join("")
       .trim();
     if (text.length <= 100) return text;
-    return text.slice(0, 100) + "...";
+    return `${text.slice(0, 100)}...`;
   }
 
   async function handleFork(messageID?: string): Promise<void> {
@@ -66,21 +66,24 @@ export function ForkOverlay(props: ForkOverlayProps) {
     <Overlay onClose={props.onClose}>
       <div class="fork-header">
         <h2>Fork conversation</h2>
-        <button class="btn btn-ghost" onClick={() => props.onClose()}>
+        <button
+          type="button"
+          class="btn btn-ghost"
+          onClick={() => props.onClose()}
+        >
           <X size={18} />
         </button>
       </div>
 
       <Show
         when={userMessages().length > 0}
-        fallback={
-          <div class="fork-empty">No messages to fork from</div>
-        }
+        fallback={<div class="fork-empty">No messages to fork from</div>}
       >
         <div class="fork-list">
           <For each={userMessages()}>
             {(msg, index) => (
               <button
+                type="button"
                 class="fork-item"
                 disabled={loading()}
                 onClick={() => void handleFork(msg.info.id)}
@@ -95,6 +98,7 @@ export function ForkOverlay(props: ForkOverlayProps) {
         </div>
 
         <button
+          type="button"
           class="btn fork-action"
           disabled={loading()}
           onClick={() => void handleFork()}

@@ -330,11 +330,20 @@ export function ReviewOverlay() {
   return (
     <Show when={reviewFile()}>
       {(req) => (
-        <div class="review-overlay" onClick={close} onKeyDown={handleKeyDown}>
+        <div
+          class="review-overlay"
+          role="dialog"
+          aria-modal="true"
+          tabIndex={-1}
+          onClick={close}
+          onKeyDown={handleKeyDown}
+        >
           <div
             class="review-content"
+            role="document"
             ref={containerRef}
             onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
           >
             <ContentShell
               statusBarLeft={
@@ -350,7 +359,7 @@ export function ReviewOverlay() {
                   <Show when={changeCounter()}>
                     {(cc) => <span class="review-change-counter">{cc()}</span>}
                   </Show>
-                  <button class="btn btn-ghost" onClick={close}>
+                  <button type="button" class="btn btn-ghost" onClick={close}>
                     <X size={18} />
                   </button>
                 </>
@@ -376,8 +385,11 @@ export function ReviewOverlay() {
                 )}
               >
                 <Suspense fallback={<Spinner />}>
-                  {/* eslint-disable-next-line solid/no-innerhtml -- intentional: server-rendered diff HTML */}
-                  <div class="review-diff-container" innerHTML={diffHtml() ?? ""} />
+                  <div
+                    class="review-diff-container"
+                    // eslint-disable-next-line solid/no-innerhtml -- intentional: server-rendered diff HTML
+                    innerHTML={diffHtml() ?? ""}
+                  />
                 </Suspense>
               </ErrorBoundary>
             </ContentShell>

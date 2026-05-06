@@ -11,7 +11,15 @@ import type {
   QuestionRequest,
   SessionStatus,
 } from "@opencode-ai/sdk/v2/client";
-import type { Agent, Message, MessageWithParts, Part, Project, SdkFile, Session } from "./api-client";
+import type {
+  Agent,
+  Message,
+  MessageWithParts,
+  Part,
+  Project,
+  SdkFile,
+  Session,
+} from "./api-client";
 
 export type { Session, Message, Part, MessageWithParts, Project };
 
@@ -37,5 +45,4 @@ export interface AppState {
   sessionPermissions: Record<string, PermissionRequest>;
   sessionQuestions: Record<string, QuestionRequest>;
   sessionErrors: Record<string, string>;
-
 }

@@ -22,10 +22,13 @@ function formatTokens(n: number): string {
 }
 
 export function ContextUsageBar() {
-  const [providers] = createResource(async () => {
-    const result = await client.provider.list();
-    return result.data;
-  }, { initialValue: undefined });
+  const [providers] = createResource(
+    async () => {
+      const result = await client.provider.list();
+      return result.data;
+    },
+    { initialValue: undefined },
+  );
 
   const context = createMemo(() => {
     let lastAssistant: AssistantMessage | undefined;
@@ -48,7 +51,7 @@ export function ContextUsageBar() {
     let limit: number | undefined;
     if (providerData) {
       const provider = providerData.all.find(
-        (p) => p.id === lastAssistant!.providerID,
+        (p) => p.id === lastAssistant?.providerID,
       );
       const model = provider?.models[lastAssistant.modelID];
       limit = model?.limit.context;
@@ -76,21 +79,11 @@ export function ContextUsageBar() {
             >
               {(limit) => (
                 <>
-                  <span class="context-total">
-                    {formatTokens(ctx().total)}
-                  </span>
-                  <span class="context-limit">
-                    /
-                  </span>
-                  <span class="context-limit">
-                    {formatTokens(limit())}
-                  </span>
-                  <span class="context-total">
-                    tokens
-                  </span>
-                  <span class="context-percentage">
-                    ({ctx().percentage}%)
-                  </span>
+                  <span class="context-total">{formatTokens(ctx().total)}</span>
+                  <span class="context-limit">/</span>
+                  <span class="context-limit">{formatTokens(limit())}</span>
+                  <span class="context-total">tokens</span>
+                  <span class="context-percentage">({ctx().percentage}%)</span>
                 </>
               )}
             </Show>

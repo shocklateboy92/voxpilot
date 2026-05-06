@@ -1,7 +1,7 @@
 import type { ToolPart } from "@opencode-ai/sdk/v2/client";
 import SquareTerminal from "lucide-solid/icons/square-terminal";
 import type { JSX } from "solid-js";
-import { OutputSection, StatusIcon, isActive } from "./shared";
+import { isActive, OutputSection, StatusIcon } from "./shared";
 
 export function PtyTool(props: { part: ToolPart }): JSX.Element {
   const summaryText = (): string => {
@@ -11,9 +11,7 @@ export function PtyTool(props: { part: ToolPart }): JSX.Element {
     if (tool === "pty_spawn") {
       const cmd = typeof input.command === "string" ? input.command : "";
       const args = Array.isArray(input.args)
-        ? input.args
-            .filter((a): a is string => typeof a === "string")
-            .join(" ")
+        ? input.args.filter((a): a is string => typeof a === "string").join(" ")
         : "";
       return args ? `${cmd} ${args}` : cmd || "spawn";
     }

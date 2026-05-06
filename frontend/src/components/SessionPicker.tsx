@@ -9,7 +9,6 @@
 import Trash2 from "lucide-solid/icons/trash-2";
 import X from "lucide-solid/icons/x";
 import { createMemo, For, Show } from "solid-js";
-import { Overlay } from "./Overlay";
 import {
   activeSessionId,
   handleDeleteSession,
@@ -17,6 +16,7 @@ import {
   switchToSession,
 } from "../navigation";
 import { store } from "../store";
+import { Overlay } from "./Overlay";
 
 type GroupedEntry = {
   originalIndex: number;
@@ -76,23 +76,31 @@ export function SessionPicker(props: SessionPickerProps) {
 
   return (
     <Overlay onClose={props.onClose} class="session-picker">
-        <div class="picker-header">
-          <h2>Sessions</h2>
-          <button class="btn btn-ghost" onClick={() => props.onClose()}>
-            <X size={18} />
-          </button>
-        </div>
-        <div class="picker-list">
-          <For each={grouped()}>
-            {(entry) => {
-               const session = () => store.sessions[entry.originalIndex];
-              return (
-                <div
-                  class="picker-item"
-                  classList={{
-                    active: session()?.id === activeSessionId(),
-                    child: entry.isChild,
-                  }}
+      <div class="picker-header">
+        <h2>Sessions</h2>
+        <button
+          type="button"
+          class="btn btn-ghost"
+          onClick={() => props.onClose()}
+        >
+          <X size={18} />
+        </button>
+      </div>
+      <div class="picker-list">
+        <For each={grouped()}>
+          {(entry) => {
+            const session = () => store.sessions[entry.originalIndex];
+            return (
+              <div
+                class="picker-item"
+                classList={{
+                  active: session()?.id === activeSessionId(),
+                  child: entry.isChild,
+                }}
+              >
+                <button
+                  type="button"
+                  class="picker-item-select"
                   onClick={() => {
                     const id = session()?.id;
                     if (id) selectSession(id);
@@ -106,31 +114,33 @@ export function SessionPicker(props: SessionPickerProps) {
                       {projectNameMap().get(session()?.projectID ?? "") ?? ""}
                     </span>
                   </Show>
-                  <button
-                    class="btn btn-ghost picker-item-delete"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const id = session()?.id;
-                      if (id) void handleDeleteSession(id);
-                    }}
-                    title="Delete"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              );
-            }}
-          </For>
-        </div>
-        <button
-          class="btn btn-primary picker-new-chat"
-          onClick={() => {
-            handleNewSession();
-            props.onClose();
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-ghost picker-item-delete"
+                  onClick={() => {
+                    const id = session()?.id;
+                    if (id) void handleDeleteSession(id);
+                  }}
+                  title="Delete"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            );
           }}
-        >
-          + New chat
-        </button>
+        </For>
+      </div>
+      <button
+        type="button"
+        class="btn btn-primary picker-new-chat"
+        onClick={() => {
+          handleNewSession();
+          props.onClose();
+        }}
+      >
+        + New chat
+      </button>
     </Overlay>
   );
 }

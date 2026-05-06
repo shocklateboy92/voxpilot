@@ -18,7 +18,9 @@ export interface ChatInputProps {
 }
 
 export function ChatInput(props: ChatInputProps) {
-  function handleSubmit(e: SubmitEvent & { currentTarget: HTMLFormElement }): void {
+  function handleSubmit(
+    e: SubmitEvent & { currentTarget: HTMLFormElement },
+  ): void {
     e.preventDefault();
     if (isStreaming()) return;
 
@@ -33,14 +35,18 @@ export function ChatInput(props: ChatInputProps) {
     props.onSend?.();
   }
 
-  function handleKeyDown(e: KeyboardEvent & { currentTarget: HTMLTextAreaElement }): void {
+  function handleKeyDown(
+    e: KeyboardEvent & { currentTarget: HTMLTextAreaElement },
+  ): void {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       e.currentTarget.form?.requestSubmit();
     }
   }
 
-  function handleAutoResize(e: InputEvent & { currentTarget: HTMLTextAreaElement }): void {
+  function handleAutoResize(
+    e: InputEvent & { currentTarget: HTMLTextAreaElement },
+  ): void {
     e.currentTarget.style.height = "auto";
     e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
   }

@@ -16,14 +16,21 @@ import type {
   AssistantMessage,
   Part as SdkPart,
 } from "@opencode-ai/sdk/v2/client";
-import { createStore } from "solid-js/store";
-import { produce, reconcile } from "solid-js/store";
-import type { Part, MessageWithParts } from "./api-client";
+import { createStore, produce, reconcile } from "solid-js/store";
+import type { MessageWithParts, Part } from "./api-client";
 import { init } from "./init";
 import type { AppState } from "./types";
 
 // Re-export types from types.ts for consumers
-export type { AppState, Session, Message, Part, MessageWithParts, Project, PendingPermission } from "./types";
+export type {
+  AppState,
+  Message,
+  MessageWithParts,
+  Part,
+  PendingPermission,
+  Project,
+  Session,
+} from "./types";
 
 // ── Store creation (top-level await) ────────────────────────────
 // init() fetches all bootstrap data; createStore wraps it reactively.

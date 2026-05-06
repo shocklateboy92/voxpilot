@@ -240,8 +240,8 @@ describe("formatAndDiff", () => {
       }
 
       const result = await formatAndDiff({
-        before: beforeLines.join("\n") + "\n",
-        after: afterLines.join("\n") + "\n",
+        before: `${beforeLines.join("\n")}\n`,
+        after: `${afterLines.join("\n")}\n`,
         filePath: "test.ts",
         printWidth: 80,
       });

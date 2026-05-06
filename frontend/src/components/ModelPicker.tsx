@@ -18,7 +18,6 @@ import {
 } from "../preferences";
 
 export function ModelPicker() {
-
   const connectedProviders = createMemo(() => {
     const data = providerData();
     if (!data) return [];
@@ -43,7 +42,9 @@ export function ModelPicker() {
     const model = selectedModel();
     if (!model) return undefined;
 
-    const provider = connectedProviders().find((entry) => entry.id === model.providerID);
+    const provider = connectedProviders().find(
+      (entry) => entry.id === model.providerID,
+    );
     return provider?.models[model.modelID];
   });
 

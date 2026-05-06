@@ -22,7 +22,12 @@ import { Hono } from "hono";
 import { z } from "zod/v4";
 import { getDb } from "./db";
 import { diffEntries, diffEntryFiles } from "./schema";
-import { ensureGitRepo, getFileAtRef, getUntrackedFiles, runGit } from "./services/git-utils";
+import {
+  ensureGitRepo,
+  getFileAtRef,
+  getUntrackedFiles,
+  runGit,
+} from "./services/git-utils";
 
 // ── Diff cache (DB-backed) ─────────────────────────────────────
 
@@ -251,8 +256,12 @@ function createMcpServer() {
         if (newFiles.length > 0) {
           files.push(...newFiles);
           untrackedStatLines = newFiles
-            .map((f) => ` ${f.file} (untracked) | ${f.additions} ${"+"
-              .repeat(Math.min(f.additions, 40))}`)
+            .map(
+              (f) =>
+                ` ${f.file} (untracked) | ${f.additions} ${"+".repeat(
+                  Math.min(f.additions, 40),
+                )}`,
+            )
             .join("\n");
         }
       }

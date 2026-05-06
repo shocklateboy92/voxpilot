@@ -15,7 +15,11 @@
 
 import ChevronDown from "lucide-solid/icons/chevron-down";
 import { createEffect, For, Show } from "solid-js";
-import { activeSessionId, pendingPermission, pendingQuestion } from "../navigation";
+import {
+  activeSessionId,
+  pendingPermission,
+  pendingQuestion,
+} from "../navigation";
 import { useScrollAnchor } from "../scroll-anchor";
 import { store } from "../store";
 import { MessageBubble } from "./MessageBubble";
@@ -50,6 +54,7 @@ export function ChatScrollButton() {
   return (
     <Show when={!anchor.isAtBottom()}>
       <button
+        type="button"
         class="btn btn-icon scroll-to-bottom"
         onClick={anchor.scrollToBottom}
         aria-label="Scroll to bottom"
@@ -149,9 +154,7 @@ export function ChatMain() {
 
   return (
     <div ref={contentRef} class="messages-content">
-      <For each={store.messages}>
-        {(msg) => <MessageBubble msg={msg} />}
-      </For>
+      <For each={store.messages}>{(msg) => <MessageBubble msg={msg} />}</For>
 
       {/* Permission prompt */}
       <Show when={pendingPermission()}>

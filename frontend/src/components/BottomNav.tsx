@@ -2,10 +2,14 @@
  * Bottom navigation bar — session title (tap to open picker), fork, and + button.
  */
 
-import { createSignal, Show } from "solid-js";
 import GitFork from "lucide-solid/icons/git-fork";
 import Plus from "lucide-solid/icons/plus";
-import { activeSession, handleNewSession, isNewSessionPage } from "../navigation";
+import { createSignal, Show } from "solid-js";
+import {
+  activeSession,
+  handleNewSession,
+  isNewSessionPage,
+} from "../navigation";
 import { ForkOverlay } from "./ForkOverlay";
 import { SessionPicker } from "./SessionPicker";
 
@@ -15,10 +19,15 @@ export function BottomNav() {
 
   return (
     <nav class="bottom-nav">
-      <button class="session-title-btn" onClick={() => setPickerOpen(true)}>
+      <button
+        type="button"
+        class="session-title-btn"
+        onClick={() => setPickerOpen(true)}
+      >
         {activeSession()?.title || "New chat"}
       </button>
       <button
+        type="button"
         class="fork-btn btn btn-icon"
         onClick={() => setForkOpen(true)}
         title="Fork conversation"
@@ -27,6 +36,7 @@ export function BottomNav() {
         <GitFork size={20} />
       </button>
       <button
+        type="button"
         class="new-chat-btn btn btn-icon"
         onClick={() => handleNewSession()}
         title="New chat"

@@ -1,7 +1,14 @@
 import type { ToolPart } from "@opencode-ai/sdk/v2/client";
 import FilePlus from "lucide-solid/icons/file-plus";
 import type { JSX } from "solid-js";
-import { OutputSection, StatusIcon, getTitle, inputString, isActive, stripProjectRoot } from "./shared";
+import {
+  getTitle,
+  inputString,
+  isActive,
+  OutputSection,
+  StatusIcon,
+  stripProjectRoot,
+} from "./shared";
 
 export function WriteTool(props: { part: ToolPart }): JSX.Element {
   const filePath = () => {

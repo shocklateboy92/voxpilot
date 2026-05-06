@@ -143,7 +143,7 @@ h1 {
 }
 
 .hidden {
-  display: none !important;
+  display: none;
 }
 
 /* ═══════════════════════════════════════════════
@@ -440,27 +440,48 @@ h1 {
 }
 
 /* Hidden by default — progressively revealed at wider widths */
-.wt-separator { display: none; }
-.wt-check     { display: none; color: var(--color-ok); }
-.wt-count     { display: none; }
-.wt-label     { display: none; }
-.wt-breakdown { display: none; }
+.wt-separator {
+  display: none;
+}
+.wt-check {
+  display: none;
+  color: var(--color-ok);
+}
+.wt-count {
+  display: none;
+}
+.wt-label {
+  display: none;
+}
+.wt-breakdown {
+  display: none;
+}
 
 /* Tier 1 (≥ 300px): show separator + count/check icon */
 @media (min-width: 300px) {
-  .wt-separator { display: inline; }
-  .wt-check     { display: inline; }
-  .wt-count     { display: inline; }
+  .wt-separator {
+    display: inline;
+  }
+  .wt-check {
+    display: inline;
+  }
+  .wt-count {
+    display: inline;
+  }
 }
 
 /* Tier 2 (≥ 370px): show label ("clean" / "changed") */
 @media (min-width: 370px) {
-  .wt-label { display: inline; }
+  .wt-label {
+    display: inline;
+  }
 }
 
 /* Tier 3 (≥ 440px): show breakdown "(+1 ~1 -1)" */
 @media (min-width: 440px) {
-  .wt-breakdown { display: inline; }
+  .wt-breakdown {
+    display: inline;
+  }
 }
 
 .status-bar-branch-placeholder {
@@ -1349,8 +1370,7 @@ h1 {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  cursor: pointer;
+  padding-right: 1rem;
   transition: background 0.1s;
   min-height: 48px;
 }
@@ -1364,8 +1384,23 @@ h1 {
   border-left: 3px solid var(--color-accent);
 }
 
-.picker-item.child {
+.picker-item.child .picker-item-select {
   padding-left: 2.5rem;
+}
+
+.picker-item-select {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-height: 48px;
 }
 
 .picker-item-title {
@@ -1605,7 +1640,6 @@ h1 {
   flex-direction: column;
   text-align: left;
 }
-
 
 .review-content {
   display: flex;
@@ -1851,19 +1885,27 @@ h1 {
 }
 
 /* Total ("88.7k") and "tokens" — hidden at narrow widths */
-.context-total { display: none; }
+.context-total {
+  display: none;
+}
 
 /* Limit ("/ 128.0k") — hidden until widest tier */
-.context-limit { display: none; }
+.context-limit {
+  display: none;
+}
 
 /* Tier 2 (≥ 370px): show total + "tokens" */
 @media (min-width: 370px) {
-  .context-total { display: inline; }
+  .context-total {
+    display: inline;
+  }
 }
 
 /* Tier 3 (≥ 440px): show limit */
 @media (min-width: 440px) {
-  .context-limit { display: inline; }
+  .context-limit {
+    display: inline;
+  }
 }
 
 .context-bar {

@@ -39,15 +39,19 @@ export function ChangesetCard(props: Props) {
   };
 
   // Fetch cache entry when tool completes
-  const [cache] = createResource(cacheId, async (id) => {
-    const res = await rpc.api.review["ref-diff"].cache[":id"].$get({
-      param: { id },
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    if ("error" in data) return null;
-    return data;
-  }, { initialValue: null });
+  const [cache] = createResource(
+    cacheId,
+    async (id) => {
+      const res = await rpc.api.review["ref-diff"].cache[":id"].$get({
+        param: { id },
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      if ("error" in data) return null;
+      return data;
+    },
+    { initialValue: null },
+  );
 
   function openFile(filePath: string): void {
     const c = cache();

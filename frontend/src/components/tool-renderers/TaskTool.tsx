@@ -1,7 +1,7 @@
 import type { ToolPart } from "@opencode-ai/sdk/v2/client";
 import Bot from "lucide-solid/icons/bot";
 import { type JSX, Show } from "solid-js";
-import { OutputSection, StatusIcon, inputString, isActive } from "./shared";
+import { inputString, isActive, OutputSection, StatusIcon } from "./shared";
 
 export function TaskTool(props: { part: ToolPart }): JSX.Element {
   const description = () => inputString(props.part.state, "description");

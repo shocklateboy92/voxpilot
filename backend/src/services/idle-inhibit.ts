@@ -70,10 +70,14 @@ export async function startIdleInhibitor(
 ): Promise<void> {
   const available = await probeScreenSaver();
   if (!available) {
-    console.log("[idle-inhibit] ScreenSaver D-Bus service not reachable, disabled");
+    console.log(
+      "[idle-inhibit] ScreenSaver D-Bus service not reachable, disabled",
+    );
     return;
   }
-  console.log("[idle-inhibit] ScreenSaver D-Bus service available, monitoring AI activity");
+  console.log(
+    "[idle-inhibit] ScreenSaver D-Bus service available, monitoring AI activity",
+  );
 
   try {
     const result = await client.global.event();

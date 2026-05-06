@@ -5,7 +5,12 @@
  * to populate createStore() before any consumer module executes.
  */
 
-import type { PermissionRequest, Project, QuestionRequest, Session } from "./api-client";
+import type {
+  PermissionRequest,
+  Project,
+  QuestionRequest,
+  Session,
+} from "./api-client";
 import {
   client,
   fetchAgents,
@@ -89,11 +94,13 @@ export async function init(): Promise<AppState> {
   ]);
 
   // Sessions and pending prompts depend on projects (multi-project aggregation)
-  const [sessionList, sessionPermissions, sessionQuestions] = await Promise.all([
-    fetchAllSessions(projectList),
-    fetchAllPendingPermissions(projectList),
-    fetchAllPendingQuestions(projectList),
-  ]);
+  const [sessionList, sessionPermissions, sessionQuestions] = await Promise.all(
+    [
+      fetchAllSessions(projectList),
+      fetchAllPendingPermissions(projectList),
+      fetchAllPendingQuestions(projectList),
+    ],
+  );
 
   return {
     sessions: sessionList,

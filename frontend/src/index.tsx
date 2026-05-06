@@ -1,8 +1,8 @@
 import type { Component } from "solid-js";
 import { createSignal, Show } from "solid-js";
 import { Dynamic, render } from "solid-js/web";
-import { Spinner } from "./components/Spinner";
 import { OfflineOverlay } from "./components/OfflineOverlay";
+import { Spinner } from "./components/Spinner";
 import { rpc } from "./rpc";
 import { extractErrorMessage, showToast } from "./toast";
 import "./style.css";

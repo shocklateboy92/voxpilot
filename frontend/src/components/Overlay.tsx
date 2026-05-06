@@ -5,7 +5,7 @@
  * inner panel so that child click handlers work normally.
  */
 
-import { type JSX } from "solid-js";
+import type { JSX } from "solid-js";
 
 interface OverlayProps {
   onClose: () => void;
@@ -29,6 +29,8 @@ export function Overlay(props: OverlayProps) {
   return (
     <div
       class="overlay-backdrop"
+      role="dialog"
+      aria-modal="true"
       classList={{
         "overlay-bottom": !isCenter(),
         "overlay-center": isCenter(),
@@ -40,12 +42,14 @@ export function Overlay(props: OverlayProps) {
     >
       <div
         class="overlay-panel"
+        role="document"
         classList={{
           "overlay-panel-bottom": !isCenter(),
           "overlay-panel-center": isCenter(),
           [props.class ?? ""]: Boolean(props.class),
         }}
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
       >
         {props.children}
       </div>
