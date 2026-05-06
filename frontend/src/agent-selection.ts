@@ -19,7 +19,7 @@ import { createEffect, createRoot, createSignal } from "solid-js";
 import { activeSessionId } from "./navigation";
 import { store } from "./store";
 
-export const DEFAULT_AGENT = "plan";
+export const DEFAULT_AGENT = "build";
 
 const [currentAgentOverride, setCurrentAgentOverride] = createSignal<
   string | undefined
