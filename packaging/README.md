@@ -16,6 +16,20 @@ service. Extract to `~/.local/share/`, symlink the unit file, enable.
 - An OpenAI-compatible LLM endpoint reachable from this machine (configured
   via `opencode`'s own config -- see https://opencode.ai/docs/providers)
 
+> **PATH note:** systemd `--user` services don't source `~/.bashrc` /
+> `~/.zshrc`, so they only see the user manager's `PATH` (typically
+> `/usr/local/bin:/usr/bin:/bin` plus whatever `pam_env`/`environment.d`
+> adds). If `opencode` (or any other CLI VoxPilot calls) lives in
+> `~/.bun/bin`, `~/.npm-global/bin`, an asdf/mise shim dir, etc., add that
+> directory to `~/.config/environment.d/10-voxpilot.conf`:
+>
+> ```ini
+> PATH=$HOME/.bun/bin:$HOME/.local/bin:${PATH}
+> ```
+>
+> Then `systemctl --user daemon-reexec` (or log out and back in) so the
+> user manager re-reads it. See `environment.d(5)`.
+
 ### One-time setup
 
 ```sh

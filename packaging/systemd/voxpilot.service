@@ -13,8 +13,16 @@ Restart=on-failure
 RestartSec=5
 StartLimitBurst=3
 StartLimitIntervalSec=60
-# opencode may live in any of these install locations; cover them all.
-Environment=PATH=%h/.bun/bin:%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+# PATH is intentionally not set here. systemd --user inherits PATH from the
+# user manager, which users can extend declaratively via
+# ~/.config/environment.d/*.conf (see environment.d(5)) -- the right layer
+# for "where do my CLIs live". Hardcoding PATH here would override anything
+# the user configured there, breaking opencode/td/kagi/etc. that live in
+# non-default locations (~/.bun/bin, ~/.npm-global/bin, asdf shims, ...).
+#
+# If the user manager's PATH doesn't include the location of `opencode`,
+# voxpilot will fail to spawn it; the fix is to add that directory to
+# ~/.config/environment.d/, not to this unit.
 
 [Install]
 WantedBy=default.target
