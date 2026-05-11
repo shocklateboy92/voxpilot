@@ -142,18 +142,42 @@ process.on("exit", () => {
   closeDb();
 });
 
-export default {
-  port: APP_PORT,
-  fetch: app.fetch,
-  idleTimeout: 255,
-  // The compiled binary is always a production artifact; explicitly disable
-  // dev mode (suppresses Bun's "Started development server" banner and the
-  // contextual error pages that leak stack traces). For source/dev runs
-  // (`bun --hot ...`), keep Bun's default dev-mode behavior.
-  development: typeof BUILD_VERSION !== "undefined" ? false : undefined,
-  onListen(server: { hostname: string; port: number }) {
-    console.log(
-      `VoxPilot ${VERSION} running on http://${server.hostname}:${server.port}`,
+// Start the HTTP server explicitly (rather than via Bun's default-export
+// pattern) so we can catch bind failures -- otherwise an EADDRINUSE from a
+// second VoxPilot instance can be silently swallowed by the runtime/container
+// and the operator is left wondering which process is actually serving traffic.
+try {
+  const server = Bun.serve({
+    port: APP_PORT,
+    fetch: app.fetch,
+    idleTimeout: 255,
+    // Explicitly disable SO_REUSEPORT. Bun enables it by default, which lets
+    // multiple processes bind the same port and silently load-balances
+    // requests between them via the kernel -- so a second VoxPilot instance
+    // would *succeed* at binding port 8000 instead of failing with
+    // EADDRINUSE, leaving the operator with two backends randomly serving
+    // traffic. We want hard conflicts, not silent fan-out.
+    reusePort: false,
+    // The compiled binary is always a production artifact; explicitly disable
+    // dev mode (suppresses Bun's "Started development server" banner and the
+    // contextual error pages that leak stack traces). For source/dev runs
+    // (`bun --hot ...`), keep Bun's default dev-mode behavior.
+    development: typeof BUILD_VERSION !== "undefined" ? false : undefined,
+  });
+  console.log(
+    `VoxPilot ${VERSION} running on http://${server.hostname}:${server.port}`,
+  );
+} catch (err) {
+  const code =
+    err instanceof Error && "code" in err ? (err as { code: unknown }).code : undefined;
+  if (code === "EADDRINUSE") {
+    console.error(
+      `VoxPilot: port ${APP_PORT} is already in use. ` +
+        `Another VoxPilot instance may already be running on this host. ` +
+        `Set VOXPILOT_PORT to use a different port.`,
     );
-  },
-};
+  } else {
+    console.error("VoxPilot: failed to start HTTP server:", err);
+  }
+  process.exit(1);
+}
