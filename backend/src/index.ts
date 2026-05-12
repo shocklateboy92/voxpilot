@@ -132,6 +132,31 @@ export const app = appBase
 // Proxy and static don't need RPC types — keep imperative
 const OC_PREFIX = "/oc";
 app.all(`${OC_PREFIX}/*`, proxy(ocServer.url, OC_PREFIX));
+
+// Per-host PWA manifest. Chrome doesn't let users rename installed PWAs, so
+// when the same VoxPilot UI is reachable via multiple hostnames (dev1.lan,
+// dev2.lan, ...) the installed shortcuts all read "VoxPilot" and become
+// indistinguishable. Rewrite name/short_name on the fly with the request's
+// hostname (first DNS label only, e.g. "dev1") so each install gets a
+// distinct label. Localhost / bare IPs get the label "dev" so a local dev
+// install is also distinguishable.
+app.get("/manifest.webmanifest", async (c) => {
+  const file = Bun.file(resolve(staticRoot, "manifest.webmanifest"));
+  const manifest = (await file.json()) as { name: string; short_name: string };
+  const host = (c.req.header("host") ?? "").split(":")[0] ?? "";
+  const firstLabel = host.split(".")[0] ?? "";
+  const isIp = /^\d+(\.\d+){3}$/.test(host) || host.includes(":");
+  const isLocal = host === "localhost" || isIp;
+  const prefix = isLocal ? "dev" : firstLabel;
+  if (prefix) {
+    manifest.name = `${prefix} ${manifest.name}`;
+    manifest.short_name = `${prefix} ${manifest.short_name}`;
+  }
+  return c.json(manifest, 200, {
+    "content-type": "application/manifest+json",
+  });
+});
+
 app.use("/*", serveStatic({ root: staticRoot }));
 app.use("/*", serveStatic({ root: staticRoot, path: "index.html" }));
 
