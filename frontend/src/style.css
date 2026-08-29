@@ -536,6 +536,28 @@ h1 {
   z-index: 50;
 }
 
+/* Virtual keyboard open (approximated by "the composer is focused on a touch
+   device"). With interactive-widget=resizes-content the layout viewport
+   shrinks to the space above the keyboard, so every chrome element competes
+   for what's left. The bottom nav is not useful mid-typing, so drop it and
+   reclaim its height.
+
+   Zeroing --bottom-nav-height/--safe-bottom on .app is what actually moves
+   the composer: .composer-stack's `bottom` and .app's `padding-bottom` are
+   both calc()'d from these vars, so they collapse automatically and the
+   composer settles flush above the keyboard. The safe-area inset is
+   irrelevant here because the keyboard already covers the gesture bar. */
+@media (pointer: coarse) {
+  .app:has(.chat-input:focus) {
+    --bottom-nav-height: 0px;
+    --safe-bottom: 0px;
+  }
+
+  .app:has(.chat-input:focus) .bottom-nav {
+    display: none;
+  }
+}
+
 .session-title-btn {
   flex: 1;
   background: none;

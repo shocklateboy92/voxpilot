@@ -2,9 +2,16 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!-- interactive-widget=resizes-content: the virtual keyboard shrinks the
+         layout viewport (and thus dvh/ICB) instead of only the visual viewport.
+         Without it, Chrome 108+ defaults to resizes-visual, which leaves the
+         full-height layout in place and pans the visual viewport around it --
+         letting the user drag non-scrolling areas (header, input bar) and
+         desync the layout. Not supported on iOS/Safari, which keeps the
+         panning behaviour. -->
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
     />
     <meta
       name="theme-color"
