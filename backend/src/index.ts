@@ -32,7 +32,7 @@ Options:
 Environment:
   VOXPILOT_PORT             HTTP port (default 8000)
   VOXPILOT_OC_PORT          Embedded OpenCode server port (default: auto-pick)
-  VOXPILOT_OC_BINARY        Native OpenCode 2.x executable (default opencode)
+  VOXPILOT_OC_PASSWORD      OpenCode server password (default abc123)
   VOXPILOT_DB_PATH          SQLite database path (default voxpilot.db)
   VOXPILOT_WAKE_URL         Optional Home Assistant webhook for Wake-on-LAN
 

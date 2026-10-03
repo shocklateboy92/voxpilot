@@ -1,5 +1,4 @@
 import { spawn, spawnSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
 import { createInterface } from "node:readline";
 import {
   type ConfigEntry,
@@ -46,9 +45,8 @@ async function startOpenCode(
   port: number,
   clearCache: () => void,
 ): Promise<OwnedOpenCode> {
-  const binary = process.env.VOXPILOT_OC_BINARY ?? "opencode";
-  const install =
-    "Install the native @opencode/cli 2.x binary and set VOXPILOT_OC_BINARY to its executable path.";
+  const binary = "opencode";
+  const install = "Install the native @opencode/cli 2.x binary on PATH.";
   const version = spawnSync(binary, ["--version"], {
     encoding: "utf8",
     timeout: 10_000,
@@ -75,7 +73,7 @@ async function startOpenCode(
     );
   }
 
-  const password = randomBytes(32).toString("base64url");
+  const password = process.env.VOXPILOT_OC_PASSWORD ?? "abc123";
   const authorization = `Basic ${Buffer.from(`opencode:${password}`).toString("base64")}`;
   const config = {
     permissions: [{ action: "*", resource: "*", effect: "allow" }],
@@ -91,7 +89,7 @@ async function startOpenCode(
   } satisfies Extract<ConfigEntry, { type: "document" }>["info"];
   const child = spawn(
     binary,
-    ["serve", "--stdio", "--hostname", "127.0.0.1", "--port", String(port)],
+    ["serve", "--stdio", "--hostname", "0.0.0.0", "--port", String(port)],
     {
       stdio: "pipe",
       env: {
@@ -181,7 +179,7 @@ async function startOpenCode(
             const url = new URL(message.url);
             if (
               url.protocol !== "http:" ||
-              url.hostname !== "127.0.0.1" ||
+              url.hostname !== "0.0.0.0" ||
               url.username ||
               url.password ||
               url.pathname !== "/" ||
@@ -195,6 +193,10 @@ async function startOpenCode(
               );
               return;
             }
+            // Keep backend traffic on loopback even though the child listens
+            // on every interface. LAN clients use VoxPilot's passwordless /oc
+            // proxy, which keeps OpenCode's required credential internal.
+            url.hostname = "127.0.0.1";
             resolve(url.origin);
           } catch {
             // Only the JSON readiness record is relevant; never echo raw output.
@@ -219,7 +221,9 @@ async function startOpenCode(
       );
     }
     void startIdleInhibitor(client, controller.signal);
-    console.log(`OpenCode ${detected} private server started at ${url}`);
+    console.log(
+      `OpenCode ${detected} server listening on all interfaces at port ${new URL(url).port}`,
+    );
     return { client, url, authorization, close };
   } catch (error) {
     await close();

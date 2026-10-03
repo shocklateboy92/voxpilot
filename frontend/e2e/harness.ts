@@ -1,6 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import { constants } from "node:fs";
-import { access, mkdir, mkdtemp, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { ConfigEntry } from "@opencode/client";
 import { startProvider } from "./provider";
@@ -8,8 +7,6 @@ import { startProvider } from "./provider";
 const frontend = resolve(import.meta.dir, "..");
 const backend = resolve(frontend, "../backend/src/index.ts");
 const vite = resolve(frontend, "node_modules/vite/bin/vite.js");
-const nativeBinary =
-  "/tmp/opencode/voxpilot-oc-native-2.0.22/node_modules/@opencode/cli-linux-x64-baseline/bin/opencode";
 
 function port(name: string, fallback: number) {
   const value = Number(process.env[name] ?? fallback);
@@ -66,18 +63,6 @@ process.once("SIGINT", () => {
 });
 
 try {
-  const binary = resolve(process.env.VOXPILOT_E2E_OC_BINARY ?? nativeBinary);
-  try {
-    await access(binary, constants.X_OK);
-    if ((await stat(binary)).isFile() === false) {
-      throw new Error("Not a regular file");
-    }
-  } catch (cause) {
-    throw new Error(
-      `Native OpenCode binary is not executable: ${binary}. Set VOXPILOT_E2E_OC_BINARY to an installed V2 binary; the fixture never falls back to PATH.`,
-      { cause },
-    );
-  }
   const env: NodeJS.ProcessEnv = {};
   for (const [key, value] of Object.entries(process.env)) {
     // Do not inherit user OpenCode configuration, auth, or model overrides.
@@ -93,7 +78,6 @@ try {
   env.OPENCODE_CONFIG_PROJECT_DISABLE = "true";
   env.OPENCODE_DISABLE_MODELS_FETCH = "true";
   env.VOXPILOT_PORT = String(backendPort);
-  env.VOXPILOT_OC_BINARY = binary;
   env.VOXPILOT_OC_PORT = "0";
   env.VOXPILOT_DB_PATH = resolve(root, "voxpilot.db");
   delete env.VOXPILOT_WAKE_URL;

@@ -11,7 +11,7 @@ service. Extract to `~/.local/share/`, symlink the unit file, enable.
 
 - Linux with systemd (any modern distro)
 - Native [OpenCode 2.x](https://opencode.ai/v2/docs/) (`@opencode/cli`, tested
-  with 2.0.22), on `PATH` or selected by `VOXPILOT_OC_BINARY`. The old
+  with 2.0.22) on `PATH`. The old
   `opencode-ai` 1.x package is incompatible.
 - An OpenAI-compatible LLM endpoint reachable from this machine (configured
   via OpenCode's own config -- see https://opencode.ai/v2/docs/providers/)
@@ -96,11 +96,12 @@ Environment variables (set in the unit's `EnvironmentFile=` or `Environment=`):
 |---|---|---|
 | `VOXPILOT_PORT` | `8000` | HTTP server port |
 | `VOXPILOT_OC_PORT` | auto-pick | Embedded OpenCode server port (0 = OS picks a free one) |
-| `VOXPILOT_OC_BINARY` | `opencode` | Native OpenCode 2.x executable path |
+| `VOXPILOT_OC_PASSWORD` | `abc123` | Password for direct OpenCode access (username `opencode`) |
 | `VOXPILOT_DB_PATH` | `voxpilot.db` (relative to WorkingDirectory) | SQLite path |
 | `VOXPILOT_WAKE_URL` | (unset) | Optional Home Assistant webhook for Wake-on-LAN |
 
-VoxPilot starts and stops only its own authenticated loopback OpenCode process.
-It does not stop or replace the shared OpenCode service. Its upstream password
-stays in the backend, not browser configuration. VoxPilot's HTTP endpoint still
-needs your existing trusted-network or reverse-proxy access controls.
+VoxPilot starts and stops only its own OpenCode process, bound to all interfaces.
+It does not stop or replace the shared OpenCode service. OpenCode V2 requires a
+server password. Direct LAN clients use username `opencode` and the configured
+`VOXPILOT_OC_PASSWORD`; VoxPilot injects it for the passwordless `/oc` proxy.
+These endpoints need your existing trusted-network or reverse-proxy controls.

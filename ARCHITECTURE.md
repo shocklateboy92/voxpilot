@@ -9,7 +9,7 @@ Self-hosted web UI for AI-assisted coding. Wraps the OpenCode agent runtime with
 | Runtime | Bun 1.3 |
 | Backend | TypeScript 5.9, Hono 4, Drizzle ORM, SQLite (bun:sqlite, WAL) |
 | Frontend | SolidJS 1.9, TypeScript 5.7, Vite 7 |
-| Agent | OpenCode 2.x (`@opencode/client`) -- owned private server, proxied at `/oc/*` |
+| Agent | OpenCode 2.x (`@opencode/client`) -- owned server, passwordless LAN proxy at `/oc/*` |
 | Tools | MCP server (`@modelcontextprotocol/sdk`) -- exposes `show_diff` to the agent |
 | Diff engine | `prettier` (formatting) + `diff` (line diffing) |
 | Linter | Biome (shared config at repo root `biome.json`) |
@@ -32,7 +32,7 @@ backend/
     schemas/
       api.ts              Zod v4 request schemas (RefDiffRequest)
     services/
-      opencode.ts         Version check, authenticated private stdio server, lifecycle
+      opencode.ts         Version check, owned stdio server, authentication, lifecycle
       git-utils.ts        runGit(), ensureGitRepo(), getFileAtRef(ref, path)
       format-diff.ts      Prettier formatting + line diff + hunk building
       diff-render.ts      Diff HTML rendering (hunk view + full-file view)
@@ -134,7 +134,6 @@ Schema changes: edit `schema.ts`, run `bunx drizzle-kit generate` to create migr
 |---|---|---|
 | VOXPILOT_PORT | 8000 | HTTP server port |
 | VOXPILOT_OC_PORT | 0 (auto-pick) | Embedded OpenCode server port |
-| VOXPILOT_OC_BINARY | opencode | Native OpenCode 2.x executable |
 | VOXPILOT_DB_PATH | voxpilot.db | SQLite database path |
 | VOXPILOT_API_TARGET | http://127.0.0.1:8000 | Vite dev proxy target |
 
@@ -150,7 +149,7 @@ Schema changes: edit `schema.ts`, run `bunx drizzle-kit generate` to create migr
 
 **Reconnect recovery**: `event.subscribe()` is live-only. VoxPilot retries failed/closed subscriptions and reconciles sessions, active status, permissions/forms, files, and active message history on `server.connected`. Message/session lists follow cursor pagination.
 
-**Private runtime**: `serve --stdio` listens on loopback with a random password injected only by the backend proxy. Closing stdin releases this process's ownership lease. VoxPilot never calls the shared service lifecycle APIs; ordinary OpenCode config/data locations still apply outside the isolated test harness.
+**Owned runtime**: `serve --stdio` listens on all interfaces. OpenCode V2 cannot disable server authentication, so direct clients use username `opencode` and `VOXPILOT_OC_PASSWORD` (default `abc123`); the backend injects the same credential for its passwordless `/oc` proxy. Closing stdin releases this process's ownership lease. VoxPilot never calls the shared service lifecycle APIs; ordinary OpenCode config/data locations still apply outside the isolated test harness.
 
 **MCP tool flow**: OpenCode agent calls `show_diff` via MCP. The tool runs git diff, stores full file contents in SQLite, returns a stat summary with `[ref:UUID]` to the LLM. The frontend's `ChangesetCard` detects `[ref:UUID]` in tool output, fetches the cache, and renders an interactive diff viewer.
 

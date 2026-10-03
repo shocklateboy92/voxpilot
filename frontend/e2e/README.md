@@ -13,15 +13,8 @@ From `frontend`, start the disposable server:
 npm run test:e2e:serve
 ```
 
-Set `VOXPILOT_E2E_OC_BINARY` to a native OpenCode 2.x executable. On this
-workspace the harness defaults to the isolated 2.0.22 binary under
-`/tmp/opencode/voxpilot-oc-native-2.0.22/`; it never falls back to the production
-binary on PATH. For Linux x64/glibc, install that test binary without replacing
-the existing installation:
-
-```sh
-npm install --prefix /tmp/opencode/voxpilot-oc-native-2.0.22 --no-save --package-lock=false --no-audit --no-fund --ignore-scripts @opencode/cli-linux-x64-baseline@2.0.22
-```
+The harness uses the native OpenCode 2.x executable on `PATH`, while isolating
+its data, configuration, credentials, database, and workspace from normal use.
 
 Once the harness prints `Ready`, run in another terminal:
 

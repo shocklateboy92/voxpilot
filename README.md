@@ -19,9 +19,11 @@ just dev                     # Start backend (:8001) + frontend (:3000)
 ```
 
 Configure models and credentials through OpenCode's own configuration. VoxPilot
-starts a private, authenticated loopback server; it does not manage the shared
-OpenCode service. Use `VOXPILOT_OC_BINARY` to select a separately installed V2
-binary without replacing an existing V1 installation. Separate processes still
+starts an owned OpenCode server on all interfaces; it does not manage the shared
+OpenCode service. OpenCode V2 requires server authentication; direct LAN clients
+use username `opencode` and `VOXPILOT_OC_PASSWORD` (default `abc123`). VoxPilot
+injects the same credential for its passwordless `/oc` proxy. The native V2
+`opencode` executable must be on `PATH`. Separate processes still
 share OpenCode data/configuration by default; use the isolated browser harness
 when validating a migration without touching existing sessions or credentials.
 
@@ -47,7 +49,7 @@ See [browser regression tests](frontend/e2e/README.md) for a disposable setup.
 
 - **Backend**: TypeScript, Bun, Hono, Drizzle ORM, SQLite
 - **Frontend**: SolidJS, TypeScript, Vite
-- **Agent**: OpenCode 2.x via `@opencode/client` and a private server process
+- **Agent**: OpenCode 2.x via `@opencode/client` and an owned server process
 - **Tools**: MCP server (show_diff)
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for full details.
