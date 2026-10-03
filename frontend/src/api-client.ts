@@ -188,21 +188,18 @@ export async function rejectQuestion(
 }
 
 export async function fetchPendingPermissions(
-  directory?: string,
+  sessionID: string,
 ): Promise<PermissionRequest[]> {
-  const result = await client.permission.request.list({
-    location: { directory },
-  });
-  return result.data;
+  return client.permission.list({ sessionID });
 }
 
 export async function fetchPendingQuestions(
-  directory?: string,
+  sessionID: string,
 ): Promise<QuestionRequest[]> {
-  const result = await client.form.list({ location: { directory } });
+  const result = await client.session.form.list({ sessionID });
   const forms = await Promise.all(
-    result.data.map((form) =>
-      client.session.form.get({ sessionID: form.sessionID, formID: form.id }),
+    result.map((form) =>
+      client.session.form.get({ sessionID, formID: form.id }),
     ),
   );
   return forms.filter((form) => form.state.status === "pending");

@@ -428,17 +428,10 @@ async function refreshSession(sessionID: string): Promise<void> {
   );
 }
 
-async function refreshPending(
-  sessionID: string,
-  directory?: string,
-): Promise<void> {
+async function refreshPending(sessionID: string): Promise<void> {
   const request = bump(pendingRequests, sessionID);
-  const location =
-    directory ??
-    store.sessions.find((session) => session.id === sessionID)?.location
-      .directory;
   const [permissions, forms] = await Promise.all([
-    fetchPendingPermissions(location),
+    fetchPendingPermissions(sessionID),
     client.session.form.list({ sessionID }),
   ]);
   const details = await Promise.all(
@@ -580,9 +573,9 @@ async function reconcileConnection(): Promise<void> {
   if (sessionID) setError(sessionID, store.sessionErrors[sessionID]);
   // Include session locations (worktrees too), not only bootstrap project roots.
   await Promise.all([
-    ...store.sessions.map((session) =>
-      refreshPending(session.id, session.location.directory),
-    ),
+    ...Object.entries(store.sessionStatuses)
+      .filter(([, status]) => status.type !== "idle")
+      .map(([sessionID]) => refreshPending(sessionID)),
     sessionID ? refreshHistory(sessionID) : Promise.resolve(),
     refreshFiles(),
   ]);
@@ -594,7 +587,18 @@ function finishSession(sessionID: string): void {
   void refreshStatus(sessionID);
   void refreshHistory(sessionID);
   void refreshSession(sessionID);
-  void refreshPending(sessionID);
+  setStore(
+    "sessionPermissions",
+    produce((pending) => {
+      delete pending[sessionID];
+    }),
+  );
+  setStore(
+    "sessionQuestions",
+    produce((pending) => {
+      delete pending[sessionID];
+    }),
+  );
   if (sessionID === activeSessionId()) void refreshFiles();
 }
 
@@ -694,7 +698,7 @@ function handleEvent(event: Event): void {
       finishSession(event.data.sessionID);
       break;
     case "permission.asked":
-      void refreshPending(event.data.sessionID, event.location?.directory);
+      void refreshPending(event.data.sessionID);
       break;
     case "permission.replied":
       setStore(
@@ -703,11 +707,11 @@ function handleEvent(event: Event): void {
           delete pending[event.data.sessionID];
         }),
       );
-      void refreshPending(event.data.sessionID, event.location?.directory);
+      void refreshPending(event.data.sessionID);
       break;
     case "form.created":
       bump(revisions, event.data.form.sessionID);
-      void refreshPending(event.data.form.sessionID, event.location?.directory);
+      void refreshPending(event.data.form.sessionID);
       break;
     case "form.replied":
     case "form.cancelled":
@@ -717,7 +721,7 @@ function handleEvent(event: Event): void {
           delete pending[event.data.sessionID];
         }),
       );
-      void refreshPending(event.data.sessionID, event.location?.directory);
+      void refreshPending(event.data.sessionID);
       break;
     case "session.created":
     case "session.forked":
@@ -835,7 +839,9 @@ const dispose = createRoot((dispose) => {
       if (sessionID) {
         void refreshHistory(sessionID);
         void refreshStatus(sessionID);
-        void refreshPending(sessionID);
+        if (store.sessionStatuses[sessionID]?.type !== undefined) {
+          void refreshPending(sessionID);
+        }
       }
     }),
   );

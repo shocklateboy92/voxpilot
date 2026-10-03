@@ -38,15 +38,10 @@ export async function init(): Promise<AppState> {
   ]);
   // Resolve the default location first so its project is registered in the list.
   const projects = await fetchProjects();
-  const directories = [
-    ...new Set([
-      ...projects.map((project) => project.canonical),
-      ...sessions.map((session) => session.location.directory),
-    ]),
-  ];
+  const activeSessionIDs = Object.keys(active);
   const [permissions, questions] = await Promise.all([
-    Promise.all(directories.map(fetchPendingPermissions)),
-    Promise.all(directories.map(fetchPendingQuestions)),
+    Promise.all(activeSessionIDs.map(fetchPendingPermissions)),
+    Promise.all(activeSessionIDs.map(fetchPendingQuestions)),
   ]);
 
   const sessionPermissions: Record<string, PermissionRequest> = {};
