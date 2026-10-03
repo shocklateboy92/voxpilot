@@ -1,4 +1,4 @@
-import type { ToolPart } from "@opencode-ai/sdk/v2/client";
+import type { SessionMessageAssistantTool as ToolPart } from "@opencode/client";
 import ListChecks from "lucide-solid/icons/list-checks";
 import { For, type JSX, Show } from "solid-js";
 import { isActive, OutputSection, StatusIcon } from "./shared";
@@ -9,18 +9,14 @@ interface TodoItem {
   priority?: string;
 }
 
-function hasStringProp<K extends string>(
-  obj: object,
-  key: K,
-): obj is object & Record<K, string> {
-  return (
-    key in obj && typeof (obj as Record<string, unknown>)[key] === "string"
-  );
-}
-
 function isTodoItem(item: unknown): item is TodoItem {
   if (typeof item !== "object" || item === null) return false;
-  return hasStringProp(item, "content") && hasStringProp(item, "status");
+  return (
+    "content" in item &&
+    typeof item.content === "string" &&
+    "status" in item &&
+    typeof item.status === "string"
+  );
 }
 
 function parseTodos(input: { [key: string]: unknown }): TodoItem[] {
@@ -40,7 +36,10 @@ function parseTodos(input: { [key: string]: unknown }): TodoItem[] {
 }
 
 export function TodoTool(props: { part: ToolPart }): JSX.Element {
-  const todos = () => parseTodos(props.part.state.input);
+  const todos = () => {
+    const state = props.part.state;
+    return state.status === "streaming" ? [] : parseTodos(state.input);
+  };
 
   const highlight = (): string => {
     const items = todos();

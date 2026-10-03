@@ -7,7 +7,12 @@
  */
 
 import { createEffect, createMemo, For, Show } from "solid-js";
-import { formatVariantLabel, providerData } from "../model-utils";
+import {
+  defaultModelData,
+  formatVariantLabel,
+  modelData,
+  providerData,
+} from "../model-utils";
 import { isStreaming } from "../navigation";
 import {
   selectedModel,
@@ -19,22 +24,21 @@ import {
 
 export function ModelPicker() {
   const connectedProviders = createMemo(() => {
-    const data = providerData();
-    if (!data) return [];
-
-    const connected = new Set(data.connected);
-    return data.all
-      .filter((provider) => {
-        return (
-          connected.has(provider.id) && Object.keys(provider.models).length > 0
-        );
-      })
+    return (providerData() ?? [])
+      .filter((provider) => provider.activation !== "disabled")
+      .map((provider) => ({
+        ...provider,
+        models: (modelData() ?? []).filter(
+          (model) => model.providerID === provider.id && model.enabled,
+        ),
+      }))
+      .filter((provider) => provider.models.length > 0)
       .sort((a, b) => a.name.localeCompare(b.name));
   });
 
   const hasModels = createMemo(() => {
     return connectedProviders().some((provider) => {
-      return Object.keys(provider.models).length > 0;
+      return provider.models.length > 0;
     });
   });
 
@@ -45,18 +49,18 @@ export function ModelPicker() {
     const provider = connectedProviders().find(
       (entry) => entry.id === model.providerID,
     );
-    return provider?.models[model.modelID];
+    return provider?.models.find((entry) => entry.id === model.id);
   });
 
   const variantEntries = createMemo(() => {
     const model = activeModel();
     if (!model?.variants) return [];
 
-    return Object.keys(model.variants)
-      .sort((a, b) => a.localeCompare(b))
-      .map((variantID) => ({
-        id: variantID,
-        label: formatVariantLabel(variantID),
+    return [...model.variants]
+      .sort((a, b) => a.id.localeCompare(b.id))
+      .map((variant) => ({
+        id: variant.id,
+        label: formatVariantLabel(variant.id),
       }));
   });
 
@@ -65,6 +69,8 @@ export function ModelPicker() {
   });
 
   createEffect(() => {
+    if (modelData.loading || providerData.loading || defaultModelData.loading)
+      return;
     const variants = variantEntries();
     const current = selectedModelVariant();
 
@@ -88,17 +94,20 @@ export function ModelPicker() {
             onChange={(e) => setSelectedModelKey(e.currentTarget.value)}
             disabled={isStreaming()}
           >
-            <option value="">Default model</option>
+            <option value="">
+              Default model
+              {defaultModelData() ? ` (${defaultModelData()?.name})` : ""}
+            </option>
             <For each={connectedProviders()}>
               {(provider) => (
                 <optgroup label={provider.name}>
                   <For
-                    each={Object.entries(provider.models).sort((a, b) =>
-                      a[1].name.localeCompare(b[1].name),
+                    each={[...provider.models].sort((a, b) =>
+                      a.name.localeCompare(b.name),
                     )}
                   >
-                    {([modelId, model]) => (
-                      <option value={`${provider.id}/${modelId}`}>
+                    {(model) => (
+                      <option value={`${provider.id}/${model.id}`}>
                         {model.name}
                       </option>
                     )}

@@ -2,15 +2,13 @@
  * Permission prompt — Allow once / Always allow / Reject buttons.
  */
 
+import type { PermissionRequest } from "@opencode/client";
 import Lock from "lucide-solid/icons/lock";
-import { createSignal } from "solid-js";
+import { createSignal, Show } from "solid-js";
 import { respondToPermission } from "../api-client";
-import { activeSession } from "../navigation";
-import type { PendingPermission } from "../store";
-import { setStore } from "../store";
 
 interface Props {
-  permission: PendingPermission;
+  permission: PermissionRequest;
 }
 
 export function ToolConfirmBlock(props: Props) {
@@ -29,21 +27,28 @@ export function ToolConfirmBlock(props: Props) {
   ): Promise<void> {
     setSubmitting(true);
     try {
-      const dir = activeSession()?.directory;
-      await respondToPermission(props.permission.id, reply, dir);
-    } catch (err: unknown) {
+      await respondToPermission(
+        props.permission.sessionID,
+        props.permission.id,
+        reply,
+      );
+    } finally {
       setSubmitting(false);
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      setStore("errorMessage", `Permission error: ${msg}`);
     }
   }
 
   return (
     <div class="tool-confirm">
       <div class="tool-confirm-header">
-        <Lock size={14} /> <strong>{props.permission.permission}</strong>{" "}
-        requires approval
+        <Lock size={14} /> <strong>{props.permission.action}</strong> requires
+        approval
       </div>
+      <Show when={props.permission.message}>
+        <p>{props.permission.message}</p>
+      </Show>
+      <pre class="tool-confirm-args">
+        {props.permission.resources.join("\n")}
+      </pre>
       <pre class="tool-confirm-args">{metadata()}</pre>
       <div class="tool-confirm-actions">
         <button
@@ -54,14 +59,16 @@ export function ToolConfirmBlock(props: Props) {
         >
           Allow once
         </button>
-        <button
-          type="button"
-          class="btn btn-success btn-sm"
-          disabled={submitting()}
-          onClick={() => void handleReply("always")}
-        >
-          Always allow
-        </button>
+        <Show when={props.permission.save?.length}>
+          <button
+            type="button"
+            class="btn btn-success btn-sm"
+            disabled={submitting()}
+            onClick={() => void handleReply("always")}
+          >
+            Always allow
+          </button>
+        </Show>
         <button
           type="button"
           class="btn btn-danger btn-sm"

@@ -114,7 +114,7 @@ export function ReviewOverlay() {
     }
 
     const data = await res.json();
-    return data.html as string;
+    return data.html;
   });
 
   // After diff HTML renders, scan for change regions and navigate

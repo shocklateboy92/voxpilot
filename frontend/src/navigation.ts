@@ -6,7 +6,12 @@
 
 import { createEffect, createRoot, createSignal } from "solid-js";
 import { produce } from "solid-js/store";
-import { createSession, deleteSession, sendPromptAsync } from "./api-client";
+import {
+  createSession,
+  deleteSession,
+  type ModelRef,
+  sendPromptAsync,
+} from "./api-client";
 import { setStore, store } from "./store";
 
 // ── Active session ID ───────────────────────────────────────────
@@ -85,19 +90,9 @@ export const activeRootIndex = () => {
 /** Whether we're waiting for an assistant response (derived from messages store). */
 export const isStreaming = () => {
   if (store.sessionError) return false;
-
-  const len = store.messages.length;
-  if (len === 0) return false;
-  const last = store.messages[len - 1];
-  if (!last) return false;
-
-  // If the last message is a user message (optimistic), we're waiting for the assistant
-  if (last.info.role === "user") {
-    return true;
-  }
-
-  // Last message is an assistant message — still streaming until time.completed is set
-  return !last.info.time.completed;
+  const id = activeSessionId();
+  const status = id ? store.sessionStatuses[id] : undefined;
+  return status?.type === "busy" || status?.type === "retry";
 };
 
 /** Pending permission for the active session (derived from cross-session store). */
@@ -232,10 +227,13 @@ export async function createSessionAndSend(
   content: string,
   agent: string,
   directory?: string,
-  model?: { providerID: string; modelID: string },
+  model?: ModelRef,
   variant?: string,
 ): Promise<void> {
-  const session = await createSession(undefined, directory);
+  const selected = model
+    ? { ...model, variant: variant ?? model.variant }
+    : undefined;
+  const session = await createSession(undefined, directory, agent, selected);
 
   // Optimistically insert the new session
   setStore(
@@ -248,14 +246,18 @@ export async function createSessionAndSend(
   );
 
   setActiveSessionId(session.id);
-  await sendPromptAsync(session.id, content, agent, directory, model, variant);
+  setStore("sessionStatuses", session.id, { type: "busy" });
+  try {
+    await sendPromptAsync(session.id, content);
+  } catch (error) {
+    setStore("sessionStatuses", session.id, { type: "idle" });
+    throw error;
+  }
 }
 
 /** Delete a session and adjust navigation. */
 export async function handleDeleteSession(sessionId: string): Promise<void> {
-  // Look up the session's directory before deleting it
-  const session = store.sessions.find((s) => s.id === sessionId);
-  await deleteSession(sessionId, session?.directory);
+  await deleteSession(sessionId);
 
   // Remove from store synchronously
   setStore("sessions", (prev) => prev.filter((s) => s.id !== sessionId));

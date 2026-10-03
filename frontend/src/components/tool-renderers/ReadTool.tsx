@@ -1,4 +1,4 @@
-import type { ToolPart } from "@opencode-ai/sdk/v2/client";
+import type { SessionMessageAssistantTool as ToolPart } from "@opencode/client";
 import FileText from "lucide-solid/icons/file-text";
 import type { JSX } from "solid-js";
 import {
@@ -14,15 +14,19 @@ export function ReadTool(props: { part: ToolPart }): JSX.Element {
   const filePath = () => {
     const title = getTitle(props.part.state);
     if (title) return title;
-    const fp = inputString(props.part.state, "filePath");
+    const fp =
+      inputString(props.part.state, "path") ||
+      inputString(props.part.state, "filePath");
     return fp ? stripProjectRoot(fp) : "read";
   };
 
   const range = () => {
-    const offset = props.part.state.input.offset;
-    const limit = props.part.state.input.limit;
+    const state = props.part.state;
+    if (state.status === "streaming") return "";
+    const offset = state.input.offset;
+    const limit = state.input.limit;
     if (typeof offset === "number") {
-      const end = typeof limit === "number" ? offset + limit : "…";
+      const end = typeof limit === "number" ? offset + limit - 1 : "…";
       return `:${offset}-${end}`;
     }
     return "";

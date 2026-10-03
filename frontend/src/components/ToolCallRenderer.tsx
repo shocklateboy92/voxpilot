@@ -4,7 +4,7 @@
  * ToolPartBlock for unknown tools.
  */
 
-import type { ToolPart } from "@opencode-ai/sdk/v2/client";
+import type { SessionMessageAssistantTool as ToolPart } from "@opencode/client";
 import { type Component, type JSX, Show } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { ChangesetCard } from "./ChangesetCard";
@@ -32,9 +32,11 @@ const renderers: Record<string, Component<Props>> = {
   edit: EditTool,
   write: WriteTool,
   bash: BashTool,
+  shell: BashTool,
   glob: GlobTool,
   grep: GrepTool,
   task: TaskTool,
+  subagent: TaskTool,
   todowrite: TodoTool,
   question: QuestionTool,
   webfetch: WebFetchTool,
@@ -47,7 +49,7 @@ const renderers: Record<string, Component<Props>> = {
 };
 
 export function ToolCallRenderer(props: Props): JSX.Element {
-  const Renderer = () => renderers[props.part.tool];
+  const Renderer = () => renderers[props.part.name];
 
   return (
     <Show when={Renderer()} fallback={<ToolPartBlock part={props.part} />}>

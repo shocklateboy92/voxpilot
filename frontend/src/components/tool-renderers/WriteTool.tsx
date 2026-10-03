@@ -1,4 +1,4 @@
-import type { ToolPart } from "@opencode-ai/sdk/v2/client";
+import type { SessionMessageAssistantTool as ToolPart } from "@opencode/client";
 import FilePlus from "lucide-solid/icons/file-plus";
 import type { JSX } from "solid-js";
 import {
@@ -14,7 +14,9 @@ export function WriteTool(props: { part: ToolPart }): JSX.Element {
   const filePath = () => {
     const title = getTitle(props.part.state);
     if (title) return title;
-    const fp = inputString(props.part.state, "filePath");
+    const fp =
+      inputString(props.part.state, "path") ||
+      inputString(props.part.state, "filePath");
     return fp ? stripProjectRoot(fp) : "write";
   };
 

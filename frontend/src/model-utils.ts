@@ -3,12 +3,12 @@
  *
  * - formatVariantLabel: converts variant IDs ("high", "medium-thinking")
  *   into display labels ("High", "Medium Thinking").
- * - providerData / resolveModelName: cached provider resource and lookup
+ * - modelData / resolveModelName: cached model catalog and lookup
  *   so both ModelPicker and MessageBubble can resolve display names.
  */
 
 import { createResource, createRoot } from "solid-js";
-import { fetchProviders } from "./api-client";
+import { fetchDefaultModel, fetchModels, fetchProviders } from "./api-client";
 
 /**
  * Convert a variant ID like "high" or "medium-thinking" to a display label.
@@ -23,24 +23,24 @@ export function formatVariantLabel(variantID: string): string {
 }
 
 /**
- * Shared cached resource for provider data. Fetched once per app lifecycle.
+ * Shared cached catalogs. Fetched once per app lifecycle.
  *
  * Wrapped in createRoot so the resource has an owner — without one Solid
  * warns about disposal-less computations. The root is never disposed.
  */
 export const [providerData] = createRoot(() => createResource(fetchProviders));
+export const [modelData] = createRoot(() => createResource(fetchModels));
+export const [defaultModelData] = createRoot(() =>
+  createResource(fetchDefaultModel),
+);
 
 /**
- * Look up a model's display name from provider metadata.
+ * Look up a model's display name from the native catalog.
  * Returns the raw modelID if the provider/model is not found (graceful fallback).
  */
 export function resolveModelName(providerID: string, modelID: string): string {
-  const data = providerData();
-  if (!data) return modelID;
-
-  const provider = data.all.find((p) => p.id === providerID);
-  if (!provider) return modelID;
-
-  const model = provider.models[modelID];
+  const model = modelData()?.find(
+    (model) => model.providerID === providerID && model.id === modelID,
+  );
   return model?.name ?? modelID;
 }

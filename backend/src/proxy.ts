@@ -1,6 +1,10 @@
 import type { Context } from "hono";
 
-export function proxy(target: string, stripPrefix?: string) {
+export function proxy(
+  target: string,
+  stripPrefix: string,
+  authorization: string,
+) {
   return async (c: Context) => {
     const url = new URL(c.req.url);
     let path = url.pathname;
@@ -8,10 +12,18 @@ export function proxy(target: string, stripPrefix?: string) {
       path = path.slice(stripPrefix.length) || "/";
     }
     const proxiedUrl = `${target}${path}${url.search}`;
+    const requestHeaders = new Headers(c.req.raw.headers);
+    requestHeaders.set("authorization", authorization);
+    requestHeaders.set("host", new URL(target).host);
     const resp = await fetch(proxiedUrl, {
       method: c.req.method,
-      headers: c.req.raw.headers,
-      body: c.req.method !== "GET" ? c.req.raw.body : undefined,
+      headers: requestHeaders,
+      body:
+        c.req.method !== "GET" && c.req.method !== "HEAD"
+          ? c.req.raw.body
+          : undefined,
+      signal: c.req.raw.signal,
+      redirect: "manual",
       // @ts-expect-error duplex required for streaming bodies
       duplex: "half",
     });
@@ -23,6 +35,7 @@ export function proxy(target: string, stripPrefix?: string) {
     const headers = new Headers(resp.headers);
     headers.delete("content-encoding");
     headers.delete("content-length");
+    headers.delete("authorization");
 
     return new Response(resp.body, {
       status: resp.status,

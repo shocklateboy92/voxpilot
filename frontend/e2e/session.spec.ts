@@ -206,3 +206,22 @@ test("MCP diff card opens the real cached diff", async ({ app }) => {
   );
   await expect(review.locator(".fulltext-line-add")).not.toHaveCount(0);
 });
+
+test("new worktree hosts a session that survives reload", async ({ app }) => {
+  await app
+    .getByPlaceholder("Worktree name (optional)")
+    .fill(`browser-${Date.now()}`);
+  await app.getByRole("button", { name: "New worktree", exact: true }).click();
+  const worktree = app.locator(".worktree-section select");
+  await expect(worktree).not.toHaveValue("", { timeout: 30_000 });
+  await send(app, "BASELINE_TEXT");
+  await expect(app.locator(".message.assistant .markdown-body")).toContainText(
+    "Browser baseline passed.",
+  );
+  await idle(app);
+  await app.reload({ waitUntil: "domcontentloaded" });
+  await expect(app.locator(".message.user")).toHaveText("BASELINE_TEXT");
+  await expect(app.locator(".message.assistant .markdown-body")).toContainText(
+    "Browser baseline passed.",
+  );
+});

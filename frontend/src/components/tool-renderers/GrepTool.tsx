@@ -1,4 +1,4 @@
-import type { ToolPart } from "@opencode-ai/sdk/v2/client";
+import type { SessionMessageAssistantTool as ToolPart } from "@opencode/client";
 import Search from "lucide-solid/icons/search";
 import { type JSX, Show } from "solid-js";
 import { inputString, isActive, OutputSection, StatusIcon } from "./shared";

@@ -20,9 +20,9 @@ export function AgentPicker() {
               type="button"
               class="agent-segmented-btn"
               classList={{
-                "agent-segmented-btn-active": agent.name === effectiveAgent(),
+                "agent-segmented-btn-active": agent.id === effectiveAgent(),
               }}
-              onClick={() => setEffectiveAgent(agent.name)}
+              onClick={() => setEffectiveAgent(agent.id)}
               disabled={isStreaming()}
               title={agent.description}
             >

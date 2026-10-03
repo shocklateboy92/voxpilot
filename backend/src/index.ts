@@ -1,6 +1,5 @@
-import { existsSync, statSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { createOpencode } from "@opencode-ai/sdk/v2";
 import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import { cors } from "hono/cors";
@@ -9,7 +8,7 @@ import { createMcpRouter } from "./mcp";
 import { proxy } from "./proxy";
 import { createConfigRouter } from "./routes/config";
 import { createReviewRouter } from "./routes/review";
-import { startIdleInhibitor } from "./services/idle-inhibit";
+import { getOpenCode } from "./services/opencode";
 
 // Build-time injected version. Default for source/dev runs.
 declare const BUILD_VERSION: string;
@@ -33,46 +32,18 @@ Options:
 Environment:
   VOXPILOT_PORT             HTTP port (default 8000)
   VOXPILOT_OC_PORT          Embedded OpenCode server port (default: auto-pick)
+  VOXPILOT_OC_BINARY        Native OpenCode 2.x executable (default opencode)
   VOXPILOT_DB_PATH          SQLite database path (default voxpilot.db)
   VOXPILOT_WAKE_URL         Optional Home Assistant webhook for Wake-on-LAN
 
-Requires the 'opencode' binary on PATH (https://opencode.ai/docs).`);
+Requires the native @opencode/cli 2.x binary (https://opencode.ai/v2/docs/).`);
   process.exit(0);
-}
-
-// Preflight: opencode must be on PATH. The SDK does spawn("opencode", ...)
-// which would fail later with a confusing ENOENT; surface it immediately.
-function checkOpencodeOnPath(): boolean {
-  const pathEnv = process.env.PATH ?? "";
-  const dirs = pathEnv.split(":").filter(Boolean);
-  for (const dir of dirs) {
-    const candidate = resolve(dir, "opencode");
-    try {
-      const st = statSync(candidate);
-      // Must be a regular file (not a directory). On POSIX, we additionally
-      // require it to be executable by anyone -- close enough; if it's not
-      // executable by us, exec() will fail and surface a real error.
-      if (st.isFile() && (st.mode & 0o111) !== 0) return true;
-    } catch {
-      // ENOENT or permission denied; try next dir.
-    }
-  }
-  return false;
-}
-
-if (!checkOpencodeOnPath()) {
-  console.error(
-    "VoxPilot: 'opencode' binary not found on PATH.\n" +
-      "  Install it from https://opencode.ai/docs (e.g. `pacman -S opencode`,\n" +
-      "  `brew install anomalyco/tap/opencode`, or `curl -fsSL https://opencode.ai/install | bash`).",
-  );
-  process.exit(1);
 }
 
 const APP_PORT = Number(process.env.VOXPILOT_PORT ?? 8000);
 // 0 = let the OS pick a free port (avoids conflicts when multiple VoxPilot
 // instances run on the same machine, e.g. production service + dev process).
-// The actual port is reported by the SDK via `server.url`.
+// The actual port is reported by the private child's JSON readiness record.
 const OC_PORT = Number(process.env.VOXPILOT_OC_PORT ?? 0);
 
 // Resolve the static assets directory. In production (compiled binary),
@@ -84,37 +55,7 @@ const staticRoot = (() => {
   return resolve(import.meta.dir, "../static");
 })();
 
-// Cache OpenCode server across hot reloads (globalThis survives Bun reloads)
-const _global = globalThis as typeof globalThis & {
-  __ocClient?: Awaited<ReturnType<typeof createOpencode>>["client"];
-  __ocServer?: Awaited<ReturnType<typeof createOpencode>>["server"];
-};
-
-if (!_global.__ocClient) {
-  const { client, server } = await createOpencode({
-    hostname: "*",
-    port: OC_PORT,
-    config: {
-      permission: "allow",
-      mcp: {
-        voxpilot: {
-          type: "remote",
-          url: `http://127.0.0.1:${APP_PORT}/mcp`,
-        },
-      },
-    },
-  });
-  _global.__ocClient = client;
-  _global.__ocServer = server;
-  console.log(`OpenCode server started at ${server.url}`);
-  void startIdleInhibitor(client);
-} else {
-  console.log("OpenCode server already running (hot reload), skipping restart");
-}
-
-const ocServer = _global.__ocServer as Awaited<
-  ReturnType<typeof createOpencode>
->["server"];
+const ocServer = await getOpenCode(APP_PORT, OC_PORT);
 
 // Initialize database (runs migrations on first call)
 getDb();
@@ -131,7 +72,10 @@ export const app = appBase
 
 // Proxy and static don't need RPC types — keep imperative
 const OC_PREFIX = "/oc";
-app.all(`${OC_PREFIX}/*`, proxy(ocServer.url, OC_PREFIX));
+app.all(
+  `${OC_PREFIX}/*`,
+  proxy(ocServer.url, OC_PREFIX, ocServer.authorization),
+);
 
 // Per-host PWA manifest. Chrome doesn't let users rename installed PWAs, so
 // when the same VoxPilot UI is reachable via multiple hostnames (dev1.lan,
@@ -162,10 +106,7 @@ app.use("/*", serveStatic({ root: staticRoot, path: "index.html" }));
 
 export type AppType = typeof app;
 
-process.on("exit", () => {
-  ocServer.close();
-  closeDb();
-});
+process.on("exit", closeDb);
 
 // Start the HTTP server explicitly (rather than via Bun's default-export
 // pattern) so we can catch bind failures -- otherwise an EADDRINUSE from a
@@ -193,8 +134,7 @@ try {
     `VoxPilot ${VERSION} running on http://${server.hostname}:${server.port}`,
   );
 } catch (err) {
-  const code =
-    err instanceof Error && "code" in err ? (err as { code: unknown }).code : undefined;
+  const code = err instanceof Error && "code" in err ? err.code : undefined;
   if (code === "EADDRINUSE") {
     console.error(
       `VoxPilot: port ${APP_PORT} is already in use. ` +
@@ -204,5 +144,6 @@ try {
   } else {
     console.error("VoxPilot: failed to start HTTP server:", err);
   }
+  await ocServer.close();
   process.exit(1);
 }

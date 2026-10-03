@@ -5,12 +5,11 @@
  * whose `time.completed` is not yet set.
  */
 
-import type { TextPart, ToolPart } from "@opencode-ai/sdk/v2/client";
+import type { SessionMessageInfo } from "@opencode/client";
 import { For, Show } from "solid-js";
 import { renderMarkdown } from "../markdown";
 import { formatVariantLabel, resolveModelName } from "../model-utils";
 import { store } from "../store";
-import type { MessageWithParts } from "../types";
 import { ToolCallRenderer } from "./ToolCallRenderer";
 
 /**
@@ -33,25 +32,37 @@ function guardScrollWrappers(el: HTMLElement): void {
 }
 
 interface Props {
-  msg: MessageWithParts;
+  msg: SessionMessageInfo;
 }
 
 export function MessageBubble(props: Props) {
-  const textContent = () =>
-    props.msg.parts
-      .filter((p): p is TextPart => p.type === "text")
-      .map((p) => p.text)
+  const textContent = () => {
+    const msg = props.msg;
+    if (
+      msg.type === "user" ||
+      msg.type === "synthetic" ||
+      msg.type === "system" ||
+      msg.type === "skill"
+    )
+      return msg.text;
+    if (msg.type !== "assistant") return "";
+    return msg.content
+      .filter((part) => part.type === "text")
+      .map((part) => part.text)
       .join("");
+  };
 
   const toolParts = () =>
-    props.msg.parts.filter((p): p is ToolPart => p.type === "tool");
+    props.msg.type === "assistant"
+      ? props.msg.content.filter((part) => part.type === "tool")
+      : [];
 
-  const role = () => props.msg.info.role;
+  const role = () => props.msg.type;
 
   /** The agent name that produced this assistant message, if available. */
   const agentName = () => {
-    const info = props.msg.info;
-    if (info.role !== "assistant") return undefined;
+    const info = props.msg;
+    if (info.type !== "assistant") return undefined;
     return info.agent;
   };
 
@@ -59,21 +70,21 @@ export function MessageBubble(props: Props) {
   const agentColor = () => {
     const name = agentName();
     if (!name) return undefined;
-    return store.agents.find((a) => a.name === name)?.color;
+    return store.agents.find((a) => a.id === name)?.color;
   };
 
   /** The model ID that produced this assistant message, if available. */
   const modelID = () => {
-    const info = props.msg.info;
-    if (info.role !== "assistant") return undefined;
-    return info.modelID;
+    const info = props.msg;
+    if (info.type !== "assistant") return undefined;
+    return info.model.id;
   };
 
   /** The provider ID for this assistant message, if available. */
   const providerID = () => {
-    const info = props.msg.info;
-    if (info.role !== "assistant") return undefined;
-    return info.providerID;
+    const info = props.msg;
+    if (info.type !== "assistant") return undefined;
+    return info.model.providerID;
   };
 
   /** Resolved display name for the model (falls back to raw modelID). */
@@ -86,71 +97,89 @@ export function MessageBubble(props: Props) {
 
   /** The selected model variant/thinking level, if available. */
   const modelVariant = () => {
-    const info = props.msg.info;
-    if (info.role !== "assistant") return undefined;
-    return info.variant;
+    const info = props.msg;
+    if (info.type !== "assistant") return undefined;
+    return info.model.variant;
   };
 
   /** Whether this message is still being streamed (assistant, not yet completed). */
   const isInProgress = () => {
-    const info = props.msg.info;
-    if (info.role !== "assistant") return false;
-    return !("time" in info && info.time.completed);
+    const info = props.msg;
+    if (info.type !== "assistant") return false;
+    return info.time.completed === undefined;
   };
 
   return (
-    <div
-      class="message"
-      classList={{
-        user: role() === "user",
-        assistant: role() === "assistant",
-        streaming: isInProgress() && !!textContent(),
-      }}
-    >
-      <Show
-        when={
-          role() === "assistant" && (agentName() || modelID() || modelVariant())
-        }
+    <Show when={textContent() || role() === "assistant" || role() === "shell"}>
+      <div
+        class="message"
+        classList={{
+          user: role() === "user",
+          assistant: role() !== "user",
+          streaming: isInProgress() && !!textContent(),
+        }}
       >
-        <div class="message-meta">
-          <Show when={agentName()}>
-            <span
-              class="agent-badge"
-              style={
-                agentColor()
-                  ? {
-                      background: `${agentColor()}20`,
-                      color: agentColor(),
-                      border: `1px solid ${agentColor()}40`,
-                    }
-                  : undefined
-              }
-            >
-              {agentName()}
-            </span>
-          </Show>
-          <Show when={modelID()}>
-            <span class="model-badge">
-              {modelDisplayName()}
-              <Show when={modelVariant()}>
-                {(variant) => <>{` · ${formatVariantLabel(variant())}`}</>}
-              </Show>
-            </span>
-          </Show>
-        </div>
-      </Show>
-      <Show when={role() === "assistant" && textContent()}>
-        <div
-          class="markdown-body"
-          ref={guardScrollWrappers}
-          // eslint-disable-next-line solid/no-innerhtml -- intentional: markdown renderer produces trusted HTML
-          innerHTML={renderMarkdown(textContent())}
-        />
-      </Show>
-      <Show when={role() === "user" && textContent()}>
-        <p>{textContent()}</p>
-      </Show>
-      <For each={toolParts()}>{(part) => <ToolCallRenderer part={part} />}</For>
-    </div>
+        <Show
+          when={
+            role() === "assistant" &&
+            (agentName() || modelID() || modelVariant())
+          }
+        >
+          <div class="message-meta">
+            <Show when={agentName()}>
+              <span
+                class="agent-badge"
+                style={
+                  agentColor()
+                    ? {
+                        background: `${agentColor()}20`,
+                        color: agentColor(),
+                        border: `1px solid ${agentColor()}40`,
+                      }
+                    : undefined
+                }
+              >
+                {store.agents.find((agent) => agent.id === agentName())?.name ??
+                  agentName()}
+              </span>
+            </Show>
+            <Show when={modelID()}>
+              <span class="model-badge">
+                {modelDisplayName()}
+                <Show when={modelVariant()}>
+                  {(variant) => <>{` · ${formatVariantLabel(variant())}`}</>}
+                </Show>
+              </span>
+            </Show>
+          </div>
+        </Show>
+        <Show when={role() !== "user" && textContent()}>
+          <div
+            class="markdown-body"
+            ref={guardScrollWrappers}
+            // eslint-disable-next-line solid/no-innerhtml -- intentional: markdown renderer produces trusted HTML
+            innerHTML={renderMarkdown(textContent())}
+          />
+        </Show>
+        <Show when={role() === "user" && textContent()}>
+          <p>{textContent()}</p>
+        </Show>
+        <Show when={props.msg.type === "shell" && props.msg}>
+          {(shell) => (
+            <details class="tool-block" open={shell().status === "running"}>
+              <summary class="tool-summary">
+                {shell().command} ({shell().status})
+              </summary>
+              <div class="tool-result">
+                <pre>{shell().output?.output}</pre>
+              </div>
+            </details>
+          )}
+        </Show>
+        <For each={toolParts()}>
+          {(part) => <ToolCallRenderer part={part} />}
+        </For>
+      </div>
+    </Show>
   );
 }

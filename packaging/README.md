@@ -10,11 +10,11 @@ service. Extract to `~/.local/share/`, symlink the unit file, enable.
 ### Prerequisites
 
 - Linux with systemd (any modern distro)
-- [opencode](https://opencode.ai) on `PATH` (`pacman -S opencode`,
-  `brew install anomalyco/tap/opencode`, or
-  `curl -fsSL https://opencode.ai/install | bash`)
+- Native [OpenCode 2.x](https://opencode.ai/v2/docs/) (`@opencode/cli`, tested
+  with 2.0.22), on `PATH` or selected by `VOXPILOT_OC_BINARY`. The old
+  `opencode-ai` 1.x package is incompatible.
 - An OpenAI-compatible LLM endpoint reachable from this machine (configured
-  via `opencode`'s own config -- see https://opencode.ai/docs/providers)
+  via OpenCode's own config -- see https://opencode.ai/v2/docs/providers/)
 
 > **PATH note:** systemd `--user` services don't source `~/.bashrc` /
 > `~/.zshrc`, so they only see the user manager's `PATH` (typically
@@ -96,5 +96,11 @@ Environment variables (set in the unit's `EnvironmentFile=` or `Environment=`):
 |---|---|---|
 | `VOXPILOT_PORT` | `8000` | HTTP server port |
 | `VOXPILOT_OC_PORT` | auto-pick | Embedded OpenCode server port (0 = OS picks a free one) |
+| `VOXPILOT_OC_BINARY` | `opencode` | Native OpenCode 2.x executable path |
 | `VOXPILOT_DB_PATH` | `voxpilot.db` (relative to WorkingDirectory) | SQLite path |
 | `VOXPILOT_WAKE_URL` | (unset) | Optional Home Assistant webhook for Wake-on-LAN |
+
+VoxPilot starts and stops only its own authenticated loopback OpenCode process.
+It does not stop or replace the shared OpenCode service. Its upstream password
+stays in the backend, not browser configuration. VoxPilot's HTTP endpoint still
+needs your existing trusted-network or reverse-proxy access controls.

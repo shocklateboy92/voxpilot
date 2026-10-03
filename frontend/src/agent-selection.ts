@@ -45,8 +45,11 @@ createRoot(() => {
 function lastAssistantAgent(): string | undefined {
   const msgs = store.messages;
   for (let i = msgs.length - 1; i >= 0; i--) {
-    const info = msgs[i]?.info;
-    if (info?.role === "assistant" && info.agent) {
+    const info = msgs[i];
+    if (
+      (info?.type === "assistant" || info?.type === "agent-switched") &&
+      info.agent
+    ) {
       return info.agent;
     }
   }

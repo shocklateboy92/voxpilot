@@ -1,6 +1,6 @@
 # Browser Baseline
 
-These tests establish observable OpenCode 1.x behavior before the OpenCode 2.0
+These tests compare observable OpenCode 1.x behavior with the OpenCode 2.0
 port. They use the real VoxPilot UI, backend, proxy, OpenCode server, and MCP
 server. Only the model provider is deterministic; no transport code is mocked
 and no application refactoring is required.
@@ -11,6 +11,16 @@ From `frontend`, start the disposable server:
 
 ```sh
 npm run test:e2e:serve
+```
+
+Set `VOXPILOT_E2E_OC_BINARY` to a native OpenCode 2.x executable. On this
+workspace the harness defaults to the isolated 2.0.22 binary under
+`/tmp/opencode/voxpilot-oc-native-2.0.22/`; it never falls back to the production
+binary on PATH. For Linux x64/glibc, install that test binary without replacing
+the existing installation:
+
+```sh
+npm install --prefix /tmp/opencode/voxpilot-oc-native-2.0.22 --no-save --package-lock=false --no-audit --no-fund --ignore-scripts @opencode/cli-linux-x64-baseline@2.0.22
 ```
 
 Once the harness prints `Ready`, run in another terminal:
@@ -31,10 +41,10 @@ and desktop idle inhibition. Ctrl+C stops its subprocesses and removes the
 temporary data. `VOXPILOT_E2E_KEEP_ARTIFACTS=1` preserves data for diagnosis.
 The fixture provider listens on loopback only.
 
-Default ports are frontend 13000, backend 18001, provider 18002, and OpenCode
-18003. The harness does not inherit production's `VOXPILOT_PORT` or Bun dotenv
+Default ports are frontend 13000, backend 18001, provider 18002, and an ephemeral
+OpenCode port. The harness does not inherit production's `VOXPILOT_PORT` or Bun dotenv
 files. Port overrides are `VOXPILOT_E2E_PORT`, `VOXPILOT_E2E_BACKEND_PORT`,
-`VOXPILOT_E2E_PROVIDER_PORT`, and `VOXPILOT_E2E_OC_PORT`. Mutating tests deliberately
+and `VOXPILOT_E2E_PROVIDER_PORT`. Mutating tests deliberately
 require a local HTTP URL on port 13000; changing that guard is an explicit action.
 
 ## Production Checks
@@ -64,6 +74,8 @@ headless Chromium for reliable animation and streaming assertions.
 ## Coverage And Results
 
 Baseline verified against OpenCode **1.18.25**: **11 tests passed**.
+The port passes those same 11 tests against **2.0.22**, plus a new worktree
+creation/session/reload test: **12 tests passed**.
 The read-only suite also passed all **3 tests** against the deployed production
 URL. The new test files pass strict TypeScript and Biome checks.
 
@@ -92,11 +104,10 @@ text appears, and separately checks exact final content. Prefix preservation
 is not a claimed baseline guarantee. This matches the existing streaming
 manager's ordering risks and should be revisited during the port.
 
-Not yet covered: worktree creation, turn-specific forks, rejection/always-allow,
+Not yet covered: turn-specific forks, rejection/always-allow,
 model variants, agent switching persistence, long-history pagination, HTTP error
-presentation, or a full OpenCode process restart. The fixture uses a tree-backed
-HEAD for real Git diff operations without making commits, so it is not suitable
-for branch/worktree tests.
+presentation, or a full OpenCode process restart. The fixture creates a seed
+commit only in its disposable repository, allowing real worktree operations.
 
 Tests run serially. Reruns add sessions only to the disposable fixture store;
 restart the harness for a clean dataset. Failure artifacts are under
@@ -110,4 +121,6 @@ these are intentionally the version-specific boundaries. Run the same suite
 against the port and compare final transcripts, approvals/forms, tool results,
 and recovery behavior rather than internal endpoint names or event schemas.
 
-This baseline is not the V2 port, and does not yet demonstrate V2 compatibility.
+V1 baseline is preserved at commit `be19411`. The current harness uses native
+V2 configuration and tool names. Passing this suite establishes covered UI
+behavior, not compatibility with every provider, plugin, or historical session.

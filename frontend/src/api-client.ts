@@ -1,62 +1,51 @@
-/**
- * API client and global SSE event stream.
- *
- * Uses the `/global/event` SSE endpoint so VoxPilot receives events from
- * ALL instances (including worktree sessions that run in a different
- * directory/instance). Consumers register listeners via addEventListener /
- * removeEventListener.
- */
+/** Native OpenCode API and explicitly started, live-only event stream. */
 
 import type {
-  Agent,
-  Event,
-  EventWorktreeFailed,
-  EventWorktreeReady,
-  GlobalEvent,
-  Message,
-  Part,
+  AgentInfo as Agent,
+  SessionMessageAssistant as AssistantMessage,
+  OpenCodeEvent as Event,
+  FormAnswer,
+  SessionMessageInfo as Message,
+  ModelRef,
+  PermissionReply,
   PermissionRequest,
   Project,
-  QuestionAnswer,
-  QuestionRequest,
-  File as SdkFile,
-  Session,
-  Worktree,
-} from "@opencode-ai/sdk/v2/client";
-import { createOpencodeClient } from "@opencode-ai/sdk/v2/client";
+  FormDetail as QuestionRequest,
+  VcsFileStatus as SdkFile,
+  SessionInfo as Session,
+  WorktreeInfo,
+} from "@opencode/client";
+import { OpenCode } from "@opencode/client";
 
 export type {
   Agent,
+  AssistantMessage,
   Event,
+  FormAnswer,
   Message,
-  Part,
+  ModelRef,
   PermissionRequest,
   Project,
-  QuestionAnswer,
   QuestionRequest,
   SdkFile,
   Session,
-  Worktree,
 };
+export type {
+  SessionMessageAssistantTool as ToolPart,
+  SessionStatus,
+} from "@opencode/client";
+export type Part = AssistantMessage["content"][number];
 
-export type MessageWithParts = {
-  info: Message;
-  parts: Part[];
-};
-
-export const client = createOpencodeClient({
+export const client = OpenCode.make({
   baseUrl: `${window.location.origin}/oc`,
 });
-
-// ── Global SSE event stream ─────────────────────────────────────
 
 export type EventListener = (event: Event) => void;
 
 const sseAbort = new AbortController();
 const listeners = new Set<EventListener>();
+let streamStarted = false;
 
-// Clean up on HMR: abort the SSE connection and clear listeners
-// before the new module instance re-executes and starts a fresh one.
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     sseAbort.abort();
@@ -72,239 +61,204 @@ export function removeEventListener(listener: EventListener): void {
   listeners.delete(listener);
 }
 
-/** Start the global SSE stream. Runs for the lifetime of the app (or until HMR). */
-void (async () => {
-  const signal = sseAbort.signal;
-  try {
-    const result = await client.global.event();
-    for await (const raw of result.stream) {
-      if (signal.aborted) break;
-      const globalEvent = raw as GlobalEvent;
-      const payload = globalEvent.payload;
-      for (const listener of listeners) {
-        listener(payload);
+/** Call after bootstrap and listener registration, never during module import. */
+export function startEventStream(): void {
+  if (streamStarted || sseAbort.signal.aborted) return;
+  streamStarted = true;
+  void (async () => {
+    const signal = sseAbort.signal;
+    let delay = 1_000;
+    while (!signal.aborted) {
+      try {
+        for await (const event of client.event.subscribe({ signal })) {
+          if (signal.aborted) return;
+          delay = 1_000;
+          // Forward server.connected on every connection so consumers can
+          // reconcile snapshots, including events missed since bootstrap.
+          for (const listener of listeners) {
+            try {
+              listener(event);
+            } catch (error) {
+              console.error("OpenCode event listener failed:", error);
+            }
+          }
+        }
+      } catch (error) {
+        if (signal.aborted) return;
+        console.error("OpenCode event stream failed:", error);
       }
+      if (signal.aborted) return;
+      // EOF also reconnects. HMR cancels both the transport and this delay.
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(finish, delay);
+        function finish() {
+          clearTimeout(timer);
+          signal.removeEventListener("abort", finish);
+          resolve();
+        }
+        signal.addEventListener("abort", finish, { once: true });
+        if (signal.aborted) finish();
+      });
+      delay = Math.min(delay * 2, 30_000);
     }
-  } catch (err: unknown) {
-    if (err instanceof Error && err.name === "AbortError") return;
-    if (signal.aborted) return;
-    console.error("Global event stream error:", err);
-  }
-})();
-
-// ── Session API ─────────────────────────────────────────────────
+  })();
+}
 
 export async function createSession(
   title?: string,
   directory?: string,
+  agent?: string,
+  model?: ModelRef,
 ): Promise<Session> {
-  const result = await client.session.create({ title, directory });
-  if (!result.data)
-    throw new Error(
-      `Failed to create session: ${JSON.stringify(result.error)}`,
-    );
-  return result.data;
+  return client.session.create({
+    title,
+    location: directory === undefined ? undefined : { directory },
+    agent,
+    model,
+  });
 }
 
-export async function deleteSession(
-  sessionID: string,
-  directory?: string,
-): Promise<void> {
-  await client.session.delete({ sessionID, directory });
+export async function deleteSession(sessionID: string): Promise<void> {
+  await client.session.remove({ sessionID });
 }
 
-export async function fetchMessages(
-  sessionID: string,
-  directory?: string,
-): Promise<MessageWithParts[]> {
-  const result = await client.session.messages({ sessionID, directory });
-  return (result.data ?? []) as MessageWithParts[];
+export async function fetchMessages(sessionID: string): Promise<Message[]> {
+  const messages: Message[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await client.message.list({
+      sessionID,
+      limit: 100,
+      // Cursors encode ordering; the API rejects cursor combined with order.
+      ...(cursor === undefined ? { order: "asc" } : { cursor }),
+    });
+    messages.push(...page.data);
+    cursor = page.cursor.next ?? undefined;
+  } while (cursor !== undefined);
+  return messages;
 }
 
 export async function sendPromptAsync(
   sessionID: string,
   text: string,
   agent?: string,
-  directory?: string,
-  model?: { providerID: string; modelID: string },
-  variant?: string,
+  model?: ModelRef,
 ): Promise<void> {
-  await client.session.promptAsync({
-    sessionID,
-    parts: [{ type: "text", text }],
-    agent,
-    directory,
-    model,
-    variant,
-  });
+  if (agent !== undefined) {
+    await client.session.switchAgent({ sessionID, agent });
+  }
+  if (model !== undefined) {
+    await client.session.switchModel({ sessionID, model });
+  }
+  await client.session.prompt({ sessionID, text });
 }
 
-export async function abortSession(
-  sessionID: string,
-  directory?: string,
-): Promise<void> {
-  await client.session.abort({ sessionID, directory });
+export async function abortSession(sessionID: string): Promise<void> {
+  await client.session.interrupt({ sessionID });
 }
 
 export async function forkSession(
   sessionID: string,
   messageID?: string,
-  directory?: string,
 ): Promise<Session> {
-  const result = await client.session.fork({ sessionID, messageID, directory });
-  if (!result.data)
-    throw new Error(`Failed to fork session: ${JSON.stringify(result.error)}`);
-  return result.data;
+  return client.session.fork({ sessionID, before: messageID });
 }
 
 export async function respondToPermission(
+  sessionID: string,
   requestID: string,
-  reply: "once" | "always" | "reject",
-  directory?: string,
+  decision: PermissionReply,
 ): Promise<void> {
-  await client.permission.reply({ requestID, reply, directory });
+  await client.permission.reply({ sessionID, requestID, decision });
 }
 
 export async function replyToQuestion(
-  requestID: string,
-  answers: QuestionAnswer[],
-  directory?: string,
+  sessionID: string,
+  formID: string,
+  answer: FormAnswer,
 ): Promise<void> {
-  await client.question.reply({ requestID, answers, directory });
+  await client.session.form.reply({ sessionID, formID, answer });
 }
 
 export async function rejectQuestion(
-  requestID: string,
-  directory?: string,
+  sessionID: string,
+  formID: string,
 ): Promise<void> {
-  await client.question.reject({ requestID, directory });
+  await client.session.form.cancel({ sessionID, formID });
 }
 
 export async function fetchPendingPermissions(
   directory?: string,
 ): Promise<PermissionRequest[]> {
-  const result = await client.permission.list({ directory });
-  return (result.data ?? []) as PermissionRequest[];
+  const result = await client.permission.request.list({
+    location: { directory },
+  });
+  return result.data;
 }
 
 export async function fetchPendingQuestions(
   directory?: string,
 ): Promise<QuestionRequest[]> {
-  const result = await client.question.list({ directory });
-  return (result.data ?? []) as QuestionRequest[];
+  const result = await client.form.list({ location: { directory } });
+  const forms = await Promise.all(
+    result.data.map((form) =>
+      client.session.form.get({ sessionID: form.sessionID, formID: form.id }),
+    ),
+  );
+  return forms.filter((form) => form.state.status === "pending");
 }
 
 export async function fetchGitBranch(
   directory?: string,
 ): Promise<string | null> {
-  try {
-    const result = await client.vcs.get({ directory });
-    return result.data?.branch ?? null;
-  } catch {
-    return null;
-  }
+  const result = await client.vcs.get({ location: { directory } });
+  return result.data.branch.current ?? null;
 }
 
 export async function fetchFileStatus(directory?: string): Promise<SdkFile[]> {
-  try {
-    const result = await client.file.status({ directory });
-    return result.data ?? [];
-  } catch {
-    return [];
-  }
+  const result = await client.vcs.status({ location: { directory } });
+  return result.data;
 }
 
 export async function fetchAgents(): Promise<Agent[]> {
-  try {
-    const result = await client.app.agents();
-    return result.data ?? [];
-  } catch {
-    return [];
-  }
+  return (await client.agent.list()).data;
 }
 
 export async function fetchProjects(): Promise<Project[]> {
-  try {
-    const result = await client.project.list();
-    return result.data ?? [];
-  } catch {
-    return [];
-  }
+  return client.project.list();
 }
 
 export async function fetchCurrentProject(): Promise<Project | undefined> {
-  try {
-    const result = await client.project.current();
-    return result.data ?? undefined;
-  } catch {
-    return undefined;
-  }
+  const location = await client.location.get();
+  const projects = await fetchProjects();
+  return projects.find((project) => project.id === location.project.id);
 }
 
 export async function fetchProviders() {
-  try {
-    const result = await client.provider.list();
-    return result.data ?? undefined;
-  } catch {
-    return undefined;
-  }
+  return (await client.provider.list()).data;
 }
 
-// ── Worktree API ────────────────────────────────────────────────
+export async function fetchModels() {
+  return (await client.model.list()).data;
+}
 
-/** Default timeout for waiting for worktree.ready (30 seconds). */
-const WORKTREE_READY_TIMEOUT_MS = 30_000;
+export async function fetchDefaultModel() {
+  return (await client.model.default()).data;
+}
 
 export async function fetchWorktrees(directory: string): Promise<string[]> {
-  const result = await client.worktree.list({ directory });
-  return result.data ?? [];
+  const location = await client.location.get({ location: { directory } });
+  const worktrees = await client.worktree.list({
+    projectID: location.project.id,
+  });
+  return worktrees.map((worktree) => worktree.directory);
 }
 
 export async function createWorktree(
   directory: string,
   name?: string,
-): Promise<Worktree> {
-  const result = await client.worktree.create({
-    directory,
-    worktreeCreateInput: name ? { name } : undefined,
-  });
-  if (!result.data)
-    throw new Error(
-      `Failed to create worktree: ${JSON.stringify(result.error)}`,
-    );
-
-  // The server populates the worktree asynchronously after returning.
-  // Listen for the worktree.ready/failed event on the main global stream.
-  const worktreeName = result.data.name;
-
-  await new Promise<void>((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
-      removeEventListener(listener);
-      reject(
-        new Error(
-          `Timed out waiting for worktree "${worktreeName}" to be ready`,
-        ),
-      );
-    }, WORKTREE_READY_TIMEOUT_MS);
-
-    function listener(event: Event): void {
-      if (event.type === "worktree.ready") {
-        const props = (event as EventWorktreeReady).properties;
-        if (props.name !== worktreeName) return;
-        removeEventListener(listener);
-        clearTimeout(timeoutId);
-        resolve();
-      }
-      if (event.type === "worktree.failed") {
-        const props = (event as EventWorktreeFailed).properties;
-        removeEventListener(listener);
-        clearTimeout(timeoutId);
-        reject(new Error(`Worktree creation failed: ${props.message}`));
-      }
-    }
-
-    addEventListener(listener);
-  });
-
-  return result.data;
+): Promise<WorktreeInfo> {
+  const location = await client.location.get({ location: { directory } });
+  // The native operation completes creation and project setup before returning.
+  return client.worktree.create({ projectID: location.project.id, name });
 }

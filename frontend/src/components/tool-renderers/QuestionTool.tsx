@@ -1,4 +1,4 @@
-import type { ToolPart } from "@opencode-ai/sdk/v2/client";
+import type { SessionMessageAssistantTool as ToolPart } from "@opencode/client";
 import MessageCircle from "lucide-solid/icons/message-circle";
 import type { JSX } from "solid-js";
 import { getTitle, isActive, OutputSection, StatusIcon } from "./shared";

@@ -1,120 +1,85 @@
-/**
- * Bootstrap data fetcher — fetches all server data needed before the UI renders.
- *
- * Returns a plain AppState object. store.ts calls this via top-level await
- * to populate createStore() before any consumer module executes.
- */
+/** Fetch native bootstrap snapshots before the parent starts event streaming. */
 
 import type {
   PermissionRequest,
-  Project,
   QuestionRequest,
   Session,
+  SessionStatus,
 } from "./api-client";
 import {
   client,
   fetchAgents,
-  fetchCurrentProject,
   fetchPendingPermissions,
   fetchPendingQuestions,
   fetchProjects,
 } from "./api-client";
 import type { AppState } from "./types";
 
-/**
- * Fetch sessions from all projects.
- */
-async function fetchAllSessions(projects: Project[]): Promise<Session[]> {
-  if (projects.length <= 1) {
-    const result = await client.session.list();
-    return result.data ?? [];
-  }
-
-  const results = await Promise.all(
-    projects.map((p) => client.session.list({ directory: p.worktree })),
-  );
-  const allSessions = results.flatMap((r) => r.data ?? []);
-
-  // Deduplicate by session ID
-  const seen = new Set<string>();
-  const unique: Session[] = [];
-  for (const s of allSessions) {
-    if (!seen.has(s.id)) {
-      seen.add(s.id);
-      unique.push(s);
-    }
-  }
-
-  unique.sort((a, b) => b.time.updated - a.time.updated);
-  return unique;
-}
-
-/**
- * Fetch all pending permissions across all projects.
- * Returns a Record keyed by sessionID (at most one per session).
- */
-async function fetchAllPendingPermissions(
-  projects: Project[],
-): Promise<Record<string, PermissionRequest>> {
-  const perms = (
-    await Promise.all(projects.map((p) => fetchPendingPermissions(p.worktree)))
-  ).flat();
-
-  const map: Record<string, PermissionRequest> = {};
-  for (const perm of perms) {
-    map[perm.sessionID] = perm;
-  }
-  return map;
-}
-
-/**
- * Fetch all pending questions across all projects.
- * Returns a Record keyed by sessionID (at most one per session).
- */
-async function fetchAllPendingQuestions(
-  projects: Project[],
-): Promise<Record<string, QuestionRequest>> {
-  const questions = (
-    await Promise.all(projects.map((p) => fetchPendingQuestions(p.worktree)))
-  ).flat();
-
-  const map: Record<string, QuestionRequest> = {};
-  for (const q of questions) {
-    map[q.sessionID] = q;
-  }
-  return map;
+async function fetchAllSessions(): Promise<Session[]> {
+  const sessions: Session[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await client.session.list({
+      limit: 100,
+      ...(cursor === undefined ? { order: "desc" } : { cursor }),
+    });
+    sessions.push(...page.data);
+    cursor = page.cursor.next ?? undefined;
+  } while (cursor !== undefined);
+  return sessions.sort((a, b) => b.time.updated - a.time.updated);
 }
 
 export async function init(): Promise<AppState> {
-  // Fetch all bootstrap data in parallel
-  const [projectList, current, agentList] = await Promise.all([
-    fetchProjects(),
-    fetchCurrentProject(),
+  const [location, agents, sessions, active] = await Promise.all([
+    client.location.get(),
     fetchAgents(),
+    fetchAllSessions(),
+    client.session.active(),
+  ]);
+  // Resolve the default location first so its project is registered in the list.
+  const projects = await fetchProjects();
+  const directories = [
+    ...new Set([
+      ...projects.map((project) => project.canonical),
+      ...sessions.map((session) => session.location.directory),
+    ]),
+  ];
+  const [permissions, questions] = await Promise.all([
+    Promise.all(directories.map(fetchPendingPermissions)),
+    Promise.all(directories.map(fetchPendingQuestions)),
   ]);
 
-  // Sessions and pending prompts depend on projects (multi-project aggregation)
-  const [sessionList, sessionPermissions, sessionQuestions] = await Promise.all(
-    [
-      fetchAllSessions(projectList),
-      fetchAllPendingPermissions(projectList),
-      fetchAllPendingQuestions(projectList),
-    ],
-  );
+  const sessionPermissions: Record<string, PermissionRequest> = {};
+  for (const permission of permissions.flat()) {
+    sessionPermissions[permission.sessionID] ??= permission;
+  }
+  const sessionQuestions: Record<string, QuestionRequest> = {};
+  for (const question of questions.flat()) {
+    sessionQuestions[question.sessionID] ??= question;
+  }
+  const sessionStatuses: Record<string, SessionStatus> = {};
+  for (const [sessionID, status] of Object.entries(active)) {
+    // SessionActive reports running drains, not the event's SessionStatus union.
+    if (status.type === "running")
+      sessionStatuses[sessionID] = { type: "busy" };
+  }
 
   return {
-    sessions: sessionList,
-    agents: agentList.filter(
-      (a) => (a.mode === "primary" || a.mode === "all") && !a.hidden,
+    sessions,
+    agents: agents.filter(
+      (agent) =>
+        (agent.mode === "primary" || agent.mode === "all") && !agent.hidden,
     ),
-    projects: projectList,
-    currentProject: current,
+    projects,
+    currentProject: projects.find(
+      (project) => project.id === location.project.id,
+    ),
     messages: [],
     gitBranch: null,
     changedFiles: [],
     sessionError: false,
     errorMessage: null,
-    sessionStatuses: {},
+    sessionStatuses,
     sessionPermissions,
     sessionQuestions,
     sessionErrors: {},

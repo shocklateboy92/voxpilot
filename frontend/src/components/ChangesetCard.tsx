@@ -9,7 +9,7 @@
  * While pending/running, shows a spinner like the generic tool block.
  */
 
-import type { ToolPart } from "@opencode-ai/sdk/v2/client";
+import type { SessionMessageAssistantTool as ToolPart } from "@opencode/client";
 import ArrowRight from "lucide-solid/icons/arrow-right";
 import GitCompareArrows from "lucide-solid/icons/git-compare-arrows";
 import Loader from "lucide-solid/icons/loader";
@@ -17,6 +17,7 @@ import X from "lucide-solid/icons/x";
 import { createResource, For, Match, Show, Switch } from "solid-js";
 import { rpc } from "../rpc";
 import { setReviewFile } from "./ReviewOverlay";
+import { getOutput } from "./tool-renderers/shared";
 
 interface Props {
   part: ToolPart;
@@ -30,12 +31,12 @@ function extractCacheId(output: string): string | null {
 
 export function ChangesetCard(props: Props) {
   const status = () => props.part.state.status;
-  const isActive = () => status() === "pending" || status() === "running";
+  const isActive = () => status() === "streaming" || status() === "running";
 
   const cacheId = () => {
     const s = props.part.state;
     if (s.status !== "completed") return null;
-    return extractCacheId(s.output);
+    return extractCacheId(getOutput(s) ?? "");
   };
 
   // Fetch cache entry when tool completes
@@ -83,9 +84,9 @@ export function ChangesetCard(props: Props) {
 
   const errorOutput = () => {
     const s = props.part.state;
-    if (s.status === "error") return s.error;
-    if (s.status === "completed" && s.output.startsWith("Error:"))
-      return s.output;
+    const output = getOutput(s);
+    if (s.status === "error") return output;
+    if (s.status === "completed" && output?.startsWith("Error:")) return output;
     return null;
   };
 

@@ -7,21 +7,18 @@
  */
 
 import type {
-  PermissionRequest,
-  QuestionRequest,
-  SessionStatus,
-} from "@opencode-ai/sdk/v2/client";
-import type {
   Agent,
   Message,
-  MessageWithParts,
   Part,
+  PermissionRequest,
   Project,
+  QuestionRequest,
   SdkFile,
   Session,
+  SessionStatus,
 } from "./api-client";
 
-export type { Session, Message, Part, MessageWithParts, Project };
+export type { Session, Message, Part, Project };
 
 // Re-export PendingPermission type for ToolConfirmBlock
 export type PendingPermission = PermissionRequest;
@@ -34,7 +31,7 @@ export interface AppState {
   currentProject: Project | undefined;
 
   // ── Per-active-session (fetched on session switch, updated by SSE) ──
-  messages: MessageWithParts[];
+  messages: Message[];
   gitBranch: string | null;
   changedFiles: SdkFile[];
   sessionError: boolean;

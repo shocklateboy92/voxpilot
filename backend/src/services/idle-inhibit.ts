@@ -12,7 +12,8 @@
  * unavailable (e.g. headless, non-KDE, CI).
  */
 
-import type { GlobalEvent, OpencodeClient } from "@opencode-ai/sdk/v2/client";
+import { setTimeout as delay } from "node:timers/promises";
+import type { OpenCodeClient } from "@opencode/client";
 
 /** Fire-and-forget: reset the desktop idle timer. */
 function simulateUserActivity(): void {
@@ -33,7 +34,7 @@ function simulateUserActivity(): void {
  * Probe whether dbus-send can reach the ScreenSaver service.
  * Returns true if the service responds, false otherwise.
  */
-async function probeScreenSaver(): Promise<boolean> {
+async function probeScreenSaver(signal: AbortSignal): Promise<boolean> {
   if (!process.env.DBUS_SESSION_BUS_ADDRESS) {
     console.log("[idle-inhibit] $DBUS_SESSION_BUS_ADDRESS not set, disabled");
     return false;
@@ -50,7 +51,7 @@ async function probeScreenSaver(): Promise<boolean> {
         "/ScreenSaver",
         "org.freedesktop.ScreenSaver.GetActive",
       ],
-      { stdout: "pipe", stderr: "pipe" },
+      { stdout: "ignore", stderr: "ignore", signal, timeout: 5_000 },
     );
     const code = await proc.exited;
     return code === 0;
@@ -62,13 +63,16 @@ async function probeScreenSaver(): Promise<boolean> {
 /**
  * Start listening to OpenCode events and poke the idle timer on AI activity.
  *
- * Call once at startup. Returns immediately; the event loop runs in the
- * background. If D-Bus isn't reachable, logs a message and returns.
+ * Runs until cancelled; reconnects after stream failures or EOF.
+ * If D-Bus isn't reachable, logs a message and returns.
  */
 export async function startIdleInhibitor(
-  client: OpencodeClient,
+  client: OpenCodeClient,
+  signal: AbortSignal,
 ): Promise<void> {
-  const available = await probeScreenSaver();
+  if (signal.aborted) return;
+  const available = await probeScreenSaver(signal);
+  if (signal.aborted) return;
   if (!available) {
     console.log(
       "[idle-inhibit] ScreenSaver D-Bus service not reachable, disabled",
@@ -79,29 +83,29 @@ export async function startIdleInhibitor(
     "[idle-inhibit] ScreenSaver D-Bus service available, monitoring AI activity",
   );
 
-  try {
-    const result = await client.global.event();
-    for await (const raw of result.stream) {
-      const event = (raw as GlobalEvent).payload;
-      if (!event) continue;
-
-      switch (event.type) {
-        case "session.status": {
-          if (event.properties.status.type === "busy") {
-            simulateUserActivity();
+  while (!signal.aborted) {
+    try {
+      for await (const event of client.event.subscribe({ signal })) {
+        if (signal.aborted) return;
+        switch (event.type) {
+          case "session.status": {
+            if (event.data.status.type === "busy") simulateUserActivity();
+            break;
           }
-          break;
-        }
-        case "message.updated": {
-          const msg = event.properties.info;
-          if (msg.role === "assistant" && "time" in msg && msg.time.completed) {
+          case "session.step.ended": {
             simulateUserActivity();
+            break;
           }
-          break;
         }
       }
+    } catch {
+      if (!signal.aborted)
+        console.error("[idle-inhibit] Event stream failed; reconnecting");
     }
-  } catch (err: unknown) {
-    console.error("[idle-inhibit] Event stream error:", err);
+    try {
+      await delay(1_000, undefined, { signal });
+    } catch {
+      if (signal.aborted) return;
+    }
   }
 }

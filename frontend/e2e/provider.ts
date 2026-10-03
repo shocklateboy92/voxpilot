@@ -77,7 +77,8 @@ export function startProvider(options: { port: number; workdir: string }) {
       requests += 1;
       const messages = body.messages.filter(record);
       const lastUser = messages.findLastIndex(
-        (message) => message.role === "user",
+        (message) =>
+          message.role === "user" && /BASELINE_/.test(text(message.content)),
       );
       const prompt = text(messages[lastUser]?.content);
       const protocol = prompt.match(
@@ -90,15 +91,7 @@ export function startProvider(options: { port: number; workdir: string }) {
         }
         return [];
       });
-      const isTitle =
-        tools.length === 0 ||
-        messages.some(
-          (message) =>
-            message.role === "system" &&
-            /title generator|generate[^\n]*title|session title|5.word title/i.test(
-              text(message.content),
-            ),
-        );
+      const isTitle = tools.length === 0;
       const answered = messages
         .slice(lastUser + 1)
         .some((message) => message.role === "tool");
@@ -131,7 +124,7 @@ export function startProvider(options: { port: number; workdir: string }) {
             ? "question"
             : protocol === "DIFF"
               ? "voxpilot_show_diff"
-              : "bash";
+              : "shell";
         const name =
           toolNames.find(
             (candidate) =>
@@ -149,6 +142,7 @@ export function startProvider(options: { port: number; workdir: string }) {
             { status: 422 },
           );
         }
+        // V2's question tool creates a form: q0 is a string field with these options.
         const args =
           protocol === "QUESTION"
             ? {
@@ -156,7 +150,6 @@ export function startProvider(options: { port: number; workdir: string }) {
                   {
                     question: "Select an option",
                     header: "Baseline question",
-                    custom: false,
                     multiple: false,
                     options: [
                       { label: "Alpha", description: "First option" },
@@ -173,7 +166,7 @@ export function startProvider(options: { port: number; workdir: string }) {
                 }
               : {
                   command: "printf baseline-permission",
-                  description: "Baseline permission check",
+                  workdir: options.workdir,
                 };
         toolCall = {
           id: `call_baseline_${++sequence}`,
@@ -191,7 +184,7 @@ export function startProvider(options: { port: number; workdir: string }) {
         total_tokens: 64,
       };
       console.log(
-        `[fixture] ${id} ${isTitle ? "title" : (protocol ?? "TEXT")} ${toolCall?.function.name ?? (answered ? "answered" : "text")}`,
+        `[fixture] ${id} ${isTitle ? "title" : (protocol ?? "TEXT")} ${toolCall?.function.name ?? (answered ? "answered" : "text")} tools=${toolNames.length}`,
       );
       if (body.stream !== true) {
         return Response.json({

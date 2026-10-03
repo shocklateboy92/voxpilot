@@ -7,6 +7,7 @@
  * Agent selection is intentionally NOT persisted — see agent-selection.ts.
  */
 
+import type { ModelRef } from "@opencode/client";
 import { createEffect, createRoot, createSignal } from "solid-js";
 
 const MODEL_STORAGE_KEY = "voxpilot-selected-model";
@@ -36,17 +37,16 @@ createRoot(() => {
   });
 });
 
-/** Parse the selected model key into the { providerID, modelID } shape the SDK expects, or undefined for default. */
-export function selectedModel():
-  | { providerID: string; modelID: string }
-  | undefined {
+/** Parse the persisted selection into the native model reference. */
+export function selectedModel(): ModelRef | undefined {
   const key = selectedModelKey();
   if (!key) return undefined;
   const slashIdx = key.indexOf("/");
-  if (slashIdx < 0) return undefined;
+  if (slashIdx <= 0 || slashIdx === key.length - 1) return undefined;
   return {
     providerID: key.slice(0, slashIdx),
-    modelID: key.slice(slashIdx + 1),
+    id: key.slice(slashIdx + 1),
+    variant: selectedVariant(),
   };
 }
 

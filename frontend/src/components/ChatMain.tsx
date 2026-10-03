@@ -167,8 +167,8 @@ export function ChatMain() {
       </Show>
 
       {/* Question prompt */}
-      <Show when={pendingQuestion()}>
-        {(req) => <QuestionBlock request={req()} />}
+      <Show when={pendingQuestion()} keyed>
+        {(req) => <QuestionBlock request={req} />}
       </Show>
 
       {/* Error display */}

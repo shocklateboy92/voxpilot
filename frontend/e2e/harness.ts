@@ -1,12 +1,15 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { constants } from "node:fs";
+import { access, mkdir, mkdtemp, rm, stat } from "node:fs/promises";
 import { resolve } from "node:path";
-import type { Config } from "@opencode-ai/sdk/v2";
+import type { ConfigEntry } from "@opencode/client";
 import { startProvider } from "./provider";
 
 const frontend = resolve(import.meta.dir, "..");
 const backend = resolve(frontend, "../backend/src/index.ts");
 const vite = resolve(frontend, "node_modules/vite/bin/vite.js");
+const nativeBinary =
+  "/tmp/opencode/voxpilot-oc-native-2.0.22/node_modules/@opencode/cli-linux-x64-baseline/bin/opencode";
 
 function port(name: string, fallback: number) {
   const value = Number(process.env[name] ?? fallback);
@@ -63,6 +66,18 @@ process.once("SIGINT", () => {
 });
 
 try {
+  const binary = resolve(process.env.VOXPILOT_E2E_OC_BINARY ?? nativeBinary);
+  try {
+    await access(binary, constants.X_OK);
+    if ((await stat(binary)).isFile() === false) {
+      throw new Error("Not a regular file");
+    }
+  } catch (cause) {
+    throw new Error(
+      `Native OpenCode binary is not executable: ${binary}. Set VOXPILOT_E2E_OC_BINARY to an installed V2 binary; the fixture never falls back to PATH.`,
+      { cause },
+    );
+  }
   const env: NodeJS.ProcessEnv = {};
   for (const [key, value] of Object.entries(process.env)) {
     // Do not inherit user OpenCode configuration, auth, or model overrides.
@@ -73,13 +88,13 @@ try {
   env.XDG_CONFIG_HOME = resolve(root, "config");
   env.XDG_CACHE_HOME = resolve(root, "cache");
   env.XDG_STATE_HOME = resolve(root, "state");
-  env.OPENCODE_DISABLE_AUTOUPDATE = "true";
-  env.OPENCODE_DISABLE_DEFAULT_PLUGINS = "true";
-  env.OPENCODE_DISABLE_EXTERNAL_SKILLS = "true";
-  env.OPENCODE_DISABLE_CLAUDE_CODE = "true";
+  env.TMPDIR = resolve(root, "tmp");
+  // V2 walks parent directories for config unless explicitly disabled.
+  env.OPENCODE_CONFIG_PROJECT_DISABLE = "true";
   env.OPENCODE_DISABLE_MODELS_FETCH = "true";
   env.VOXPILOT_PORT = String(backendPort);
-  env.VOXPILOT_OC_PORT = String(port("VOXPILOT_E2E_OC_PORT", 18003));
+  env.VOXPILOT_OC_BINARY = binary;
+  env.VOXPILOT_OC_PORT = "0";
   env.VOXPILOT_DB_PATH = resolve(root, "voxpilot.db");
   delete env.VOXPILOT_WAKE_URL;
   delete env.DBUS_SESSION_BUS_ADDRESS;
@@ -90,53 +105,59 @@ try {
     env.XDG_CONFIG_HOME,
     env.XDG_CACHE_HOME,
     env.XDG_STATE_HOME,
+    env.TMPDIR,
   ]) {
     await mkdir(directory, { recursive: true });
   }
   const configDir = resolve(env.XDG_CONFIG_HOME, "opencode");
   await mkdir(configDir, { recursive: true });
   const config = {
-    plugin: [],
-    autoupdate: false,
+    plugins: ["-opencode.config.compatibility"],
+    update: "disable",
     share: "disabled",
     model: "fixture/baseline",
-    small_model: "fixture/baseline",
     default_agent: "baseline",
-    enabled_providers: ["fixture"],
-    snapshot: false,
+    experimental: {
+      policies: [
+        { action: "provider.use", resource: "*", effect: "deny" },
+        { action: "provider.use", resource: "fixture", effect: "allow" },
+      ],
+    },
+    snapshots: false,
     lsp: false,
     formatter: false,
-    compaction: { auto: false, prune: false },
-    agent: {
+    compaction: { auto: false },
+    warming: false,
+    agents: {
+      title: { model: "fixture/baseline" },
       baseline: {
         mode: "primary",
         model: "fixture/baseline",
         description: "Deterministic browser E2E agent",
-        permission: { bash: "ask", question: "allow" },
+        permissions: [
+          { action: "shell", resource: "*", effect: "ask" },
+          { action: "question", resource: "*", effect: "allow" },
+        ],
       },
     },
-    provider: {
+    providers: {
       fixture: {
         name: "Browser fixture",
-        npm: "@ai-sdk/openai-compatible",
-        options: {
+        package: "aisdk:@ai-sdk/openai-compatible",
+        settings: {
           baseURL: `http://127.0.0.1:${providerPort}/v1`,
           apiKey: "fixture",
         },
         models: {
           baseline: {
             name: "Baseline",
-            tool_call: true,
-            reasoning: false,
-            attachment: false,
-            temperature: true,
-            modalities: { input: ["text"], output: ["text"] },
+            capabilities: { tools: true, input: ["text"], output: ["text"] },
             limit: { context: 8192, output: 4096 },
           },
         },
       },
     },
-  } satisfies Config;
+  } satisfies Extract<ConfigEntry, { type: "document" }>["info"];
   await Bun.write(
     resolve(configDir, "opencode.json"),
     JSON.stringify(config, null, 2),
@@ -148,6 +169,10 @@ try {
   }
   env.GIT_CONFIG_NOSYSTEM = "1";
   env.GIT_CONFIG_GLOBAL = "/dev/null";
+  env.GIT_AUTHOR_NAME = "VoxPilot browser fixture";
+  env.GIT_AUTHOR_EMAIL = "fixture@example.invalid";
+  env.GIT_COMMITTER_NAME = env.GIT_AUTHOR_NAME;
+  env.GIT_COMMITTER_EMAIL = env.GIT_AUTHOR_EMAIL;
   async function git(args: string[]) {
     const child = Bun.spawn(["git", ...args], {
       cwd: workdir,
@@ -173,8 +198,9 @@ try {
     `100644,${blob},sample.txt`,
   ]);
   const tree = await git(["write-tree"]);
-  // Git diff/show accept a tree as HEAD. No commit is created, even in this fixture.
-  await Bun.write(resolve(workdir, ".git/refs/heads/main"), `${tree}\n`);
+  // A real commit in the disposable repo also allows native worktree creation.
+  const commit = await git(["commit-tree", tree, "-m", "Browser fixture"]);
+  await git(["update-ref", "refs/heads/main", commit]);
   await Bun.write(resolve(workdir, "sample.txt"), "new baseline line\n");
 
   provider = startProvider({ port: providerPort, workdir });
@@ -201,6 +227,7 @@ try {
     });
   }
   console.log(`[e2e] Workspace: ${workdir}`);
+  console.log(`[e2e] OpenCode binary: ${binary}`);
   console.log(
     `[e2e] Backend: http://127.0.0.1:${backendPort}; fixture: http://127.0.0.1:${providerPort}/health`,
   );
@@ -224,7 +251,7 @@ try {
   );
   const deadline = Date.now() + 60_000;
   for (const url of [
-    `http://127.0.0.1:${backendPort}/oc/global/health`,
+    `http://127.0.0.1:${backendPort}/oc/api/info`,
     `http://127.0.0.1:${frontendPort}`,
   ]) {
     let ready = false;

@@ -1,161 +1,317 @@
-/**
- * Question prompt — renders questions from the AI and handles replies/rejection.
- */
-
-import type {
-  QuestionAnswer,
-  QuestionRequest,
-} from "@opencode-ai/sdk/v2/client";
+/** Native session form, with typed answers keyed by field key. */
+import type { FormAnswer, FormDetail } from "@opencode/client";
 import Check from "lucide-solid/icons/check";
 import { createSignal, For, Show } from "solid-js";
 import { rejectQuestion, replyToQuestion } from "../api-client";
-import { activeSession } from "../navigation";
-import { setStore } from "../store";
 
 interface Props {
-  request: QuestionRequest;
+  request: FormDetail;
 }
 
 export function QuestionBlock(props: Props) {
-  // Per-question answers (each entry is an array of selected labels).
-  // Starts empty; entries are created on demand via toggleOption/setCustom.
-  const [answers, setAnswers] = createSignal<QuestionAnswer[]>([]);
-  const [customInputs, setCustomInputs] = createSignal<string[]>([]);
+  const [answers, setAnswers] = createSignal<
+    Record<string, FormAnswer[string] | undefined>
+  >({});
   const [submitting, setSubmitting] = createSignal(false);
+  const value = (field: FormDetail["fields"][number]) =>
+    Object.hasOwn(answers(), field.key)
+      ? answers()[field.key]
+      : "default" in field
+        ? field.default
+        : undefined;
+  const active = (field: FormDetail["fields"][number]) => {
+    if (field.type === "external") return true;
+    return (
+      field.when?.every((condition) => {
+        const dependency = props.request.fields.find(
+          (entry) => entry.key === condition.key,
+        );
+        const current = dependency ? value(dependency) : undefined;
+        if (current === undefined) return false;
+        const matches = Array.isArray(current)
+          ? typeof condition.value === "string" &&
+            current.includes(condition.value)
+          : current === condition.value;
+        return condition.op === "eq" ? matches : !matches;
+      }) ?? true
+    );
+  };
+  const visible = (field: FormDetail["fields"][number]) =>
+    active(field) && (field.type === "external" || !field.hidden);
+  const disabled = () =>
+    submitting() || props.request.state.status !== "pending";
 
-  function toggleOption(qIndex: number, label: string): void {
-    const q = props.request.questions[qIndex];
-    if (!q) return;
-    setAnswers((prev) => {
-      const next = [...prev];
-      const current = next[qIndex] ?? [];
-      if (q.multiple) {
-        if (current.includes(label)) {
-          next[qIndex] = current.filter((l) => l !== label);
-        } else {
-          next[qIndex] = [...current, label];
-        }
-      } else {
-        next[qIndex] = current.includes(label) ? [] : [label];
-      }
-      return next;
-    });
+  function setValue(key: string, answer: FormAnswer[string] | undefined): void {
+    setAnswers((previous) => ({ ...previous, [key]: answer }));
   }
 
-  function setCustom(qIndex: number, value: string): void {
-    setCustomInputs((prev) => {
-      const next = [...prev];
-      next[qIndex] = value;
-      return next;
-    });
-    setAnswers((prev) => {
-      const next = [...prev];
-      const current = next[qIndex] ?? [];
-      const q = props.request.questions[qIndex];
-      const withoutCustom = q
-        ? current.filter((l) => q.options.some((o) => o.label === l))
-        : current;
-      next[qIndex] = value.trim()
-        ? [...withoutCustom, value.trim()]
-        : withoutCustom;
-      return next;
-    });
-  }
-
-  async function handleSubmit(): Promise<void> {
+  async function handleSubmit(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    if (disabled() || !valid()) return;
+    const answer: FormAnswer = {};
+    for (const field of props.request.fields) {
+      if (!active(field) || field.type === "external") continue;
+      const current = value(field);
+      if (current !== undefined) answer[field.key] = current;
+    }
     setSubmitting(true);
     try {
-      const dir = activeSession()?.directory;
-      await replyToQuestion(props.request.id, answers(), dir);
-    } catch (err: unknown) {
+      await replyToQuestion(props.request.sessionID, props.request.id, answer);
+    } finally {
       setSubmitting(false);
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      setStore("errorMessage", `Question error: ${msg}`);
     }
   }
 
   async function handleReject(): Promise<void> {
+    if (disabled()) return;
     setSubmitting(true);
     try {
-      const dir = activeSession()?.directory;
-      await rejectQuestion(props.request.id, dir);
-    } catch (err: unknown) {
+      await rejectQuestion(props.request.sessionID, props.request.id);
+    } finally {
       setSubmitting(false);
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      setStore("errorMessage", `Question error: ${msg}`);
     }
   }
 
-  const allAnswered = () =>
-    props.request.questions.every((_, i) => (answers()[i]?.length ?? 0) > 0);
+  const valid = () =>
+    props.request.fields.every((field) => {
+      if (!visible(field) || field.type === "external") return true;
+      const current = value(field);
+      if (
+        (field.required || props.request.metadata?.kind === "question") &&
+        (current === undefined ||
+          current === "" ||
+          (Array.isArray(current) && current.length === 0))
+      )
+        return false;
+      if (field.type === "multiselect" && Array.isArray(current)) {
+        return (
+          current.length >= (field.minItems ?? 0) &&
+          current.length <= (field.maxItems ?? Infinity)
+        );
+      }
+      return true;
+    });
 
   return (
-    <div class="question-block">
-      <For each={props.request.questions}>
-        {(q, qIndex) => (
-          <div class="question-item">
-            <div class="question-header">{q.header}</div>
-            <div class="question-text">{q.question}</div>
-            <div class="question-options">
-              <For each={q.options}>
-                {(opt) => {
-                  const selected = () =>
-                    (answers()[qIndex()] ?? []).includes(opt.label);
-                  return (
-                    <button
-                      type="button"
-                      class="btn btn-sm question-option"
-                      classList={{ selected: selected() }}
-                      disabled={submitting()}
-                      onClick={() => toggleOption(qIndex(), opt.label)}
+    <form class="question-block" onSubmit={(event) => void handleSubmit(event)}>
+      <div class="question-header">{props.request.title}</div>
+      <For each={props.request.fields}>
+        {(field) => {
+          const options = () =>
+            field.type === "string" || field.type === "multiselect"
+              ? (field.options ?? [])
+              : [];
+          const selected = (option: string) => {
+            const current = value(field);
+            return Array.isArray(current)
+              ? current.includes(option)
+              : current === option;
+          };
+          const custom = () => {
+            const current = value(field);
+            if (Array.isArray(current))
+              return current
+                .filter(
+                  (entry) =>
+                    !options().some((option) => option.value === entry),
+                )
+                .join("\n");
+            return typeof current === "string" &&
+              !options().some((option) => option.value === current)
+              ? current
+              : "";
+          };
+          return (
+            <Show when={visible(field)}>
+              <div class="question-item">
+                <div class="question-header">{field.title ?? field.key}</div>
+                <Show when={field.description}>
+                  <div class="question-text">{field.description}</div>
+                </Show>
+                <Show when={field.type === "external" && field}>
+                  {(external) => (
+                    <a
+                      href={
+                        /^https?:\/\//i.test(external().url)
+                          ? external().url
+                          : undefined
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
                     >
-                      <span class="question-option-label">
-                        <Show when={selected()}>
-                          <Check size={14} />
-                        </Show>
-                        {opt.label}
-                      </span>
-                      <Show when={opt.description}>
-                        <span class="question-option-desc">
-                          {opt.description}
+                      Open {external().title ?? "link"}
+                    </a>
+                  )}
+                </Show>
+                <div class="question-options">
+                  <For each={options()}>
+                    {(option) => (
+                      <button
+                        type="button"
+                        class="btn btn-sm question-option"
+                        classList={{ selected: selected(option.value) }}
+                        disabled={disabled()}
+                        onClick={() => {
+                          if (field.type !== "multiselect") {
+                            setValue(
+                              field.key,
+                              selected(option.value) ? "" : option.value,
+                            );
+                            return;
+                          }
+                          const current = value(field);
+                          const entries = Array.isArray(current) ? current : [];
+                          setValue(
+                            field.key,
+                            selected(option.value)
+                              ? entries.filter(
+                                  (entry) => entry !== option.value,
+                                )
+                              : [...entries, option.value],
+                          );
+                        }}
+                      >
+                        <span class="question-option-label">
+                          <Show when={selected(option.value)}>
+                            <Check size={14} />
+                          </Show>
+                          {option.label}
                         </span>
-                      </Show>
-                    </button>
-                  );
-                }}
-              </For>
-            </div>
-            <Show when={q.custom !== false}>
-              <textarea
-                class="question-custom-input"
-                placeholder="Or type a custom answer…"
-                rows={2}
-                value={customInputs()[qIndex()] ?? ""}
-                disabled={submitting()}
-                onInput={(e) => setCustom(qIndex(), e.currentTarget.value)}
-              />
+                        <Show when={option.description}>
+                          <span class="question-option-desc">
+                            {option.description}
+                          </span>
+                        </Show>
+                      </button>
+                    )}
+                  </For>
+                </div>
+                <Show when={field.type === "string" && field}>
+                  {(text) => (
+                    <Show when={!text().options?.length || text().custom}>
+                      <input
+                        class="question-custom-input"
+                        type={
+                          text().format === "email"
+                            ? "email"
+                            : text().format === "uri"
+                              ? "url"
+                              : text().format === "date"
+                                ? "date"
+                                : "text"
+                        }
+                        aria-label={field.title ?? field.key}
+                        value={custom()}
+                        placeholder={text().placeholder ?? "Type an answer"}
+                        required={text().required && !value(field)}
+                        minLength={text().minLength}
+                        maxLength={text().maxLength}
+                        pattern={text().pattern}
+                        disabled={disabled()}
+                        onInput={(event) =>
+                          setValue(field.key, event.currentTarget.value)
+                        }
+                      />
+                    </Show>
+                  )}
+                </Show>
+                <Show when={field.type === "multiselect" && field.custom}>
+                  <textarea
+                    class="question-custom-input"
+                    aria-label={`Custom answers for ${field.title ?? field.key}`}
+                    placeholder="Custom answers, one per line"
+                    rows={2}
+                    value={custom()}
+                    disabled={disabled()}
+                    onInput={(event) => {
+                      const current = value(field);
+                      const entries = Array.isArray(current)
+                        ? current.filter((entry) =>
+                            options().some((option) => option.value === entry),
+                          )
+                        : [];
+                      setValue(field.key, [
+                        ...new Set([
+                          ...entries,
+                          ...event.currentTarget.value
+                            .split("\n")
+                            .map((entry) => entry.trim())
+                            .filter(Boolean),
+                        ]),
+                      ]);
+                    }}
+                  />
+                </Show>
+                <Show
+                  when={
+                    (field.type === "number" || field.type === "integer") &&
+                    field
+                  }
+                >
+                  {(numeric) => (
+                    <input
+                      class="question-custom-input"
+                      type="number"
+                      aria-label={field.title ?? field.key}
+                      value={String(value(field) ?? "")}
+                      step={numeric().type === "integer" ? 1 : "any"}
+                      min={numeric().minimum}
+                      max={numeric().maximum}
+                      required={numeric().required}
+                      disabled={disabled()}
+                      onInput={(event) =>
+                        setValue(
+                          field.key,
+                          Number.isFinite(event.currentTarget.valueAsNumber)
+                            ? event.currentTarget.valueAsNumber
+                            : undefined,
+                        )
+                      }
+                    />
+                  )}
+                </Show>
+                <Show when={field.type === "boolean"}>
+                  <select
+                    class="question-custom-input"
+                    aria-label={field.title ?? field.key}
+                    value={String(value(field) ?? "")}
+                    disabled={disabled()}
+                    onChange={(event) =>
+                      setValue(
+                        field.key,
+                        event.currentTarget.value === ""
+                          ? undefined
+                          : event.currentTarget.value === "true",
+                      )
+                    }
+                  >
+                    <option value="">Select an answer</option>
+                    <option value="true">Yes</option>
+                    <option value="false">No</option>
+                  </select>
+                </Show>
+              </div>
             </Show>
-          </div>
-        )}
+          );
+        }}
       </For>
       <div class="question-actions">
         <button
-          type="button"
+          type="submit"
           class="btn btn-success btn-sm"
-          disabled={!allAnswered() || submitting()}
-          onClick={() => void handleSubmit()}
+          disabled={!valid() || disabled()}
         >
           Submit
         </button>
         <button
           type="button"
           class="btn btn-danger btn-sm"
-          disabled={submitting()}
+          disabled={disabled()}
           onClick={() => void handleReject()}
         >
           Reject
         </button>
       </div>
-    </div>
+    </form>
   );
 }

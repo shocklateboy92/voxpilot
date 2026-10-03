@@ -3,17 +3,17 @@
  *
  * Shows "used / limit tokens (X%)" based on the last assistant message's
  * total token count (input + output + reasoning + cache read/write) and
- * the model's context window limit from the provider API. This matches
+ * the model's context window limit from the model catalog. This matches
  * the upstream OpenCode UI calculation.
  *
- * Provider data comes from the shared `providerData` resource so we don't
+ * Model data comes from the shared `modelData` resource so we don't
  * issue a duplicate request, and usage is derived reactively from the
  * messages store.
  */
 
-import type { AssistantMessage } from "@opencode-ai/sdk/v2/client";
+import type { SessionMessageAssistant as AssistantMessage } from "@opencode/client";
 import { createMemo, Show } from "solid-js";
-import { providerData } from "../model-utils";
+import { modelData } from "../model-utils";
 import { store } from "../store";
 
 function formatTokens(n: number): string {
@@ -26,10 +26,8 @@ export function ContextUsageBar() {
   const context = createMemo(() => {
     let lastAssistant: AssistantMessage | undefined;
     for (const msg of store.messages) {
-      if (msg.info.role !== "assistant") continue;
-      // Discriminated-union narrowing: msg.info.role === "assistant"
-      // narrows msg.info to AssistantMessage without a cast.
-      const info = msg.info;
+      if (msg.type !== "assistant") continue;
+      const info = msg;
       if (info.tokens && info.tokens.input > 0) {
         lastAssistant = info;
       }
@@ -42,13 +40,11 @@ export function ContextUsageBar() {
       t.input + t.output + t.reasoning + t.cache.read + t.cache.write;
     if (total <= 0) return undefined;
 
-    const data = providerData();
-    let limit: number | undefined;
-    if (data) {
-      const provider = data.all.find((p) => p.id === lastAssistant?.providerID);
-      const model = provider?.models[lastAssistant.modelID];
-      limit = model?.limit.context;
-    }
+    const modelRef = lastAssistant.model;
+    const limit = modelData()?.find(
+      (model) =>
+        model.providerID === modelRef.providerID && model.id === modelRef.id,
+    )?.limit.context;
 
     return {
       total,

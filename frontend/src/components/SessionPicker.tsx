@@ -37,7 +37,7 @@ export function SessionPicker(props: SessionPickerProps) {
   const projectNameMap = createMemo(() => {
     const map = new Map<string, string>();
     for (const p of store.projects) {
-      const name = p.name ?? p.worktree.split("/").pop() ?? p.worktree;
+      const name = p.name ?? p.canonical.split("/").pop() ?? p.canonical;
       map.set(p.id, name);
     }
     return map;

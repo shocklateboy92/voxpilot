@@ -1,12 +1,14 @@
-import type { ToolPart } from "@opencode-ai/sdk/v2/client";
+import type { SessionMessageAssistantTool as ToolPart } from "@opencode/client";
 import SquareTerminal from "lucide-solid/icons/square-terminal";
 import type { JSX } from "solid-js";
 import { isActive, OutputSection, StatusIcon } from "./shared";
 
 export function PtyTool(props: { part: ToolPart }): JSX.Element {
   const summaryText = (): string => {
-    const tool = props.part.tool;
-    const input = props.part.state.input;
+    const tool = props.part.name;
+    const state = props.part.state;
+    if (state.status === "streaming") return tool;
+    const input = state.input;
 
     if (tool === "pty_spawn") {
       const cmd = typeof input.command === "string" ? input.command : "";

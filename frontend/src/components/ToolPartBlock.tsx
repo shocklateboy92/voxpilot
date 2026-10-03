@@ -1,14 +1,15 @@
 /**
  * Unified tool part block — renders a tool call in any state:
- * pending, running, completed, or error.
+ * streaming, running, completed, or error.
  */
 
-import type { ToolPart } from "@opencode-ai/sdk/v2/client";
+import type { SessionMessageAssistantTool as ToolPart } from "@opencode/client";
 import Check from "lucide-solid/icons/check";
 import Loader from "lucide-solid/icons/loader";
 import Settings from "lucide-solid/icons/settings";
 import X from "lucide-solid/icons/x";
-import { Match, Show, Switch } from "solid-js";
+import { Match, Switch } from "solid-js";
+import { OutputSection } from "./tool-renderers/shared";
 
 interface Props {
   part: ToolPart;
@@ -16,6 +17,7 @@ interface Props {
 
 export function ToolPartBlock(props: Props) {
   const inputText = () => {
+    if (props.part.state.status === "streaming") return props.part.state.input;
     try {
       return JSON.stringify(props.part.state.input, null, 2);
     } catch {
@@ -24,19 +26,12 @@ export function ToolPartBlock(props: Props) {
   };
 
   const status = () => props.part.state.status;
-  const isActive = () => status() === "pending" || status() === "running";
-
-  const output = () => {
-    const s = props.part.state;
-    if (s.status === "completed") return s.output;
-    if (s.status === "error") return s.error;
-    return undefined;
-  };
+  const isActive = () => status() === "streaming" || status() === "running";
 
   return (
     <details class="tool-block" open={isActive()}>
       <summary class="tool-summary">
-        <Settings size={14} /> {props.part.tool}
+        <Settings size={14} /> {props.part.name}
         <Switch>
           <Match when={isActive()}>
             <span class="tool-spinner">
@@ -55,16 +50,7 @@ export function ToolPartBlock(props: Props) {
         </Switch>
       </summary>
       <div class="tool-arguments">{inputText()}</div>
-      <Show when={output()}>
-        {(text) => (
-          <div
-            class="tool-result"
-            classList={{ "tool-error": status() === "error" }}
-          >
-            <pre>{text()}</pre>
-          </div>
-        )}
-      </Show>
+      <OutputSection state={props.part.state} />
     </details>
   );
 }

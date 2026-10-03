@@ -32,7 +32,7 @@ import { AgentPicker } from "./AgentPicker";
 import { ModelPicker } from "./ModelPicker";
 import { SwipeablePane } from "./SwipeablePane";
 
-const ALWAYS_FALSE = () => false as const;
+const ALWAYS_FALSE = () => false;
 
 export function NewSessionPage() {
   let inputEl: HTMLTextAreaElement | undefined;
@@ -44,7 +44,7 @@ export function NewSessionPage() {
   // Component-local project/worktree selection, initialized from the current project
   const [selectedProjectDir, setSelectedProjectDir] = createSignal<
     string | undefined
-  >(store.currentProject?.worktree);
+  >(store.currentProject?.canonical);
   const [selectedWorktreeDir, setSelectedWorktreeDir] = createSignal<
     string | undefined
   >(undefined);
@@ -53,13 +53,13 @@ export function NewSessionPage() {
   const selectedProject = createMemo(() => {
     const dir = selectedProjectDir();
     if (!dir) return undefined;
-    return store.projects.find((p) => p.worktree === dir);
+    return store.projects.find((p) => p.canonical === dir);
   });
 
   // Fetch worktrees on demand — refetches when the selected git project changes
   const worktreeSource = () => {
     const project = selectedProject();
-    return project?.vcs === "git" ? project.worktree : undefined;
+    return project?.vcs === "git" ? project.canonical : undefined;
   };
   const [worktrees, { refetch: refetchWorktrees }] = createResource(
     worktreeSource,
@@ -169,8 +169,8 @@ export function NewSessionPage() {
             >
               <For each={store.projects}>
                 {(project) => (
-                  <option value={project.worktree}>
-                    {projectLabel(project.worktree, project.name)}
+                  <option value={project.canonical}>
+                    {projectLabel(project.canonical, project.name)}
                   </option>
                 )}
               </For>
