@@ -5,7 +5,6 @@ import { OfflineOverlay } from "./components/OfflineOverlay";
 import { Spinner } from "./components/Spinner";
 import { rpc } from "./rpc";
 import { extractErrorMessage, showToast } from "./toast";
-import "./style.css";
 
 // ── Global unhandled-rejection handler ───────────────────────────────────────
 // Acts as a catch-all for async errors that aren't handled locally, similar

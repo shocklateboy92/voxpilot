@@ -13,16 +13,32 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
     />
-    <meta
-      name="theme-color"
-      content="#0f1117"
-      media="(prefers-color-scheme: dark)"
-    />
-    <meta
-      name="theme-color"
-      content="#f8f9fa"
-      media="(prefers-color-scheme: light)"
-    />
+    <!-- Dark launch/no-JavaScript fallbacks, matching the manifest. -->
+    <meta name="theme-color" content="#1a1d27" />
+    <style>
+      html { background: #1a1d27; color: #e4e4e7; color-scheme: dark; }
+    </style>
+    <link rel="stylesheet" href="/src/style.css" />
+    <!-- Initialize independently of the app bundle/API startup. Vite moves the
+         stylesheet link, so wait for parsing and styles before reading tokens. -->
+    <script>
+      (() => {
+        const root = document.documentElement;
+        const meta = document.querySelector('meta[name="theme-color"]');
+        const scheme = window.matchMedia("(prefers-color-scheme: light)");
+        function updateThemeColor() {
+          const color = getComputedStyle(root)
+            .getPropertyValue("--color-surface")
+            .trim();
+          if (meta && color) meta.setAttribute("content", color);
+        }
+        document.addEventListener("DOMContentLoaded", () => {
+          scheme.addEventListener("change", updateThemeColor);
+          root.dataset.themeReady = "";
+          updateThemeColor();
+        }, { once: true });
+      })();
+    </script>
     <title>VoxPilot</title>
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />

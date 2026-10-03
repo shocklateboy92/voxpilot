@@ -16,8 +16,11 @@ export default defineConfig({
       manifest: {
         name: "VoxPilot",
         short_name: "VoxPilot",
-        theme_color: "#0f1117",
-        background_color: "#0f1117",
+        // The manifest takes a single static colour (no prefers-color-scheme),
+        // so these track the dark theme's --color-surface -- the app's default.
+        // index.html updates one theme-color meta once styles are loaded.
+        theme_color: "#1a1d27",
+        background_color: "#1a1d27",
         display: "standalone",
         icons: [
           {

@@ -4,7 +4,7 @@ Mobile-first, dark-by-default UI built with plain CSS custom properties, SolidJS
 
 ## Tokens
 
-All colors are CSS custom properties on `:root`. Dark values are the default; light values are set via `@media (prefers-color-scheme: light)`. **Never use raw hex/rgba values outside `:root`.**
+All colors are CSS custom properties on `:root`. Dark values are the default; light values are set via `@media (prefers-color-scheme: light)` after the head script sets `data-theme-ready`. Without JavaScript, the page stays dark. **Never use raw hex/rgba values outside `:root`**, except the dark launch fallback in `index.html`.
 
 ### Surfaces & Text
 
@@ -136,7 +136,7 @@ The app respects `prefers-color-scheme` automatically. When adding a new color:
 2. Add the light value to the `@media (prefers-color-scheme: light)` block
 3. Use `var(--color-your-token)` everywhere else
 
-Test both themes. The `color-scheme: light dark` declaration on `:root` tells the browser to adapt native UI elements (scrollbars, form controls) automatically.
+Test both themes and the no-JavaScript dark fallback. The head script updates a single `theme-color` meta from `--color-surface` on startup and system-theme changes. The `color-scheme` declaration follows the initialized theme so native controls match.
 
 ## CSS Structure
 

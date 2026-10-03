@@ -3,15 +3,23 @@
    ═══════════════════════════════════════════════ */
 
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
 
   /* Layout (non-color tokens — shared across themes) */
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "Cascadia Code", "JetBrains Mono", monospace;
+  /* viewport-fit=cover lets the viewport extend under the Android system bars,
+     so .app's background bleeds edge to edge. These insets keep persistent UI
+     out from under the notification/battery icons and the gesture bar --
+     scrolling content is deliberately allowed to travel under them. */
+  --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --bottom-nav-height: 48px;
   --status-bar-height: 2rem;
-  --status-bar-clearance: 3rem;
+  /* Top padding a scroll pane needs for its first item to clear the floating
+     status bar pill. The pill is offset by --safe-top, so the clearance has to
+     grow by the same amount; folding it in here keeps every pane in sync. */
+  --status-bar-clearance: calc(3rem + var(--safe-top));
 
   /* Code / diff layout — shared between CSS rules and JS (ReviewOverlay) */
   --code-font-size: 0.75rem;
@@ -60,7 +68,8 @@
 }
 
 @media (prefers-color-scheme: light) {
-  :root {
+  :root[data-theme-ready] {
+    color-scheme: light;
     --color-bg: #f8f9fa;
     --color-surface: #ffffff;
     --color-text: #1a1a2e;
@@ -100,7 +109,7 @@
     --color-table-border: rgba(0, 0, 0, 0.1);
   }
 
-  .status-bar {
+  :root[data-theme-ready] .status-bar {
     box-shadow:
       0 1px 3px rgba(0, 0, 0, 0.1),
       0 1px 2px rgba(0, 0, 0, 0.06);
@@ -121,13 +130,14 @@
 
 html {
   font-family: var(--font-sans);
-  background: var(--color-bg);
+  background: var(--color-surface);
   color: var(--color-text);
   line-height: 1.6;
 }
 
 html,
 body {
+  background: var(--color-surface);
   height: 100dvh;
   overflow: hidden;
 }
@@ -386,7 +396,7 @@ h1 {
 
 .status-bar {
   position: absolute;
-  top: 0.75rem;
+  top: calc(var(--safe-top) + 0.75rem);
   left: 0.75rem;
   right: 0.75rem;
   z-index: 40;
