@@ -19,7 +19,7 @@
   /* Top padding a scroll pane needs for its first item to clear the floating
      status bar pill. The pill is offset by --safe-top, so the clearance has to
      grow by the same amount; folding it in here keeps every pane in sync. */
-  --status-bar-clearance: calc(3rem + var(--safe-top));
+  --status-bar-clearance: calc(3.75rem + var(--safe-top));
 
   /* Code / diff layout — shared between CSS rules and JS (ReviewOverlay) */
   --code-font-size: 0.75rem;
@@ -396,7 +396,7 @@ h1 {
 
 .status-bar {
   position: absolute;
-  top: calc(var(--safe-top) + 0.75rem);
+  top: calc(var(--safe-top) + 1.5rem);
   left: 0.75rem;
   right: 0.75rem;
   z-index: 40;
