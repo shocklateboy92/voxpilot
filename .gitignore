@@ -15,6 +15,8 @@ build/
 frontend/node_modules/
 frontend/dist/
 frontend/dev-dist/
+frontend/test-results/
+frontend/playwright-report/
 .vite/
 
 # IDE
