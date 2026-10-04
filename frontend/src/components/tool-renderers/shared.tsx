@@ -19,17 +19,25 @@ export function isActive(state: ToolState): boolean {
 
 /** Status icon: spinning loader for active, check for completed, X for error. */
 export function StatusIcon(props: { state: ToolState }): JSX.Element {
+  const status = () => props.state.status;
+  return <ToolStatusIcon status={status()} />;
+}
+
+export function ToolStatusIcon(props: {
+  status: "streaming" | "running" | "completed" | "error";
+}): JSX.Element {
+  const active = () => props.status === "streaming" || props.status === "running";
   return (
     <>
-      <Show when={isActive(props.state)}>
+      <Show when={active()}>
         <span class="tool-spinner">
           <Loader size={14} class="icon-spin" />
         </span>
       </Show>
-      <Show when={props.state.status === "completed"}>
+      <Show when={props.status === "completed"}>
         <Check size={14} />
       </Show>
-      <Show when={props.state.status === "error"}>
+      <Show when={props.status === "error"}>
         <X size={14} />
       </Show>
     </>

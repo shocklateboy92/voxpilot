@@ -6,14 +6,11 @@
  */
 
 import type { SessionMessageInfo } from "@opencode/client";
-import { For, Match, Show, Switch } from "solid-js";
+import { For, Show } from "solid-js";
+import { backgroundCompletion } from "../background-tools";
 import { renderMarkdown } from "../markdown";
 import { formatVariantLabel, resolveModelName } from "../model-utils";
 import { store } from "../store";
-import {
-  SyntheticShellNotice,
-  syntheticShellNotice,
-} from "./SyntheticShellNotice";
 import { ToolCallRenderer } from "./ToolCallRenderer";
 
 /**
@@ -40,12 +37,6 @@ interface Props {
 }
 
 export function MessageBubble(props: Props) {
-  const shellNotice = () => {
-    const message = props.msg;
-    if (message.type !== "synthetic") return undefined;
-    return syntheticShellNotice(message) ? message : undefined;
-  };
-
   const textContent = () => {
     const msg = props.msg;
     if (
@@ -120,13 +111,12 @@ export function MessageBubble(props: Props) {
   };
 
   return (
-    <Switch>
-      <Match when={shellNotice()}>
-        {(message) => <SyntheticShellNotice message={message()} />}
-      </Match>
-      <Match
-        when={textContent() || role() === "assistant" || role() === "shell"}
-      >
+    <Show
+      when={
+        !backgroundCompletion(props.msg) &&
+        (textContent() || role() === "assistant" || role() === "shell")
+      }
+    >
         <div
         class="message"
         classList={{
@@ -196,7 +186,6 @@ export function MessageBubble(props: Props) {
           {(part) => <ToolCallRenderer part={part} />}
         </For>
         </div>
-      </Match>
-    </Switch>
+    </Show>
   );
 }
