@@ -33,6 +33,13 @@ reload, model selection, forms, permissions, worktrees, native diff tool cards a
 review RPC rendering. Mutating tests require `VOXPILOT_E2E_FIXTURE=1` and a local
 URL on port 13000. Never point those tests at a real working server.
 
+`presentation.spec.ts` additionally checks dark/light theme switching, native
+control selection, 280–480px layouts, review chrome clearance, modal keyboard
+focus, emulated touch keyboard/safe-area behavior, and the no-JavaScript dark
+fallback. It requires localhost/127.0.0.1 on port 13000 and attaches screenshots
+to the report. Touch and JavaScript-disabled checks use isolated local Chromium,
+not the shared CDP browser.
+
 Local Chromium defaults to `/usr/bin/chromium`; override with
 `VOXPILOT_E2E_CHROMIUM`. Set `VOXPILOT_E2E_CDP` to attach to an existing browser;
 the runner reuses its context and only closes tabs it creates. Failure artifacts

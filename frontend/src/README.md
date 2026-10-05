@@ -9,6 +9,8 @@
 - `app/`: application composition, shared state, startup, navigation, notifications,
   and cross-feature event reconciliation.
 - `platform/`: OpenCode transport, connection configuration, and browser utilities.
+- `styles/`: Tailwind theme/foundation, generated Markdown/diff styling, and mobile
+  browser behavior; see `frontend/DESIGN_SYSTEM.md`.
 
 Keep components, state, helpers, and colocated tests with the feature that owns
 them. Start each feature flat; introduce a subdirectory for a meaningful group

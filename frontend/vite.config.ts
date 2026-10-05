@@ -1,4 +1,5 @@
 import path from "node:path";
+import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 import solidPlugin from "vite-plugin-solid";
@@ -7,6 +8,7 @@ const apiTarget = process.env.VOXPILOT_API_TARGET ?? "http://127.0.0.1:8000";
 
 export default defineConfig({
   plugins: [
+    tailwindcss(),
     solidPlugin(),
     VitePWA({
       registerType: "autoUpdate",

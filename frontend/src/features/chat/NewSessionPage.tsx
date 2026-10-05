@@ -26,9 +26,15 @@ import {
 } from "../../app/navigation";
 import { store } from "../../app/store";
 import { createWorktree, fetchWorktrees } from "../../platform/api-client";
+import { Button } from "../../ui/Button";
+import { IconButton } from "../../ui/IconButton";
+import { Select } from "../../ui/Select";
 import { SwipeablePane } from "../../ui/SwipeablePane";
+import { Textarea } from "../../ui/Textarea";
+import { TextInput } from "../../ui/TextInput";
 import { AgentPicker } from "./AgentPicker";
 import { effectiveAgent } from "./agent-selection";
+import { ComposerForm } from "./ComposerForm";
 import { ModelPicker } from "./ModelPicker";
 import { selectedModel, selectedVariant } from "./preferences";
 
@@ -147,19 +153,22 @@ export function NewSessionPage() {
   const busy = () => sending() || creatingWorktree();
 
   return (
-    <div class="content-shell-body">
+    <div class="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <SwipeablePane
-        class="new-session-page"
+        class="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-4 py-8"
         canSwipeLeft={canSwipeLeft}
         canSwipeRight={ALWAYS_FALSE}
         onSwipeLeft={navigateNext}
       >
-        <div class="new-session-content">
-          <h1 class="new-session-heading">New Chat</h1>
+        <div class="flex w-full max-w-lg flex-col items-center gap-5">
+          <h1 class="m-0 text-2xl font-semibold text-text">New Chat</h1>
 
           <Show when={store.projects.length > 1}>
-            <select
-              class="project-select"
+            <Select
+              class="w-full"
+              density="compact"
+              mono
+              aria-label="Project"
               value={selectedProjectDir() ?? ""}
               onChange={(e) => {
                 setSelectedProjectDir(e.currentTarget.value || undefined);
@@ -174,13 +183,16 @@ export function NewSessionPage() {
                   </option>
                 )}
               </For>
-            </select>
+            </Select>
           </Show>
 
           <Show when={selectedProject()?.vcs === "git"}>
-            <div class="worktree-section">
-              <select
-                class="project-select"
+            <div class="worktree-section flex w-full flex-col gap-2">
+              <Select
+                class="w-full"
+                density="compact"
+                mono
+                aria-label="Worktree"
                 value={selectedWorktreeDir() ?? ""}
                 onChange={(e) => {
                   setSelectedWorktreeDir(e.currentTarget.value || undefined);
@@ -191,37 +203,45 @@ export function NewSessionPage() {
                 <For each={worktrees()}>
                   {(dir) => <option value={dir}>{worktreeLabel(dir)}</option>}
                 </For>
-              </select>
+              </Select>
 
-              <div class="worktree-create">
-                <input
+              <div class="flex items-center gap-2">
+                <TextInput
                   type="text"
-                  class="worktree-name-input"
+                  class="flex-1"
+                  density="compact"
+                  mono
+                  aria-label="Worktree name"
                   placeholder="Worktree name (optional)"
                   value={worktreeName()}
                   onInput={(e) => setWorktreeName(e.currentTarget.value)}
                   disabled={busy()}
                 />
-                <button
+                <Button
                   type="button"
-                  class="btn btn-primary"
+                  variant="primary"
+                  size="sm"
+                  class="whitespace-nowrap"
                   onClick={() => void handleCreateWorktree()}
                   disabled={busy()}
                 >
                   <Plus size={14} />
                   {creatingWorktree() ? "Creating..." : "New worktree"}
-                </button>
+                </Button>
               </div>
             </div>
           </Show>
 
           <AgentPicker />
-          <ModelPicker />
+          <ModelPicker fullWidth />
 
-          <form class="chat-form" onSubmit={(e) => void handleSubmit(e)}>
-            <textarea
+          <ComposerForm onSubmit={(e) => void handleSubmit(e)}>
+            <Textarea
               ref={inputEl}
               class="chat-input"
+              variant="composer"
+              data-composer-input
+              aria-label="Message"
               placeholder="Send a message..."
               autocomplete="off"
               disabled={busy()}
@@ -229,15 +249,17 @@ export function NewSessionPage() {
               onKeyDown={handleKeyDown}
               onInput={handleAutoResize}
             />
-            <button
+            <IconButton
               type="submit"
-              class="btn btn-primary btn-icon"
+              variant="primary"
               disabled={busy()}
               aria-label="Send"
+              // Keep focus in the composer so keyboard/nav changes cannot move the button mid-click.
+              onPointerDown={(event) => event.preventDefault()}
             >
               <ArrowUp size={18} />
-            </button>
-          </form>
+            </IconButton>
+          </ComposerForm>
         </div>
       </SwipeablePane>
     </div>

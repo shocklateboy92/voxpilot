@@ -11,6 +11,9 @@ import ArrowUp from "lucide-solid/icons/arrow-up";
 import Square from "lucide-solid/icons/square";
 import { isStreaming } from "../../app/navigation";
 import { abortCurrentSession, sendUserMessage } from "../../app/streaming";
+import { IconButton } from "../../ui/IconButton";
+import { Textarea } from "../../ui/Textarea";
+import { ComposerForm } from "./ComposerForm";
 
 export interface ChatInputProps {
   /** Optional callback fired after a message is successfully submitted. */
@@ -56,10 +59,13 @@ export function ChatInput(props: ChatInputProps) {
   }
 
   return (
-    <form class="chat-form" onSubmit={handleSubmit}>
-      <textarea
+    <ComposerForm onSubmit={handleSubmit}>
+      <Textarea
         name="message"
         class="chat-input"
+        variant="composer"
+        data-composer-input
+        aria-label="Message"
         placeholder="Send a message..."
         autocomplete="off"
         autofocus
@@ -68,23 +74,26 @@ export function ChatInput(props: ChatInputProps) {
         onInput={handleAutoResize}
       />
       {isStreaming() ? (
-        <button
+        <IconButton
           type="button"
-          class="btn btn-icon btn-stop"
+          variant="stop"
           aria-label="Stop generating"
+          // Keep focus in the composer so keyboard/nav changes cannot move the button mid-click.
+          onPointerDown={(event) => event.preventDefault()}
           onClick={handleStopClick}
         >
           <Square size={12} />
-        </button>
+        </IconButton>
       ) : (
-        <button
+        <IconButton
           type="submit"
-          class="btn btn-primary btn-icon"
+          variant="primary"
           aria-label="Send"
+          onPointerDown={(event) => event.preventDefault()}
         >
           <ArrowUp size={18} />
-        </button>
+        </IconButton>
       )}
-    </form>
+    </ComposerForm>
   );
 }

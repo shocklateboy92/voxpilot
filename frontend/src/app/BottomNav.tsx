@@ -11,6 +11,7 @@ import { ReviewPicker } from "../features/review/ReviewPicker";
 import { ForkOverlay } from "../features/sessions/ForkOverlay";
 import { SessionPicker } from "../features/sessions/SessionPicker";
 import { changeServer } from "../platform/connection";
+import { IconButton } from "../ui/IconButton";
 import {
   activeSession,
   handleNewSession,
@@ -23,52 +24,55 @@ export function BottomNav() {
   const [reviewOpen, setReviewOpen] = createSignal(false);
 
   return (
-    <nav class="bottom-nav">
-      <button
+    <nav
+      data-bottom-nav
+      class="bottom-nav absolute inset-x-0 bottom-0 z-50 flex h-[calc(var(--bottom-nav-height)+var(--safe-bottom))] items-center justify-between gap-1 border-t border-border bg-surface px-4 pb-(--safe-bottom)"
+    >
+      <IconButton
         type="button"
-        class="btn btn-icon"
+        aria-label="Connection settings"
         title="Connection settings"
         onClick={changeServer}
       >
         <Settings size={20} />
-      </button>
+      </IconButton>
       <button
         type="button"
-        class="session-title-btn"
+        class="session-title-btn min-w-0 flex-1 cursor-pointer truncate border-0 bg-transparent py-2 text-left font-sans text-[0.85rem] font-semibold text-text after:text-[0.7rem] after:text-muted after:content-['_▾']"
         onClick={() => setPickerOpen(true)}
       >
         {activeSession()?.title || "New chat"}
       </button>
-      <button
+      <IconButton
         type="button"
-        class="fork-btn btn btn-icon"
+        aria-label="Fork conversation"
         onClick={() => setForkOpen(true)}
         title="Fork conversation"
         disabled={isNewSessionPage()}
       >
         <GitFork size={20} />
-      </button>
-      <button
+      </IconButton>
+      <IconButton
         type="button"
-        class="new-chat-btn btn btn-icon"
+        aria-label="New chat"
         onClick={() => handleNewSession()}
         title="New chat"
         disabled={isNewSessionPage()}
       >
         <Plus size={20} />
-      </button>
+      </IconButton>
       <Show when={pickerOpen()}>
         <SessionPicker onClose={() => setPickerOpen(false)} />
       </Show>
-      <button
+      <IconButton
         type="button"
-        class="btn btn-icon"
+        aria-label="Review changes"
         title="Review changes"
         disabled={isNewSessionPage()}
         onClick={() => setReviewOpen(true)}
       >
         <GitCompare size={20} />
-      </button>
+      </IconButton>
       <Show when={reviewOpen()}>
         <ReviewPicker onClose={() => setReviewOpen(false)} />
       </Show>

@@ -1,0 +1,19 @@
+/* Cross-component viewport behavior is clearer here than in nested utilities.
+   Insets are inherited by both shell padding and the floating composer. */
+/* Same layer as utilities so these contextual selectors can override `flex`. */
+@layer utilities {
+  @media (pointer: coarse) {
+    .app:has([data-composer-input]:focus) {
+      --bottom-nav-height: 0px;
+      --safe-bottom: 0px;
+    }
+    .app:has([data-composer-input]:focus) [data-bottom-nav] {
+      display: none;
+    }
+  }
+  @media (prefers-color-scheme: light) {
+    :root[data-theme-ready] [data-status-bar] {
+      box-shadow: var(--shadow-status);
+    }
+  }
+}

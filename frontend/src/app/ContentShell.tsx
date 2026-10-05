@@ -53,11 +53,18 @@ export interface ContentShellProps {
 export function ContentShell(props: ContentShellProps) {
   return (
     <>
-      <div class="status-bar">
-        <div class="status-bar-left">{props.statusBarLeft}</div>
-        <div class="status-bar-right">{props.statusBarRight}</div>
+      <div
+        data-status-bar
+        class="absolute inset-x-3 top-[calc(var(--safe-top)+1.5rem)] z-40 flex min-h-(--status-bar-height) items-center justify-between gap-3 rounded-[0.6rem] bg-glass px-3.5 py-1.5 backdrop-blur-md"
+      >
+        <div class="flex min-w-0 max-w-[60%] flex-[0_1_auto] items-center gap-1.5 font-mono text-xs whitespace-nowrap text-muted">
+          {props.statusBarLeft}
+        </div>
+        <div class="flex min-w-0 flex-[0_1_auto] items-center">
+          {props.statusBarRight}
+        </div>
       </div>
-      <div class="content-shell-body">
+      <div class="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden mask-[linear-gradient(to_bottom,transparent,black_1rem,black_calc(100%_-_1rem),transparent)]">
         {props.overlay}
         <SwipeablePane
           class={props.paneClass}
@@ -71,7 +78,7 @@ export function ContentShell(props: ContentShellProps) {
           {props.children}
         </SwipeablePane>
       </div>
-      <div class="composer-stack">
+      <div class="absolute inset-x-3 bottom-[calc(var(--bottom-nav-height)+var(--safe-bottom)+0.75rem)] z-40 flex flex-col items-center gap-2">
         {props.composerOverlay}
         {props.aboveInput}
         <ChatInput onSend={props.onSend} />

@@ -47,34 +47,36 @@ export function ChatView() {
   });
 
   return (
-    <main class="app">
+    <main class="app relative flex size-full flex-col overflow-hidden bg-surface px-3 pb-[calc(var(--bottom-nav-height)+var(--safe-bottom))] text-center">
       <Show when={!isNewSessionPage()} fallback={<NewSessionPage />}>
         <ContentShell
           statusBarLeft={
-            <Show
-              when={store.gitBranch}
-              fallback={<span class="status-bar-branch-placeholder" />}
-            >
+            <Show when={store.gitBranch} fallback={<span class="h-4 w-px" />}>
               {(branch) => (
                 <>
-                  <GitBranch size={14} class="wt-icon-fixed" />
-                  <span class="wt-branch" title={branch()}>
+                  <GitBranch size={14} class="shrink-0" />
+                  <span class="min-w-0 truncate" title={branch()}>
                     {branch()}
                   </span>
                   <Show
                     when={changeCounts().total > 0}
                     fallback={
                       <>
-                        <span class="wt-separator">·</span>
-                        <Check size={14} class="wt-check" />
-                        <span class="wt-label">clean</span>
+                        <span class="hidden min-[300px]:inline">·</span>
+                        <Check
+                          size={14}
+                          class="hidden text-ok min-[300px]:inline"
+                        />
+                        <span class="hidden min-[370px]:inline">clean</span>
                       </>
                     }
                   >
-                    <span class="wt-separator">·</span>
-                    <span class="wt-count">{changeCounts().total}</span>
-                    <span class="wt-label">changed</span>
-                    <span class="wt-breakdown">
+                    <span class="hidden min-[300px]:inline">·</span>
+                    <span class="hidden min-[300px]:inline">
+                      {changeCounts().total}
+                    </span>
+                    <span class="hidden min-[370px]:inline">changed</span>
+                    <span class="hidden min-[440px]:inline">
                       (+{changeCounts().added} ~{changeCounts().modified} -
                       {changeCounts().deleted})
                     </span>
@@ -88,12 +90,12 @@ export function ChatView() {
           canSwipeRight={canNavigatePrev}
           onSwipeLeft={navigateNext}
           onSwipeRight={navigatePrev}
-          paneClass="messages"
+          paneClass="messages mx-auto min-h-0 w-full max-w-[66rem] flex-1 touch-pan-y overflow-x-clip overflow-y-auto px-[3vw] pt-(--status-bar-clearance) pb-64 text-left"
           onPaneMount={chatPaneMount}
           onScroll={anchor.onScroll}
           composerOverlay={<ChatScrollButton />}
           aboveInput={
-            <div class="composer-controls">
+            <div class="flex w-full max-w-[66rem] flex-wrap items-end gap-2">
               <AgentPicker />
               <ModelPicker />
             </div>

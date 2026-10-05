@@ -2,7 +2,13 @@ import type { ComponentProps } from "solid-js";
 import { createSignal, Show } from "solid-js";
 import { activeSession } from "../../app/navigation";
 import { rpc } from "../../platform/rpc";
+import { Button } from "../../ui/Button";
+import { EmptyState } from "../../ui/EmptyState";
+import { FormField } from "../../ui/FormField";
 import { Overlay } from "../../ui/Overlay";
+import { OverlayHeader } from "../../ui/OverlayHeader";
+import { Select } from "../../ui/Select";
+import { TextInput } from "../../ui/TextInput";
 import { ChangesetSummary } from "./ChangesetSummary";
 
 export function ReviewPicker(props: { onClose: () => void }) {
@@ -44,44 +50,42 @@ export function ReviewPicker(props: { onClose: () => void }) {
     }
   };
   return (
-    <Overlay class="session-picker" onClose={props.onClose}>
-      <header class="picker-header">
-        <h2>Review changes</h2>
-        <button
-          type="button"
-          class="btn btn-ghost"
-          onClick={() => props.onClose()}
-        >
-          Close
-        </button>
-      </header>
-      <form class="connection-page" onSubmit={compare}>
-        <label>
-          Comparison
-          <select value={mode()} onChange={selectMode}>
-            <option value="working">Uncommitted changes</option>
-            <option value="branch">Branch + working copy</option>
-            <option value="committed">Committed branch changes</option>
-          </select>
-        </label>
+    <Overlay
+      label="Review changes"
+      class="session-picker"
+      onClose={props.onClose}
+    >
+      <OverlayHeader title="Review changes" onClose={props.onClose} />
+      <form class="flex flex-col gap-3 overflow-y-auto p-6" onSubmit={compare}>
+        <FormField label="Comparison">
+          {(attributes) => (
+            <Select {...attributes} value={mode()} onChange={selectMode}>
+              <option value="working">Uncommitted changes</option>
+              <option value="branch">Branch + working copy</option>
+              <option value="committed">Committed branch changes</option>
+            </Select>
+          )}
+        </FormField>
         <Show when={mode() !== "working"}>
-          <label>
-            Base branch
-            <input
-              value={base()}
-              required
-              onInput={(e) => setBase(e.currentTarget.value)}
-            />
-          </label>
+          <FormField label="Base branch">
+            {(attributes) => (
+              <TextInput
+                {...attributes}
+                value={base()}
+                required
+                onInput={(e) => setBase(e.currentTarget.value)}
+              />
+            )}
+          </FormField>
         </Show>
-        <button type="submit" class="btn" disabled={busy()}>
+        <Button type="submit" disabled={busy()}>
           {busy() ? "Capturing…" : "Load changes"}
-        </button>
+        </Button>
         <Show when={entry()}>
           {(snapshot) => (
             <>
               <Show when={snapshot().files.length === 0}>
-                <p>No changes.</p>
+                <EmptyState>No changes.</EmptyState>
               </Show>
               <ChangesetSummary
                 snapshot={snapshot()}

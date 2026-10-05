@@ -16,9 +16,12 @@
     <!-- Dark launch/no-JavaScript fallbacks, matching the manifest. -->
     <meta name="theme-color" content="#1a1d27" />
     <style>
-      html { background: #1a1d27; color: #e4e4e7; color-scheme: dark; }
+      @layer theme, base, components, utilities;
+      @layer base {
+        html { background: #1a1d27; color: #e4e4e7; color-scheme: dark; }
+      }
     </style>
-    <link rel="stylesheet" href="/src/style.css" />
+    <link rel="stylesheet" href="/src/styles/app.css" />
     <!-- Initialize independently of the app bundle/API startup. Vite moves the
          stylesheet link, so wait for parsing and styles before reading tokens. -->
     <script>

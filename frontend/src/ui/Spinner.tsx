@@ -9,10 +9,15 @@
 export function Spinner(props: { fullscreen?: boolean }) {
   return (
     <div
-      class="spinner-fallback"
-      classList={{ "spinner-fallback--fullscreen": props.fullscreen }}
+      class="flex flex-1 items-center justify-center"
+      classList={{
+        "min-h-dvh": props.fullscreen,
+        "min-h-full": !props.fullscreen,
+      }}
+      role="status"
+      aria-label="Loading"
     >
-      <div class="spinner" />
+      <div class="size-8 animate-spin rounded-full border-[3px] border-border border-t-text" />
     </div>
   );
 }

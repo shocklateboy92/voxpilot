@@ -1,8 +1,12 @@
 /** Native session form, with typed answers keyed by field key. */
 import type { FormAnswer, FormDetail } from "@opencode/client";
-import Check from "lucide-solid/icons/check";
 import { createSignal, For, Show } from "solid-js";
 import { rejectQuestion, replyToQuestion } from "../../platform/api-client";
+import { Button } from "../../ui/Button";
+import { ChoiceOption } from "../../ui/ChoiceOption";
+import { Select } from "../../ui/Select";
+import { Textarea } from "../../ui/Textarea";
+import { TextInput } from "../../ui/TextInput";
 
 interface Props {
   request: FormDetail;
@@ -93,8 +97,13 @@ export function QuestionBlock(props: Props) {
     });
 
   return (
-    <form class="question-block" onSubmit={(event) => void handleSubmit(event)}>
-      <div class="question-header">{props.request.title}</div>
+    <form
+      class="question-block mt-2.5 rounded-lg border border-border bg-surface-dark p-3"
+      onSubmit={(event) => void handleSubmit(event)}
+    >
+      <div class="mb-1 text-[0.8rem] font-semibold text-muted">
+        {props.request.title}
+      </div>
       <For each={props.request.fields}>
         {(field) => {
           const options = () =>
@@ -123,14 +132,17 @@ export function QuestionBlock(props: Props) {
           };
           return (
             <Show when={visible(field)}>
-              <div class="question-item">
-                <div class="question-header">{field.title ?? field.key}</div>
+              <div class="mb-3 last-of-type:mb-0">
+                <div class="mb-1 text-[0.8rem] font-semibold text-muted">
+                  {field.title ?? field.key}
+                </div>
                 <Show when={field.description}>
-                  <div class="question-text">{field.description}</div>
+                  <div class="mb-2 text-[0.9rem]">{field.description}</div>
                 </Show>
                 <Show when={field.type === "external" && field}>
                   {(external) => (
                     <a
+                      class="text-accent hover:underline"
                       href={
                         /^https?:\/\//i.test(external().url)
                           ? external().url
@@ -143,13 +155,13 @@ export function QuestionBlock(props: Props) {
                     </a>
                   )}
                 </Show>
-                <div class="question-options">
+                <div class="mb-1.5 flex flex-col gap-2">
                   <For each={options()}>
                     {(option) => (
-                      <button
+                      <ChoiceOption
                         type="button"
-                        class="btn btn-sm question-option"
-                        classList={{ selected: selected(option.value) }}
+                        selected={selected(option.value)}
+                        description={option.description}
                         disabled={disabled()}
                         onClick={() => {
                           if (field.type !== "multiselect") {
@@ -171,26 +183,17 @@ export function QuestionBlock(props: Props) {
                           );
                         }}
                       >
-                        <span class="question-option-label">
-                          <Show when={selected(option.value)}>
-                            <Check size={14} />
-                          </Show>
-                          {option.label}
-                        </span>
-                        <Show when={option.description}>
-                          <span class="question-option-desc">
-                            {option.description}
-                          </span>
-                        </Show>
-                      </button>
+                        {option.label}
+                      </ChoiceOption>
                     )}
                   </For>
                 </div>
                 <Show when={field.type === "string" && field}>
                   {(text) => (
                     <Show when={!text().options?.length || text().custom}>
-                      <input
-                        class="question-custom-input"
+                      <TextInput
+                        class="mt-1 w-full"
+                        density="compact"
                         type={
                           text().format === "email"
                             ? "email"
@@ -216,8 +219,8 @@ export function QuestionBlock(props: Props) {
                   )}
                 </Show>
                 <Show when={field.type === "multiselect" && field.custom}>
-                  <textarea
-                    class="question-custom-input"
+                  <Textarea
+                    class="mt-1"
                     aria-label={`Custom answers for ${field.title ?? field.key}`}
                     placeholder="Custom answers, one per line"
                     rows={2}
@@ -249,8 +252,9 @@ export function QuestionBlock(props: Props) {
                   }
                 >
                   {(numeric) => (
-                    <input
-                      class="question-custom-input"
+                    <TextInput
+                      class="mt-1 w-full"
+                      density="compact"
                       type="number"
                       aria-label={field.title ?? field.key}
                       value={String(value(field) ?? "")}
@@ -271,8 +275,9 @@ export function QuestionBlock(props: Props) {
                   )}
                 </Show>
                 <Show when={field.type === "boolean"}>
-                  <select
-                    class="question-custom-input"
+                  <Select
+                    class="mt-1 w-full"
+                    density="compact"
                     aria-label={field.title ?? field.key}
                     value={String(value(field) ?? "")}
                     disabled={disabled()}
@@ -288,29 +293,31 @@ export function QuestionBlock(props: Props) {
                     <option value="">Select an answer</option>
                     <option value="true">Yes</option>
                     <option value="false">No</option>
-                  </select>
+                  </Select>
                 </Show>
               </div>
             </Show>
           );
         }}
       </For>
-      <div class="question-actions">
-        <button
+      <div class="mt-3 flex gap-2">
+        <Button
           type="submit"
-          class="btn btn-success btn-sm"
+          variant="success"
+          size="sm"
           disabled={!valid() || disabled()}
         >
           Submit
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          class="btn btn-danger btn-sm"
+          variant="reject"
+          size="sm"
           disabled={disabled()}
           onClick={() => void handleReject()}
         >
           Reject
-        </button>
+        </Button>
       </div>
     </form>
   );

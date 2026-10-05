@@ -21,6 +21,7 @@ import {
   pendingQuestion,
 } from "../../app/navigation";
 import { store } from "../../app/store";
+import { IconButton } from "../../ui/IconButton";
 import { QuestionBlock } from "../tools/QuestionBlock";
 import { ToolConfirmBlock } from "../tools/ToolConfirmBlock";
 import { MessageBubble } from "./MessageBubble";
@@ -58,14 +59,15 @@ export function chatPaneMount(el: HTMLDivElement): void {
 export function ChatScrollButton() {
   return (
     <Show when={!anchor.isAtBottom()}>
-      <button
+      <IconButton
         type="button"
-        class="btn btn-icon scroll-to-bottom"
+        size="lg"
+        class="scroll-to-bottom animate-scroll-in self-center shadow-floating active:scale-95"
         onClick={anchor.scrollToBottom}
         aria-label="Scroll to bottom"
       >
         <ChevronDown size={20} />
-      </button>
+      </IconButton>
     </Show>
   );
 }
@@ -158,7 +160,7 @@ export function ChatMain() {
   });
 
   return (
-    <div ref={contentRef} class="messages-content">
+    <div ref={contentRef} class="messages-content flex flex-col gap-2">
       <For each={store.messages}>{(msg) => <MessageBubble msg={msg} />}</For>
 
       {/* Permission prompt */}
@@ -173,10 +175,14 @@ export function ChatMain() {
 
       {/* Error display */}
       <Show when={store.errorMessage}>
-        {(msg) => <div class="message error">{msg()}</div>}
+        {(msg) => (
+          <div class="message error min-w-0 rounded-lg bg-bg px-3 py-2 text-[0.9rem] wrap-break-word whitespace-pre-wrap text-error">
+            {msg()}
+          </div>
+        )}
       </Show>
 
-      <div class="scroll-sentinel" />
+      <div class="h-px shrink-0" />
     </div>
   );
 }

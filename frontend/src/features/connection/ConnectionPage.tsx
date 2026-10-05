@@ -4,6 +4,9 @@ import {
   serverUrl,
   waitForPlugin,
 } from "../../platform/connection";
+import { Button } from "../../ui/Button";
+import { FormField } from "../../ui/FormField";
+import { TextInput } from "../../ui/TextInput";
 
 export function ConnectionPage() {
   const [url, setUrl] = createSignal(serverUrl);
@@ -65,41 +68,47 @@ export function ConnectionPage() {
   }
 
   return (
-    <main class="connection-page">
-      <h1>VoxPilot</h1>
-      <p>Connect to an OpenCode server with the VoxPilot plugin.</p>
-      <form onSubmit={connect}>
-        <label>
-          Server URL
-          <input
-            name="server"
-            type="url"
-            required
-            value={url()}
-            onInput={(e) => setUrl(e.currentTarget.value)}
-            placeholder="https://opencode.example.com"
-          />
-        </label>
-        <label>
-          Server password
-          <input
-            name="password"
-            type="password"
-            autocomplete="current-password"
-          />
-        </label>
-        <p>
+    <main class="h-full overflow-y-auto p-6">
+      <h1 class="mb-4 text-[2rem] font-bold tracking-tight">VoxPilot</h1>
+      <p class="my-4 text-muted">
+        Connect to an OpenCode server with the VoxPilot plugin.
+      </p>
+      <form class="flex flex-col gap-3" onSubmit={connect}>
+        <FormField label="Server URL">
+          {(attributes) => (
+            <TextInput
+              {...attributes}
+              name="server"
+              type="url"
+              required
+              value={url()}
+              onInput={(e) => setUrl(e.currentTarget.value)}
+              placeholder="https://opencode.example.com"
+            />
+          )}
+        </FormField>
+        <FormField label="Server password">
+          {(attributes) => (
+            <TextInput
+              {...attributes}
+              name="password"
+              type="password"
+              autocomplete="current-password"
+            />
+          )}
+        </FormField>
+        <p class="my-4 text-muted">
           Leave the password blank for a paired same-origin server. A password
           is kept only for this tab’s session.
         </p>
-        <button type="submit" class="btn" disabled={busy()}>
+        <Button type="submit" disabled={busy()}>
           {busy() ? "Connecting…" : "Connect"}
-        </button>
+        </Button>
       </form>
       <Show when={wakeUrl()}>
-        <button type="button" class="btn btn-ghost" onClick={wake}>
+        <Button variant="ghost" onClick={wake}>
           {wakeSent() ? "Wake request sent" : "Wake host"}
-        </button>
+        </Button>
       </Show>
     </main>
   );

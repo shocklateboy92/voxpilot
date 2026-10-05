@@ -1,6 +1,7 @@
 import type { SessionMessageAssistantTool as ToolPart } from "@opencode/client";
 import ListChecks from "lucide-solid/icons/list-checks";
 import { For, type JSX, Show } from "solid-js";
+import { Disclosure, DisclosureSummary } from "../../../ui/Disclosure";
 import { isActive, OutputSection, StatusIcon } from "./shared";
 
 interface TodoItem {
@@ -67,24 +68,27 @@ export function TodoTool(props: { part: ToolPart }): JSX.Element {
   };
 
   return (
-    <details class="tool-block" open={isActive(props.part.state)}>
-      <summary class="tool-summary">
+    <Disclosure class="tool-block" open={isActive(props.part.state)}>
+      <DisclosureSummary>
         <ListChecks size={14} />
-        <span class="tool-summary-text">{highlight()}</span>
+        <span class="min-w-0 flex-1 truncate">{highlight()}</span>
         <StatusIcon state={props.part.state} />
-      </summary>
+      </DisclosureSummary>
       <Show when={todos().length > 0}>
-        <div class="tool-result">
+        <div class="border-t border-border bg-bg px-3 py-1.5">
           <For each={todos()}>
             {(item) => (
               <div
-                class="tool-todo-item"
+                class="flex items-baseline gap-1.5 py-0.5 text-xs"
                 classList={{
-                  "todo-completed": item.status === "completed",
-                  "todo-in-progress": item.status === "in_progress",
+                  "text-muted line-through": item.status === "completed",
+                  "text-accent": item.status === "in_progress",
+                  "text-text":
+                    item.status !== "completed" &&
+                    item.status !== "in_progress",
                 }}
               >
-                <span class="todo-status">
+                <span class="w-5 shrink-0 text-center text-muted">
                   {todoStatusIndicator(item.status)}
                 </span>
                 <span>{item.content}</span>
@@ -94,6 +98,6 @@ export function TodoTool(props: { part: ToolPart }): JSX.Element {
         </div>
       </Show>
       <OutputSection state={props.part.state} />
-    </details>
+    </Disclosure>
   );
 }

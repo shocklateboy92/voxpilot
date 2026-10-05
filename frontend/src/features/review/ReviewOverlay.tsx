@@ -29,6 +29,7 @@ import {
 } from "solid-js";
 import { ContentShell } from "../../app/ContentShell";
 import { rpc } from "../../platform/rpc";
+import { IconButton } from "../../ui/IconButton";
 import { Spinner } from "../../ui/Spinner";
 
 /** What the overlay needs to display a single file diff. */
@@ -324,15 +325,16 @@ export function ReviewOverlay() {
     <Show when={reviewFile()}>
       {(req) => (
         <div
-          class="review-overlay"
+          class="review-overlay fixed inset-0 z-200 flex flex-col bg-bg text-left [--bottom-nav-height:0px] [--status-bar-clearance:calc(4.5rem+var(--safe-top))]"
           role="dialog"
           aria-modal="true"
+          aria-label="File review"
           tabIndex={-1}
           onClick={close}
           onKeyDown={handleKeyDown}
         >
           <div
-            class="review-content"
+            class="relative flex h-full flex-col"
             role="document"
             ref={containerRef}
             onClick={(e) => e.stopPropagation()}
@@ -340,21 +342,33 @@ export function ReviewOverlay() {
           >
             <ContentShell
               statusBarLeft={
-                <span class="review-file-path">
+                <span class="review-file-path min-w-0 flex-1 truncate font-mono text-xs font-semibold text-muted">
                   {req().filePath}
                   <Show when={fileCounter()}>
-                    {(fc) => <span class="review-file-counter">{fc()}</span>}
+                    {(fc) => (
+                      <span class="review-file-counter ml-2 text-[0.65rem] text-muted opacity-70">
+                        {fc()}
+                      </span>
+                    )}
                   </Show>
                 </span>
               }
               statusBarRight={
                 <>
                   <Show when={changeCounter()}>
-                    {(cc) => <span class="review-change-counter">{cc()}</span>}
+                    {(cc) => (
+                      <span class="mr-2 font-mono text-[0.7rem] whitespace-nowrap text-muted">
+                        {cc()}
+                      </span>
+                    )}
                   </Show>
-                  <button type="button" class="btn btn-ghost" onClick={close}>
+                  <IconButton
+                    variant="ghost"
+                    aria-label="Close review"
+                    onClick={close}
+                  >
                     <X size={18} />
-                  </button>
+                  </IconButton>
                 </>
               }
               canSwipeLeft={canSwipeLeft}
@@ -364,13 +378,13 @@ export function ReviewOverlay() {
               onPaneMount={(el) => {
                 paneRef = el;
               }}
-              paneClass="review-pane"
+              paneClass="review-pane min-h-0 flex-1 touch-pan-y overflow-x-clip overflow-y-auto pt-(--status-bar-clearance) pb-24 text-left"
               onSend={close}
             >
               <ErrorBoundary
                 fallback={(err) => (
-                  <div class="review-diff-container">
-                    <div class="error">
+                  <div class="review-diff-container min-h-0">
+                    <div class="text-error">
                       Error:{" "}
                       {err instanceof Error ? err.message : "Unknown error"}
                     </div>
@@ -379,7 +393,7 @@ export function ReviewOverlay() {
               >
                 <Suspense fallback={<Spinner />}>
                   <div
-                    class="review-diff-container"
+                    class="review-diff-container min-h-0"
                     // eslint-disable-next-line solid/no-innerhtml -- intentional: server-rendered diff HTML
                     innerHTML={diffHtml() ?? ""}
                   />
@@ -509,7 +523,7 @@ function measureCharWidth(container: HTMLElement): number {
  * cell padding.
  *
  * All layout values are read from CSS custom properties defined in
- * style.css (:root), so CSS and JS stay in sync automatically:
+ * styles/theme.css (:root), so CSS and JS stay in sync automatically:
  *   --line-num-width, --cell-padding
  */
 function computePrintWidth(container: HTMLElement): number {

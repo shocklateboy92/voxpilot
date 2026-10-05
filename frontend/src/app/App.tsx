@@ -10,6 +10,7 @@
 import { MetaProvider, Title } from "@solidjs/meta";
 import { ErrorBoundary } from "solid-js";
 import { serverUrl } from "../platform/connection";
+import { Button } from "../ui/Button";
 import { ChatView } from "./ChatView";
 import { ToastContainer } from "./ToastContainer";
 import "./wake-lock"; // Keep screen awake while AI sessions are busy
@@ -44,18 +45,20 @@ function AppError(props: { error: unknown }) {
   };
 
   return (
-    <main class="app">
-      <h1>VoxPilot</h1>
-      <div class="app-error">
+    <main class="app relative flex size-full flex-col overflow-hidden bg-surface px-3 pb-[calc(var(--bottom-nav-height)+var(--safe-bottom))] text-center">
+      <h1 class="mb-4 text-3xl font-bold tracking-tight">VoxPilot</h1>
+      <div class="p-8 text-center text-error">
         <p>Something went wrong:</p>
-        <pre>{message()}</pre>
-        <button
+        <pre class="my-4 rounded-lg bg-surface p-4 text-left text-[0.85rem] wrap-break-word whitespace-pre-wrap">
+          {message()}
+        </pre>
+        <Button
           type="button"
-          class="btn btn-primary"
+          variant="primary"
           onClick={() => window.location.reload()}
         >
           Reload
-        </button>
+        </Button>
       </div>
     </main>
   );

@@ -1,0 +1,21 @@
+@import "tailwindcss" source("..");
+@import "./theme.css";
+@import "./markdown.css";
+@import "./diff.css";
+@import "./behaviors.css";
+
+@layer base {
+  html,
+  body {
+    height: 100dvh;
+    overflow: hidden;
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    line-height: 1.6;
+  }
+  #root {
+    width: 100%;
+    height: 100%;
+  }
+}

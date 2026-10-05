@@ -1,0 +1,130 @@
+/* Semantic colors are shared by Tailwind, generated HTML, and theme-color. */
+@theme static {
+  --color-*: initial;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "JetBrains Mono", monospace;
+  --color-bg: #0f1117;
+  --color-surface: #1a1d27;
+  --color-text: #e4e4e7;
+  --color-muted: #71717a;
+  --color-ok: #22c55e;
+  --color-error: #ef4444;
+  --color-accent: #3b82f6;
+  --color-accent-hover: #2563eb;
+  --color-user-msg: #1e293b;
+  --color-assistant-msg: #1a1d27;
+  --color-white: #fff;
+  --color-border: #2a2d37;
+  --color-surface-dark: #151820;
+  --color-warning: #ffa04c;
+  --color-info: #6366f1;
+  --color-info-light: #a5b4fc;
+  --color-info-dark: #3730a3;
+  --color-option-bg: #1a1c23;
+  --color-option-border: #444;
+  --color-ok-hover: #3fb950;
+  --color-ok-dark: #2ea043;
+  --color-reject: #555;
+  --color-reject-hover: #777;
+  --color-toast-error-bg: #451a1a;
+  --color-context-warn: #f59e0b;
+  --color-glass: rgba(15, 17, 23, 0.75);
+  --color-overlay: rgba(0, 0, 0, 0.6);
+  --color-subtle-border: rgba(255, 255, 255, 0.1);
+  --color-subtle-bg: rgba(255, 255, 255, 0.06);
+  --color-code-bg: rgba(255, 255, 255, 0.08);
+  --color-code-block-bg: rgba(0, 0, 0, 0.35);
+  --color-diff-add-bg: rgba(34, 197, 94, 0.1);
+  --color-diff-del-bg: rgba(239, 68, 68, 0.1);
+  --color-diff-hunk-bg: rgba(59, 130, 246, 0.08);
+  --color-diff-header-bg: rgba(255, 255, 255, 0.04);
+  --color-diff-divider: rgba(255, 255, 255, 0.05);
+  --color-table-border: rgba(255, 255, 255, 0.12);
+  --shadow-floating: 0 2px 8px rgba(0, 0, 0, 0.25);
+  --shadow-status: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --animate-blink: blink 0.7s step-end infinite;
+  --animate-toast-in: toast-in 200ms ease-out;
+  --animate-scroll-in: scroll-in 150ms ease-out;
+  @keyframes blink {
+    50% {
+      opacity: 0;
+    }
+  }
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.5rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes scroll-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --bottom-nav-height: 48px;
+    --status-bar-height: 2rem;
+    --status-bar-clearance: calc(3.75rem + var(--safe-top));
+    /* ReviewOverlay reads these to measure server-side diff print width. */
+    --code-font-size: 0.75rem;
+    --code-line-height: 1.5;
+    --line-num-width: 2.5rem;
+    --cell-padding: 0.4rem;
+  }
+  @media (prefers-color-scheme: light) {
+    :root[data-theme-ready] {
+      color-scheme: light;
+      --color-bg: #f8f9fa;
+      --color-surface: #ffffff;
+      --color-text: #1a1a2e;
+      --color-muted: #6b7280;
+      --color-ok: #16a34a;
+      --color-error: #dc2626;
+      --color-accent: #2563eb;
+      --color-accent-hover: #1d4ed8;
+      --color-user-msg: #e0e7ff;
+      --color-assistant-msg: #ffffff;
+      --color-border: #d1d5db;
+      --color-surface-dark: #f0f1f3;
+      --color-warning: #ea8c00;
+      --color-info: #4f46e5;
+      --color-info-light: #6366f1;
+      --color-info-dark: #c7d2fe;
+      --color-option-bg: #f3f4f6;
+      --color-option-border: #d1d5db;
+      --color-ok-hover: #15803d;
+      --color-ok-dark: #16a34a;
+      --color-reject: #9ca3af;
+      --color-reject-hover: #6b7280;
+      --color-toast-error-bg: #fef2f2;
+      --color-context-warn: #d97706;
+      --color-glass: rgba(248, 249, 250, 0.8);
+      --color-overlay: rgba(0, 0, 0, 0.3);
+      --color-subtle-border: rgba(0, 0, 0, 0.08);
+      --color-subtle-bg: rgba(0, 0, 0, 0.03);
+      --color-code-bg: rgba(0, 0, 0, 0.05);
+      --color-code-block-bg: rgba(0, 0, 0, 0.04);
+      --color-diff-add-bg: rgba(34, 197, 94, 0.12);
+      --color-diff-del-bg: rgba(239, 68, 68, 0.12);
+      --color-diff-hunk-bg: rgba(59, 130, 246, 0.08);
+      --color-diff-header-bg: rgba(0, 0, 0, 0.03);
+      --color-diff-divider: rgba(0, 0, 0, 0.06);
+      --color-table-border: rgba(0, 0, 0, 0.1);
+    }
+  }
+}

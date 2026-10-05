@@ -1,6 +1,7 @@
 import type { SessionMessageAssistantTool as ToolPart } from "@opencode/client";
 import FileText from "lucide-solid/icons/file-text";
 import type { JSX } from "solid-js";
+import { Disclosure, DisclosureSummary } from "../../../ui/Disclosure";
 import {
   getTitle,
   inputString,
@@ -33,16 +34,16 @@ export function ReadTool(props: { part: ToolPart }): JSX.Element {
   };
 
   return (
-    <details class="tool-block" open={isActive(props.part.state)}>
-      <summary class="tool-summary">
+    <Disclosure class="tool-block" open={isActive(props.part.state)}>
+      <DisclosureSummary>
         <FileText size={14} />
-        <span class="tool-summary-text">
+        <span class="min-w-0 flex-1 truncate">
           {filePath()}
           {range()}
         </span>
         <StatusIcon state={props.part.state} />
-      </summary>
+      </DisclosureSummary>
       <OutputSection state={props.part.state} />
-    </details>
+    </Disclosure>
   );
 }

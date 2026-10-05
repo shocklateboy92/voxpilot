@@ -97,7 +97,7 @@ export function SwipeablePane(props: SwipeablePaneProps) {
     <>
       <Show when={showLeftArrow()}>
         <div
-          class="swipe-arrow swipe-arrow-left"
+          class="pointer-events-none fixed top-1/2 left-1.5 z-10 -translate-y-1/2 text-muted transition-opacity duration-[60ms] select-none"
           style={{ opacity: arrowOpacity() }}
           aria-hidden="true"
         >
@@ -106,7 +106,7 @@ export function SwipeablePane(props: SwipeablePaneProps) {
       </Show>
       <Show when={showRightArrow()}>
         <div
-          class="swipe-arrow swipe-arrow-right"
+          class="pointer-events-none fixed top-1/2 right-1.5 z-10 -translate-y-1/2 text-muted transition-opacity duration-[60ms] select-none"
           style={{ opacity: arrowOpacity() }}
           aria-hidden="true"
         >

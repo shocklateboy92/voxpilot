@@ -15,6 +15,8 @@ import Loader from "lucide-solid/icons/loader";
 import X from "lucide-solid/icons/x";
 import { createResource, Match, Show, Switch } from "solid-js";
 import { rpc } from "../../platform/rpc";
+import { CodeOutput } from "../../ui/CodeOutput";
+import { Panel } from "../../ui/Panel";
 import { getOutput } from "../tools/renderers/shared";
 import { ChangesetSummary } from "./ChangesetSummary";
 
@@ -59,33 +61,35 @@ export function ChangesetCard(props: Props) {
     <Show
       when={cache()}
       fallback={
-        <div class="changeset-card">
-          <div class="changeset-header">
+        <Panel class="changeset-card my-1 w-full max-w-[90%] self-start">
+          <div class="mb-2 flex items-center gap-2 text-[0.9rem] font-semibold">
             <Switch>
               <Match when={isActive()}>
-                <span class="tool-spinner">
-                  <Loader size={14} class="icon-spin" />
+                <span class="inline-flex items-center text-xs">
+                  <Loader size={14} class="animate-spin" />
                 </span>
               </Match>
               <Match when={status() === "completed" && !errorOutput()}>
-                <span class="changeset-icon">
+                <span class="shrink-0">
                   <GitCompareArrows size={14} />
                 </span>
               </Match>
               <Match when={status() === "error" || errorOutput()}>
-                <span class="changeset-icon">
+                <span class="shrink-0">
                   <X size={14} />
                 </span>
               </Match>
             </Switch>
-            <span class="changeset-label">show_diff</span>
+            <span class="truncate font-mono text-[0.8rem] font-semibold">
+              show_diff
+            </span>
           </div>
 
           {/* Error state */}
           <Show when={errorOutput()}>
             {(err) => (
-              <div class="changeset-error">
-                <pre>{err()}</pre>
+              <div class="px-3 py-2">
+                <CodeOutput error>{err()}</CodeOutput>
               </div>
             )}
           </Show>
@@ -94,9 +98,11 @@ export function ChangesetCard(props: Props) {
           <Show
             when={status() === "completed" && !errorOutput() && cache.loading}
           >
-            <div class="changeset-loading">Loading files...</div>
+            <div class="px-3 py-2 text-[0.8rem] text-muted">
+              Loading files...
+            </div>
           </Show>
-        </div>
+        </Panel>
       }
     >
       {(snapshot) => <ChangesetSummary snapshot={snapshot()} />}

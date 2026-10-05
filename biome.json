@@ -24,6 +24,14 @@
 			"quoteStyle": "double"
 		}
 	},
+	"overrides": [
+		{
+			"includes": ["frontend/src/styles/**/*.css"],
+			"css": {
+				"parser": { "tailwindDirectives": true }
+			}
+		}
+	],
 	"assist": {
 		"enabled": true,
 		"actions": {

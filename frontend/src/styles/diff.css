@@ -1,0 +1,92 @@
+/* Classes are the contract with plugin/src/services/diff-render.ts.
+   Keep measurement variables shared with ReviewOverlay's print-width logic. */
+@layer components {
+  .diff-file {
+    margin-bottom: 1rem;
+  }
+  .diff-file-header {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 0.4rem 0.5rem;
+    background: var(--color-diff-header-bg);
+    border-bottom: 1px solid var(--color-border);
+    border-radius: 0.25rem 0.25rem 0 0;
+  }
+  .diff-hunk-header {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--color-muted);
+    background: var(--color-diff-hunk-bg);
+    padding: 0.2rem 0.5rem;
+  }
+  .diff-table,
+  .fulltext-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-mono);
+    font-size: var(--code-font-size);
+    line-height: var(--code-line-height);
+  }
+  .diff-line {
+    border: none;
+  }
+  .diff-line-num,
+  .fulltext-line-num {
+    width: var(--line-num-width);
+    min-width: var(--line-num-width);
+    text-align: right;
+    padding: 0 var(--cell-padding);
+    color: var(--color-muted);
+    user-select: none;
+    vertical-align: top;
+    opacity: 0.6;
+  }
+  .diff-line-prefix {
+    width: 1rem;
+    text-align: center;
+    user-select: none;
+    vertical-align: top;
+  }
+  .diff-line-content,
+  .fulltext-line-content {
+    padding: 0 var(--cell-padding);
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .diff-line-content code,
+  .fulltext-line-content code {
+    font-family: inherit;
+    font-size: inherit;
+    background: none;
+    padding: 0;
+  }
+  .diff-line-add,
+  .fulltext-line-add {
+    background: var(--color-diff-add-bg);
+  }
+  .diff-line-add .diff-line-prefix {
+    color: var(--color-ok);
+  }
+  .diff-line-del,
+  .fulltext-line-del {
+    background: var(--color-diff-del-bg);
+  }
+  .diff-line-del .diff-line-prefix {
+    color: var(--color-error);
+  }
+  .diff-line-context {
+    background: transparent;
+  }
+  .fulltext-line-add .fulltext-line-num {
+    opacity: 1;
+    color: var(--color-ok);
+  }
+  .fulltext-line-del .fulltext-line-content {
+    opacity: 0.7;
+    text-decoration: none;
+  }
+  .current-change > .fulltext-line {
+    border-left: 3px solid var(--color-accent);
+  }
+}

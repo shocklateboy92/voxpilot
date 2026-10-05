@@ -5,32 +5,25 @@
  * Only renders when 2+ primary agents are available.
  */
 
-import { For, Show } from "solid-js";
+import { Show } from "solid-js";
 import { isStreaming } from "../../app/navigation";
 import { store } from "../../app/store";
+import { SegmentedControl } from "../../ui/SegmentedControl";
 import { effectiveAgent, setEffectiveAgent } from "./agent-selection";
 
 export function AgentPicker() {
   return (
     <Show when={store.agents.length > 1}>
-      <div class="agent-segmented">
-        <For each={store.agents}>
-          {(agent) => (
-            <button
-              type="button"
-              class="agent-segmented-btn"
-              classList={{
-                "agent-segmented-btn-active": agent.id === effectiveAgent(),
-              }}
-              onClick={() => setEffectiveAgent(agent.id)}
-              disabled={isStreaming()}
-              title={agent.description}
-            >
-              {agent.name}
-            </button>
-          )}
-        </For>
-      </div>
+      <SegmentedControl
+        label="Agent"
+        options={store.agents}
+        value={effectiveAgent()}
+        optionValue={(agent) => agent.id}
+        optionLabel={(agent) => agent.name}
+        optionTitle={(agent) => agent.description}
+        onChange={setEffectiveAgent}
+        disabled={isStreaming()}
+      />
     </Show>
   );
 }

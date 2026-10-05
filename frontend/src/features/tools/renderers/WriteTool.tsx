@@ -1,6 +1,7 @@
 import type { SessionMessageAssistantTool as ToolPart } from "@opencode/client";
 import FilePlus from "lucide-solid/icons/file-plus";
 import type { JSX } from "solid-js";
+import { Disclosure, DisclosureSummary } from "../../../ui/Disclosure";
 import {
   getTitle,
   inputString,
@@ -21,13 +22,13 @@ export function WriteTool(props: { part: ToolPart }): JSX.Element {
   };
 
   return (
-    <details class="tool-block" open={isActive(props.part.state)}>
-      <summary class="tool-summary">
+    <Disclosure class="tool-block" open={isActive(props.part.state)}>
+      <DisclosureSummary>
         <FilePlus size={14} />
-        <span class="tool-summary-text">{filePath()}</span>
+        <span class="min-w-0 flex-1 truncate">{filePath()}</span>
         <StatusIcon state={props.part.state} />
-      </summary>
+      </DisclosureSummary>
       <OutputSection state={props.part.state} />
-    </details>
+    </Disclosure>
   );
 }

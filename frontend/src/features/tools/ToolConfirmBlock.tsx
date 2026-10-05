@@ -6,6 +6,9 @@ import type { PermissionRequest } from "@opencode/client";
 import Lock from "lucide-solid/icons/lock";
 import { createSignal, Show } from "solid-js";
 import { respondToPermission } from "../../platform/api-client";
+import { Button } from "../../ui/Button";
+import { CodeOutput } from "../../ui/CodeOutput";
+import { Panel } from "../../ui/Panel";
 
 interface Props {
   permission: PermissionRequest;
@@ -38,46 +41,51 @@ export function ToolConfirmBlock(props: Props) {
   }
 
   return (
-    <div class="tool-confirm">
-      <div class="tool-confirm-header">
-        <Lock size={14} /> <strong>{props.permission.action}</strong> requires
-        approval
+    <Panel tone="warning" class="tool-confirm my-1 max-w-[90%] self-start">
+      <div class="mb-2 text-[0.85rem] text-warning">
+        <Lock size={14} class="inline" />{" "}
+        <strong>{props.permission.action}</strong> requires approval
       </div>
       <Show when={props.permission.message}>
         <p>{props.permission.message}</p>
       </Show>
-      <pre class="tool-confirm-args">
+      <CodeOutput compact class="my-2 rounded bg-option-bg p-2">
         {props.permission.resources.join("\n")}
-      </pre>
-      <pre class="tool-confirm-args">{metadata()}</pre>
-      <div class="tool-confirm-actions">
-        <button
+      </CodeOutput>
+      <CodeOutput compact class="my-2 rounded bg-option-bg p-2">
+        {metadata()}
+      </CodeOutput>
+      <div class="mt-2 flex flex-wrap gap-2">
+        <Button
           type="button"
-          class="btn btn-success btn-sm"
+          variant="success"
+          size="sm"
           disabled={submitting()}
           onClick={() => void handleReply("once")}
         >
           Allow once
-        </button>
+        </Button>
         <Show when={props.permission.save?.length}>
-          <button
+          <Button
             type="button"
-            class="btn btn-success btn-sm"
+            variant="success"
+            size="sm"
             disabled={submitting()}
             onClick={() => void handleReply("always")}
           >
             Always allow
-          </button>
+          </Button>
         </Show>
-        <button
+        <Button
           type="button"
-          class="btn btn-danger btn-sm"
+          variant="reject"
+          size="sm"
           disabled={submitting()}
           onClick={() => void handleReply("reject")}
         >
           Reject
-        </button>
+        </Button>
       </div>
-    </div>
+    </Panel>
   );
 }

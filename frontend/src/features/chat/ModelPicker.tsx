@@ -8,6 +8,7 @@
 
 import { createEffect, createMemo, For, Show } from "solid-js";
 import { isStreaming } from "../../app/navigation";
+import { Select } from "../../ui/Select";
 import {
   defaultModelData,
   formatVariantLabel,
@@ -22,7 +23,7 @@ import {
   setSelectedModelVariant,
 } from "./preferences";
 
-export function ModelPicker() {
+export function ModelPicker(props: { fullWidth?: boolean }) {
   const connectedProviders = createMemo(() => {
     return (providerData() ?? [])
       .filter((provider) => provider.activation !== "disabled")
@@ -86,10 +87,24 @@ export function ModelPicker() {
 
   return (
     <Show when={hasModels()}>
-      <div class="model-picker">
-        <div class="model-picker-pill">
-          <select
-            class="model-select"
+      <div
+        class="flex min-w-0"
+        classList={{
+          "w-full": props.fullWidth,
+          "min-w-[min(100%,22rem)] flex-[1_1_22rem] justify-end":
+            !props.fullWidth,
+        }}
+      >
+        <div
+          class="inline-flex max-w-full items-stretch overflow-hidden rounded-xl border border-border bg-glass backdrop-blur-md"
+          classList={{ "w-full": props.fullWidth }}
+        >
+          <Select
+            variant="ghost"
+            density="compact"
+            mono
+            aria-label="Model"
+            class="model-select flex-1"
             value={selectedModelKey()}
             onChange={(e) => setSelectedModelKey(e.currentTarget.value)}
             disabled={isStreaming()}
@@ -115,11 +130,15 @@ export function ModelPicker() {
                 </optgroup>
               )}
             </For>
-          </select>
+          </Select>
 
           <Show when={showVariantPicker()}>
-            <select
-              class="model-select model-variant-select"
+            <Select
+              variant="ghost"
+              density="compact"
+              mono
+              aria-label="Thinking level"
+              class="model-select model-variant-select max-w-40 flex-[0_1_10rem] shadow-[-1px_0_0_var(--color-border)]"
               value={selectedModelVariant()}
               onChange={(e) => setSelectedModelVariant(e.currentTarget.value)}
               disabled={isStreaming()}
@@ -130,7 +149,7 @@ export function ModelPicker() {
                   <option value={variant.id}>{variant.label}</option>
                 )}
               </For>
-            </select>
+            </Select>
           </Show>
         </div>
       </div>

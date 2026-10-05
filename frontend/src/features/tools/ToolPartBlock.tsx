@@ -9,6 +9,8 @@ import Loader from "lucide-solid/icons/loader";
 import Settings from "lucide-solid/icons/settings";
 import X from "lucide-solid/icons/x";
 import { Match, Switch } from "solid-js";
+import { CodeOutput } from "../../ui/CodeOutput";
+import { Disclosure, DisclosureSummary } from "../../ui/Disclosure";
 import { OutputSection } from "./renderers/shared";
 
 interface Props {
@@ -29,14 +31,14 @@ export function ToolPartBlock(props: Props) {
   const isActive = () => status() === "streaming" || status() === "running";
 
   return (
-    <details class="tool-block" open={isActive()}>
-      <summary class="tool-summary">
+    <Disclosure class="tool-block" open={isActive()}>
+      <DisclosureSummary>
         <Settings size={14} /> {props.part.name}
         <Switch>
           <Match when={isActive()}>
-            <span class="tool-spinner">
+            <span class="inline-flex items-center text-xs">
               {" "}
-              <Loader size={14} class="icon-spin" />
+              <Loader size={14} class="animate-spin" />
             </span>
           </Match>
           <Match when={status() === "completed"}>
@@ -48,9 +50,11 @@ export function ToolPartBlock(props: Props) {
             <X size={14} />
           </Match>
         </Switch>
-      </summary>
-      <div class="tool-arguments">{inputText()}</div>
+      </DisclosureSummary>
+      <CodeOutput compact class="border-t border-border px-3 py-1.5">
+        {inputText()}
+      </CodeOutput>
       <OutputSection state={props.part.state} />
-    </details>
+    </Disclosure>
   );
 }

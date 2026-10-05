@@ -7,7 +7,6 @@
  */
 
 import Trash2 from "lucide-solid/icons/trash-2";
-import X from "lucide-solid/icons/x";
 import { createMemo, For, Show } from "solid-js";
 import {
   activeSessionId,
@@ -16,7 +15,12 @@ import {
   switchToSession,
 } from "../../app/navigation";
 import { store } from "../../app/store";
+import { Badge } from "../../ui/Badge";
+import { Button } from "../../ui/Button";
+import { IconButton } from "../../ui/IconButton";
+import { ListRow } from "../../ui/ListRow";
 import { Overlay } from "../../ui/Overlay";
+import { OverlayHeader } from "../../ui/OverlayHeader";
 
 type GroupedEntry = {
   originalIndex: number;
@@ -75,49 +79,51 @@ export function SessionPicker(props: SessionPickerProps) {
   });
 
   return (
-    <Overlay onClose={props.onClose} class="session-picker">
-      <div class="picker-header">
-        <h2>Sessions</h2>
-        <button
-          type="button"
-          class="btn btn-ghost"
-          onClick={() => props.onClose()}
-        >
-          <X size={18} />
-        </button>
-      </div>
-      <div class="picker-list">
+    <Overlay label="Sessions" onClose={props.onClose} class="session-picker">
+      <OverlayHeader
+        class="picker-header"
+        title="Sessions"
+        onClose={props.onClose}
+      />
+      <div class="min-h-0 flex-1 overflow-y-auto py-2">
         <For each={grouped()}>
           {(entry) => {
             const session = () => store.sessions[entry.originalIndex];
             return (
               <div
-                class="picker-item"
+                class="picker-item flex min-h-12 items-center gap-2 pr-4 transition-colors hover:bg-bg"
                 classList={{
                   active: session()?.id === activeSessionId(),
                   child: entry.isChild,
+                  "border-l-[3px] border-accent bg-bg":
+                    session()?.id === activeSessionId(),
                 }}
               >
-                <button
+                <ListRow
                   type="button"
-                  class="picker-item-select"
+                  class="min-w-0 flex-1"
                   onClick={() => {
                     const id = session()?.id;
                     if (id) selectSession(id);
                   }}
                 >
-                  <span class="picker-item-title">
+                  <span
+                    class="min-w-0 flex-1 truncate text-[0.9rem]"
+                    classList={{ "pl-6": entry.isChild }}
+                  >
                     {session()?.title || "New chat"}
                   </span>
                   <Show when={showProjectBadge()}>
-                    <span class="picker-item-project">
+                    <Badge class="max-w-32 truncate">
                       {projectNameMap().get(session()?.projectID ?? "") ?? ""}
-                    </span>
+                    </Badge>
                   </Show>
-                </button>
-                <button
+                </ListRow>
+                <IconButton
                   type="button"
-                  class="btn btn-ghost picker-item-delete"
+                  variant="ghost"
+                  class="opacity-40 hover:opacity-100"
+                  aria-label="Delete session"
                   onClick={() => {
                     const id = session()?.id;
                     if (id) void handleDeleteSession(id);
@@ -125,22 +131,23 @@ export function SessionPicker(props: SessionPickerProps) {
                   title="Delete"
                 >
                   <Trash2 size={16} />
-                </button>
+                </IconButton>
               </div>
             );
           }}
         </For>
       </div>
-      <button
+      <Button
         type="button"
-        class="btn btn-primary picker-new-chat"
+        variant="primary"
+        class="mx-4 mt-2 mb-3"
         onClick={() => {
           handleNewSession();
           props.onClose();
         }}
       >
         + New chat
-      </button>
+      </Button>
     </Overlay>
   );
 }

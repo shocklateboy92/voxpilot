@@ -56,23 +56,27 @@ export function ContextUsageBar() {
   return (
     <Show when={context()}>
       {(ctx) => (
-        <div class="context-usage">
-          <span class="context-label">
+        <div class="ml-auto flex min-w-0 items-center gap-1.5">
+          <span class="flex min-w-0 gap-[0.75em] font-mono text-[0.7rem] whitespace-nowrap text-muted">
             <Show
               when={ctx().limit}
               fallback={
-                <span class="context-detail">
+                <span class="min-w-0 shrink truncate">
                   {formatTokens(ctx().total)} tokens
                 </span>
               }
             >
               {(limit) => (
                 <>
-                  <span class="context-total">{formatTokens(ctx().total)}</span>
-                  <span class="context-limit">/</span>
-                  <span class="context-limit">{formatTokens(limit())}</span>
-                  <span class="context-total">tokens</span>
-                  <span class="context-percentage">({ctx().percentage}%)</span>
+                  <span class="hidden min-[370px]:inline">
+                    {formatTokens(ctx().total)}
+                  </span>
+                  <span class="hidden min-[440px]:inline">/</span>
+                  <span class="hidden min-[440px]:inline">
+                    {formatTokens(limit())}
+                  </span>
+                  <span class="hidden min-[370px]:inline">tokens</span>
+                  <span class="shrink-0">({ctx().percentage}%)</span>
                 </>
               )}
             </Show>

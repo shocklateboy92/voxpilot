@@ -9,6 +9,7 @@ import Loader from "lucide-solid/icons/loader";
 import X from "lucide-solid/icons/x";
 import { For, type JSX, Show } from "solid-js";
 import { activeSession } from "../../../app/navigation";
+import { CodeOutput } from "../../../ui/CodeOutput";
 
 type ToolState = SessionMessageAssistantTool["state"];
 
@@ -31,8 +32,8 @@ export function ToolStatusIcon(props: {
   return (
     <>
       <Show when={active()}>
-        <span class="tool-spinner">
-          <Loader size={14} class="icon-spin" />
+        <span class="inline-flex items-center text-xs">
+          <Loader size={14} class="animate-spin" />
         </span>
       </Show>
       <Show when={props.status === "completed"}>
@@ -72,17 +73,16 @@ export function OutputSection(props: { state: ToolState }): JSX.Element {
     <>
       <Show when={text()}>
         {(t) => (
-          <div
-            class="tool-result"
-            classList={{ "tool-error": props.state.status === "error" }}
-          >
-            <pre>{t()}</pre>
+          <div class="border-t border-border bg-bg px-3 py-1.5">
+            <CodeOutput error={props.state.status === "error"}>
+              {t()}
+            </CodeOutput>
           </div>
         )}
       </Show>
       <For each={files()}>
         {(file) => (
-          <div class="tool-result">
+          <div class="border-t border-border bg-bg px-3 py-1.5">
             {file.name || "File attachment"} ({file.mime})
           </div>
         )}

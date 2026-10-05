@@ -7,6 +7,7 @@ import {
   wakeStorageKey,
 } from "../../platform/connection";
 import { rpc } from "../../platform/rpc";
+import { Button } from "../../ui/Button";
 
 const PROBE_INTERVAL = 5_000;
 const PROBE_TIMEOUT = 3_000;
@@ -62,43 +63,40 @@ function OfflineCard(props: {
   }
 
   return (
-    <div class="offline-card">
+    <div class="flex w-full max-w-sm flex-col items-center gap-3 rounded-2xl border border-border bg-surface px-6 py-8 text-center">
       <WifiOff size={40} />
-      <h2 class="offline-title">Devbox is offline</h2>
-      <p class="offline-subtitle">
+      <h2 class="text-xl font-semibold text-text">Devbox is offline</h2>
+      <p class="text-[0.85rem] text-muted">
         {props.wakeUrl
           ? "The devbox is unreachable. You can try waking it up."
           : "Waiting for connection..."}
       </p>
 
       <Show when={props.wakeUrl}>
-        <button
+        <Button
           type="button"
-          class="btn btn-primary offline-wake-btn"
+          variant="primary"
+          class="mt-2 min-w-40"
           onClick={handleWake}
           disabled={status() === "waking"}
         >
           {status() === "waking" ? "Waking..." : "Wake Devbox"}
-        </button>
+        </Button>
       </Show>
 
       <Show when={status() === "error"}>
-        <p class="offline-error">{errorMsg()}</p>
+        <p class="text-[0.8rem] text-error">{errorMsg()}</p>
       </Show>
 
       <Show when={props.onDismiss}>
         {(dismiss) => (
-          <button
-            type="button"
-            class="btn btn-ghost offline-dismiss-btn"
-            onClick={dismiss()}
-          >
+          <Button type="button" variant="ghost" size="sm" onClick={dismiss()}>
             Dismiss
-          </button>
+          </Button>
         )}
       </Show>
 
-      <p class="offline-poll-hint">Auto-checking connection...</p>
+      <p class="mt-1 text-xs text-muted">Auto-checking connection...</p>
     </div>
   );
 }
@@ -152,10 +150,8 @@ export function OfflineOverlay(props: { children: JSX.Element }) {
     <>
       {props.children}
       <Show when={offline() && !dismissed()}>
-        <div class="offline-overlay">
-          <button type="button" class="btn" onClick={changeServer}>
-            Connection settings
-          </button>
+        <div class="fixed inset-0 z-300 flex flex-col items-center justify-center gap-3 bg-overlay p-4">
+          <Button onClick={changeServer}>Connection settings</Button>
           <OfflineCard
             wakeUrl={wakeUrl()}
             onDismiss={() => setDismissed(true)}

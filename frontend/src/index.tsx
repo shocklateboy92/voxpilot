@@ -11,7 +11,7 @@ import {
 } from "./platform/connection";
 import { rpc } from "./platform/rpc";
 import { Spinner } from "./ui/Spinner";
-import "./style.css";
+import "./styles/app.css";
 import { extractErrorMessage, showToast } from "./app/toast";
 
 // ── Global unhandled-rejection handler ───────────────────────────────────────

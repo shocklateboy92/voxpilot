@@ -7,13 +7,16 @@
 
 import type { SessionMessageUser } from "@opencode/client";
 import GitFork from "lucide-solid/icons/git-fork";
-import X from "lucide-solid/icons/x";
 import { createMemo, createSignal, For, Show } from "solid-js";
 import { produce } from "solid-js/store";
 import { activeSessionId, switchToSession } from "../../app/navigation";
 import { setStore, store } from "../../app/store";
 import { forkSession } from "../../platform/api-client";
+import { Button } from "../../ui/Button";
+import { EmptyState } from "../../ui/EmptyState";
+import { ListRow } from "../../ui/ListRow";
 import { Overlay } from "../../ui/Overlay";
+import { OverlayHeader } from "../../ui/OverlayHeader";
 import { Spinner } from "../../ui/Spinner";
 
 interface ForkOverlayProps {
@@ -57,43 +60,35 @@ export function ForkOverlay(props: ForkOverlayProps) {
   }
 
   return (
-    <Overlay onClose={props.onClose}>
-      <div class="fork-header">
-        <h2>Fork conversation</h2>
-        <button
-          type="button"
-          class="btn btn-ghost"
-          onClick={() => props.onClose()}
-        >
-          <X size={18} />
-        </button>
-      </div>
+    <Overlay label="Fork conversation" onClose={props.onClose}>
+      <OverlayHeader title="Fork conversation" onClose={props.onClose} />
 
       <Show
         when={userMessages().length > 0}
-        fallback={<div class="fork-empty">No messages to fork from</div>}
+        fallback={<EmptyState>No messages to fork from</EmptyState>}
       >
-        <div class="fork-list">
+        <div class="min-h-0 flex-1 overflow-y-auto py-2">
           <For each={userMessages()}>
             {(msg, index) => (
-              <button
+              <ListRow
                 type="button"
-                class="fork-item"
                 disabled={loading()}
                 onClick={() => void handleFork(msg.id)}
               >
-                <span class="fork-item-turn">Turn {index() + 1}</span>
-                <span class="fork-item-preview">
+                <span class="min-w-14 shrink-0 text-xs font-semibold text-accent">
+                  Turn {index() + 1}
+                </span>
+                <span class="min-w-0 flex-1 truncate text-[0.85rem] text-muted">
                   {preview(msg) || "Empty message"}
                 </span>
-              </button>
+              </ListRow>
             )}
           </For>
         </div>
 
-        <button
+        <Button
           type="button"
-          class="btn fork-action"
+          class="mx-4 mt-2 mb-3"
           disabled={loading()}
           onClick={() => void handleFork()}
         >
@@ -101,7 +96,7 @@ export function ForkOverlay(props: ForkOverlayProps) {
             <Spinner />
           </Show>
           Fork entire conversation
-        </button>
+        </Button>
       </Show>
     </Overlay>
   );

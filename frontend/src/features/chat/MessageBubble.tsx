@@ -8,6 +8,9 @@
 import type { SessionMessageInfo } from "@opencode/client";
 import { For, Show } from "solid-js";
 import { store } from "../../app/store";
+import { Badge } from "../../ui/Badge";
+import { CodeOutput } from "../../ui/CodeOutput";
+import { Disclosure, DisclosureSummary } from "../../ui/Disclosure";
 import { backgroundCompletion } from "../tools/background-tools";
 import { ToolCallRenderer } from "../tools/ToolCallRenderer";
 import { renderMarkdown } from "./markdown";
@@ -118,11 +121,15 @@ export function MessageBubble(props: Props) {
       }
     >
       <div
-        class="message"
+        class="message min-w-0 rounded-lg py-2.5 text-[0.9rem] wrap-break-word whitespace-pre-wrap"
         classList={{
           user: role() === "user",
           assistant: role() !== "user",
           streaming: isInProgress() && !!textContent(),
+          "max-w-[80%] self-end bg-user-msg px-3": role() === "user",
+          "self-stretch": role() !== "user",
+          "after:ml-px after:animate-blink after:text-accent after:content-['▊']":
+            isInProgress() && !!textContent(),
         }}
       >
         <Show
@@ -131,10 +138,11 @@ export function MessageBubble(props: Props) {
             (agentName() || modelID() || modelVariant())
           }
         >
-          <div class="message-meta">
+          <div class="mb-1 flex items-center gap-1.5">
             <Show when={agentName()}>
-              <span
-                class="agent-badge"
+              <Badge
+                mono
+                class="font-semibold tracking-wide capitalize"
                 style={
                   agentColor()
                     ? {
@@ -147,10 +155,10 @@ export function MessageBubble(props: Props) {
               >
                 {store.agents.find((agent) => agent.id === agentName())?.name ??
                   agentName()}
-              </span>
+              </Badge>
             </Show>
             <Show when={modelID()}>
-              <span class="model-badge">
+              <span class="model-badge font-mono text-[0.6rem] text-muted opacity-70">
                 {modelDisplayName()}
                 <Show when={modelVariant()}>
                   {(variant) => <>{` · ${formatVariantLabel(variant())}`}</>}
@@ -172,14 +180,14 @@ export function MessageBubble(props: Props) {
         </Show>
         <Show when={props.msg.type === "shell" && props.msg}>
           {(shell) => (
-            <details class="tool-block" open={shell().status === "running"}>
-              <summary class="tool-summary">
+            <Disclosure class="tool-block" open={shell().status === "running"}>
+              <DisclosureSummary>
                 {shell().command} ({shell().status})
-              </summary>
-              <div class="tool-result">
-                <pre>{shell().output?.output}</pre>
+              </DisclosureSummary>
+              <div class="border-t border-border bg-bg px-3 py-1.5">
+                <CodeOutput>{shell().output?.output}</CodeOutput>
               </div>
-            </details>
+            </Disclosure>
           )}
         </Show>
         <For each={toolParts()}>

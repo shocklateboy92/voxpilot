@@ -1,6 +1,8 @@
 import type { SessionMessageAssistantTool as ToolPart } from "@opencode/client";
 import Terminal from "lucide-solid/icons/terminal";
 import { createSignal, type JSX, Show } from "solid-js";
+import { CodeOutput } from "../../../ui/CodeOutput";
+import { Disclosure, DisclosureSummary } from "../../../ui/Disclosure";
 import { backgroundToolStatus } from "../background-tools";
 import { createLiveShellOutput } from "./live-shell-output";
 import { inputString, isActive, OutputSection, ToolStatusIcon } from "./shared";
@@ -26,35 +28,49 @@ export function BashTool(props: { part: ToolPart }): JSX.Element {
   });
 
   return (
-    <details
+    <Disclosure
       class="tool-block"
       open={open()}
       onToggle={(event) => setOpen(event.currentTarget.open)}
     >
-      <summary class="tool-summary">
+      <DisclosureSummary>
         <Terminal size={14} />
-        <span class="tool-summary-text">{command() || props.part.name}</span>
+        <span class="min-w-0 flex-1 truncate">
+          {command() || props.part.name}
+        </span>
         <ToolStatusIcon status={status()} />
-      </summary>
+      </DisclosureSummary>
       <Show when={description()}>
-        {(desc) => <div class="tool-description">{desc()}</div>}
+        {(desc) => (
+          <div class="border-t border-border px-3 py-1 text-xs text-muted italic">
+            {desc()}
+          </div>
+        )}
       </Show>
       <Show when={workdir()}>
-        {(dir) => <div class="tool-description">{dir()}</div>}
+        {(dir) => (
+          <div class="border-t border-border px-3 py-1 text-xs text-muted italic">
+            {dir()}
+          </div>
+        )}
       </Show>
       <Show when={command()}>
-        {(cmd) => <div class="tool-arguments">{cmd()}</div>}
+        {(cmd) => (
+          <CodeOutput compact class="border-t border-border px-3 py-1.5">
+            {cmd()}
+          </CodeOutput>
+        )}
       </Show>
       <Show
         when={liveOutput()}
         fallback={<OutputSection state={props.part.state} />}
       >
         {(output) => (
-          <div class="tool-result">
-            <pre>{output()}</pre>
+          <div class="border-t border-border bg-bg px-3 py-1.5">
+            <CodeOutput>{output()}</CodeOutput>
           </div>
         )}
       </Show>
-    </details>
+    </Disclosure>
   );
 }
