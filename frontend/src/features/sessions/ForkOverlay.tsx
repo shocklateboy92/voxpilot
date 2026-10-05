@@ -1,0 +1,108 @@
+/**
+ * Fork overlay — lets the user pick a message to fork the conversation from.
+ *
+ * Shows user messages as selectable fork points. Forking creates a new
+ * child session that branches from the selected message.
+ */
+
+import type { SessionMessageUser } from "@opencode/client";
+import GitFork from "lucide-solid/icons/git-fork";
+import X from "lucide-solid/icons/x";
+import { createMemo, createSignal, For, Show } from "solid-js";
+import { produce } from "solid-js/store";
+import { forkSession } from "../../platform/api-client";
+import { activeSessionId, switchToSession } from "../../app/navigation";
+import { setStore, store } from "../../app/store";
+import { Overlay } from "../../ui/Overlay";
+import { Spinner } from "../../ui/Spinner";
+
+interface ForkOverlayProps {
+  onClose: () => void;
+}
+
+export function ForkOverlay(props: ForkOverlayProps) {
+  const [loading, setLoading] = createSignal(false);
+
+  /** User messages only, in chronological order. */
+  const userMessages = createMemo(() =>
+    store.messages.filter((m) => m.type === "user"),
+  );
+
+  /** Extract a text preview from a user message. */
+  function preview(msg: SessionMessageUser): string {
+    const text = msg.text.trim();
+    if (text.length <= 100) return text;
+    return `${text.slice(0, 100)}...`;
+  }
+
+  async function handleFork(messageID?: string): Promise<void> {
+    const sessionID = activeSessionId();
+    if (!sessionID) return;
+
+    setLoading(true);
+    const newSession = await forkSession(sessionID, messageID);
+
+    // Optimistically insert the forked session into the store
+    setStore(
+      "sessions",
+      produce((list) => {
+        if (list.some((s) => s.id === newSession.id)) return;
+        list.push(newSession);
+        list.sort((a, b) => b.time.updated - a.time.updated);
+      }),
+    );
+
+    switchToSession(newSession.id);
+    props.onClose();
+  }
+
+  return (
+    <Overlay onClose={props.onClose}>
+      <div class="fork-header">
+        <h2>Fork conversation</h2>
+        <button
+          type="button"
+          class="btn btn-ghost"
+          onClick={() => props.onClose()}
+        >
+          <X size={18} />
+        </button>
+      </div>
+
+      <Show
+        when={userMessages().length > 0}
+        fallback={<div class="fork-empty">No messages to fork from</div>}
+      >
+        <div class="fork-list">
+          <For each={userMessages()}>
+            {(msg, index) => (
+              <button
+                type="button"
+                class="fork-item"
+                disabled={loading()}
+                onClick={() => void handleFork(msg.id)}
+              >
+                <span class="fork-item-turn">Turn {index() + 1}</span>
+                <span class="fork-item-preview">
+                  {preview(msg) || "Empty message"}
+                </span>
+              </button>
+            )}
+          </For>
+        </div>
+
+        <button
+          type="button"
+          class="btn fork-action"
+          disabled={loading()}
+          onClick={() => void handleFork()}
+        >
+          <Show when={loading()} fallback={<GitFork size={16} />}>
+            <Spinner />
+          </Show>
+          Fork entire conversation
+        </button>
+      </Show>
+    </Overlay>
+  );
+}

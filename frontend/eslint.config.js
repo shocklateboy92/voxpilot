@@ -12,4 +12,20 @@ export default [
       },
     },
   },
+  {
+    files: ["src/ui/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/app/**", "**/features/**", "**/platform/api-client", "**/platform/rpc", "**/platform/connection", "@plugin/*", "@opencode/*"],
+              message: "UI primitives receive data and callbacks through props; keep application state and transport in their owning feature or app module.",
+            },
+          ],
+        },
+      ],
+    },
+  },
 ];

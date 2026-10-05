@@ -23,7 +23,7 @@ plugin RPC at connection time. Cleanup belongs to OpenCode.
 
 ## Frontend and authentication
 
-`frontend/src/connection.ts` owns the single OpenCode client. The server URL is
+`frontend/src/platform/connection.ts` owns the single OpenCode client. The server URL is
 stored in localStorage, while an optionally entered password lives in sessionStorage
 and is sent as Basic auth. Existing pairing cookies are supported for same-origin
 connections. No password is compiled into static assets. Connections can be

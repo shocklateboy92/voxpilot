@@ -9,9 +9,10 @@ supervises OpenCode directly. There is no Hono backend or MCP server.
 
 - `plugin/src/rpc.ts`: shared Zod RPC contract, imported by frontend via `@plugin`.
 - `plugin/src/services`: Git capture, formatting, comment reflow and HTML rendering.
-- `frontend/src/connection.ts`: selected OpenCode host and authentication.
-- `frontend/src/rpc.ts`: typed plugin subclient.
-- `frontend/src/streaming.ts`: native SSE and HTTP reconciliation.
+- `frontend/src/platform/connection.ts`: selected OpenCode host and authentication.
+- `frontend/src/platform/rpc.ts`: typed plugin subclient.
+- `frontend/src/app/streaming.ts`: native SSE and HTTP reconciliation.
+- `frontend/src/README.md`: feature ownership and frontend module boundaries.
 - `packaging`: service, exec launcher and deployment instructions.
 
 Use `just install`, `just typecheck`, `just test`, `just lint`, `just build`.

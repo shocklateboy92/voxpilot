@@ -1,14 +1,14 @@
 import type { Component } from "solid-js";
 import { createSignal, Show } from "solid-js";
 import { Dynamic, render } from "solid-js/web";
-import { ConnectionPage } from "./components/ConnectionPage";
-import { OfflineOverlay } from "./components/OfflineOverlay";
-import { Spinner } from "./components/Spinner";
-import { ToastContainer } from "./components/ToastContainer";
-import { changeServer, waitForPlugin, wakeStorageKey } from "./connection";
-import { rpc } from "./rpc";
+import { ConnectionPage } from "./features/connection/ConnectionPage";
+import { OfflineOverlay } from "./features/connection/OfflineOverlay";
+import { Spinner } from "./ui/Spinner";
+import { ToastContainer } from "./app/ToastContainer";
+import { changeServer, waitForPlugin, wakeStorageKey } from "./platform/connection";
+import { rpc } from "./platform/rpc";
 import "./style.css";
-import { extractErrorMessage, showToast } from "./toast";
+import { extractErrorMessage, showToast } from "./app/toast";
 
 // ── Global unhandled-rejection handler ───────────────────────────────────────
 // Acts as a catch-all for async errors that aren't handled locally, similar
@@ -35,7 +35,7 @@ const connecting =
 
 if (!connecting)
   waitForPlugin()
-    .then(() => import("./App"))
+    .then(() => import("./app/App"))
     .then(
       (m) => {
         setAppComponent(() => m.default);
