@@ -11,7 +11,8 @@ set -- serve --hostname "${VOXPILOT_HOSTNAME:-0.0.0.0}" --port "${VOXPILOT_PORT:
 for origin in \
   https://voxpilot.apps.lasath.com \
   https://voxpilot.staging.lasath.com \
-  https://voxpilot.lasath.com
+  https://voxpilot.lasath.com \
+  https://opencode-dev2.apps.lasath.com
 do
   set -- "$@" --cors "$origin"
 done

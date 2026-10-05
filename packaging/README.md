@@ -36,9 +36,10 @@ OPENCODE_PASSWORD=your-server-password
 The bind address defaults to all interfaces for a homelab proxy on another machine.
 Use 127.0.0.1 if the reverse proxy is local. The launcher always allows
 `https://voxpilot.apps.lasath.com`, `https://voxpilot.staging.lasath.com`, and
-`https://voxpilot.lasath.com`. `VOXPILOT_ORIGIN` adds one more exact browser
-origin and must not have a trailing slash. OpenCode owns authentication, including
-pairing; the launcher does not supply a default password.
+`https://voxpilot.lasath.com`, plus `https://opencode-dev2.apps.lasath.com`.
+`VOXPILOT_ORIGIN` adds one more exact browser origin and must not have a trailing
+slash. OpenCode owns authentication, including pairing; the launcher does not
+supply a default password.
 
 ```sh
 mkdir -p ~/.config/systemd/user
