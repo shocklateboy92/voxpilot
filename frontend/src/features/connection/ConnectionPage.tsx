@@ -1,5 +1,9 @@
 import { createSignal, Show } from "solid-js";
-import { makeClient, serverUrl, waitForPlugin } from "../../platform/connection";
+import {
+  makeClient,
+  serverUrl,
+  waitForPlugin,
+} from "../../platform/connection";
 
 export function ConnectionPage() {
   const [url, setUrl] = createSignal(serverUrl);

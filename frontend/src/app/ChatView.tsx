@@ -10,6 +10,19 @@
 import Check from "lucide-solid/icons/check";
 import GitBranch from "lucide-solid/icons/git-branch";
 import { createMemo, Show } from "solid-js";
+import { AgentPicker } from "../features/chat/AgentPicker";
+import {
+  anchor,
+  ChatMain,
+  ChatScrollButton,
+  chatPaneMount,
+} from "../features/chat/ChatMain";
+import { ContextUsageBar } from "../features/chat/ContextUsageBar";
+import { ModelPicker } from "../features/chat/ModelPicker";
+import { NewSessionPage } from "../features/chat/NewSessionPage";
+import { ReviewOverlay } from "../features/review/ReviewOverlay";
+import { BottomNav } from "./BottomNav";
+import { ContentShell } from "./ContentShell";
 import {
   canNavigateNext,
   canNavigatePrev,
@@ -18,14 +31,6 @@ import {
   navigatePrev,
 } from "./navigation";
 import { store } from "./store";
-import { AgentPicker } from "../features/chat/AgentPicker";
-import { BottomNav } from "./BottomNav";
-import { anchor, ChatMain, ChatScrollButton, chatPaneMount } from "../features/chat/ChatMain";
-import { ContentShell } from "./ContentShell";
-import { ContextUsageBar } from "../features/chat/ContextUsageBar";
-import { ModelPicker } from "../features/chat/ModelPicker";
-import { NewSessionPage } from "../features/chat/NewSessionPage";
-import { ReviewOverlay } from "../features/review/ReviewOverlay";
 
 export function ChatView() {
   const changeCounts = createMemo(() => {

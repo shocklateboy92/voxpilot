@@ -7,11 +7,11 @@
 
 import type { SessionMessageInfo } from "@opencode/client";
 import { For, Show } from "solid-js";
+import { store } from "../../app/store";
 import { backgroundCompletion } from "../tools/background-tools";
+import { ToolCallRenderer } from "../tools/ToolCallRenderer";
 import { renderMarkdown } from "./markdown";
 import { formatVariantLabel, resolveModelName } from "./model-utils";
-import { store } from "../../app/store";
-import { ToolCallRenderer } from "../tools/ToolCallRenderer";
 
 /**
  * Attach a touchstart listener that stops propagation when the touch
@@ -117,7 +117,7 @@ export function MessageBubble(props: Props) {
         (textContent() || role() === "assistant" || role() === "shell")
       }
     >
-        <div
+      <div
         class="message"
         classList={{
           user: role() === "user",
@@ -185,7 +185,7 @@ export function MessageBubble(props: Props) {
         <For each={toolParts()}>
           {(part) => <ToolCallRenderer part={part} />}
         </For>
-        </div>
+      </div>
     </Show>
   );
 }

@@ -2,8 +2,8 @@ import type { ComponentProps } from "solid-js";
 import { createSignal, Show } from "solid-js";
 import { activeSession } from "../../app/navigation";
 import { rpc } from "../../platform/rpc";
-import { ChangesetSummary } from "./ChangesetSummary";
 import { Overlay } from "../../ui/Overlay";
+import { ChangesetSummary } from "./ChangesetSummary";
 
 export function ReviewPicker(props: { onClose: () => void }) {
   const [base, setBase] = createSignal("main");

@@ -8,7 +8,11 @@
  */
 
 import { createResource, createRoot } from "solid-js";
-import { fetchDefaultModel, fetchModels, fetchProviders } from "../../platform/api-client";
+import {
+  fetchDefaultModel,
+  fetchModels,
+  fetchProviders,
+} from "../../platform/api-client";
 
 /**
  * Convert a variant ID like "high" or "medium-thinking" to a display label.

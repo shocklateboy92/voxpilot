@@ -1,12 +1,16 @@
 import type { Component } from "solid-js";
 import { createSignal, Show } from "solid-js";
 import { Dynamic, render } from "solid-js/web";
+import { ToastContainer } from "./app/ToastContainer";
 import { ConnectionPage } from "./features/connection/ConnectionPage";
 import { OfflineOverlay } from "./features/connection/OfflineOverlay";
-import { Spinner } from "./ui/Spinner";
-import { ToastContainer } from "./app/ToastContainer";
-import { changeServer, waitForPlugin, wakeStorageKey } from "./platform/connection";
+import {
+  changeServer,
+  waitForPlugin,
+  wakeStorageKey,
+} from "./platform/connection";
 import { rpc } from "./platform/rpc";
+import { Spinner } from "./ui/Spinner";
 import "./style.css";
 import { extractErrorMessage, showToast } from "./app/toast";
 

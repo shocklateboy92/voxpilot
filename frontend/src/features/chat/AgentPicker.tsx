@@ -6,9 +6,9 @@
  */
 
 import { For, Show } from "solid-js";
-import { effectiveAgent, setEffectiveAgent } from "./agent-selection";
 import { isStreaming } from "../../app/navigation";
 import { store } from "../../app/store";
+import { effectiveAgent, setEffectiveAgent } from "./agent-selection";
 
 export function AgentPicker() {
   return (

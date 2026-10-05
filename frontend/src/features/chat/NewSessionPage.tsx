@@ -19,18 +19,18 @@ import {
   onMount,
   Show,
 } from "solid-js";
-import { effectiveAgent } from "./agent-selection";
-import { createWorktree, fetchWorktrees } from "../../platform/api-client";
 import {
   createSessionAndSend,
   navigateNext,
   rootSessions,
 } from "../../app/navigation";
-import { selectedModel, selectedVariant } from "./preferences";
 import { store } from "../../app/store";
-import { AgentPicker } from "./AgentPicker";
-import { ModelPicker } from "./ModelPicker";
+import { createWorktree, fetchWorktrees } from "../../platform/api-client";
 import { SwipeablePane } from "../../ui/SwipeablePane";
+import { AgentPicker } from "./AgentPicker";
+import { effectiveAgent } from "./agent-selection";
+import { ModelPicker } from "./ModelPicker";
+import { selectedModel, selectedVariant } from "./preferences";
 
 const ALWAYS_FALSE = () => false;
 

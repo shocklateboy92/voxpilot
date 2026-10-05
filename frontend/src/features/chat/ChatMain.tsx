@@ -20,11 +20,11 @@ import {
   pendingPermission,
   pendingQuestion,
 } from "../../app/navigation";
-import { useScrollAnchor } from "./scroll-anchor";
 import { store } from "../../app/store";
-import { MessageBubble } from "./MessageBubble";
 import { QuestionBlock } from "../tools/QuestionBlock";
 import { ToolConfirmBlock } from "../tools/ToolConfirmBlock";
+import { MessageBubble } from "./MessageBubble";
+import { useScrollAnchor } from "./scroll-anchor";
 
 /**
  * Shared scroll-anchor instance for the chat pane.

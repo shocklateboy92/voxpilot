@@ -10,9 +10,9 @@ import GitFork from "lucide-solid/icons/git-fork";
 import X from "lucide-solid/icons/x";
 import { createMemo, createSignal, For, Show } from "solid-js";
 import { produce } from "solid-js/store";
-import { forkSession } from "../../platform/api-client";
 import { activeSessionId, switchToSession } from "../../app/navigation";
 import { setStore, store } from "../../app/store";
+import { forkSession } from "../../platform/api-client";
 import { Overlay } from "../../ui/Overlay";
 import { Spinner } from "../../ui/Spinner";
 

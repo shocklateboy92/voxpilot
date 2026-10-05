@@ -13,8 +13,8 @@
 
 import type { SessionMessageAssistant as AssistantMessage } from "@opencode/client";
 import { createMemo, Show } from "solid-js";
-import { modelData } from "./model-utils";
 import { store } from "../../app/store";
+import { modelData } from "./model-utils";
 
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;

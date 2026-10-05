@@ -8,7 +8,6 @@ import type { SessionMessageAssistantTool as ToolPart } from "@opencode/client";
 import { type Component, type JSX, Show } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { ChangesetCard } from "../review/ChangesetCard";
-import { ToolPartBlock } from "./ToolPartBlock";
 import {
   BashTool,
   EditTool,
@@ -22,6 +21,7 @@ import {
   WebFetchTool,
   WriteTool,
 } from "./renderers/index";
+import { ToolPartBlock } from "./ToolPartBlock";
 
 interface Props {
   part: ToolPart;

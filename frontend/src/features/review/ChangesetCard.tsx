@@ -15,8 +15,8 @@ import Loader from "lucide-solid/icons/loader";
 import X from "lucide-solid/icons/x";
 import { createResource, Match, Show, Switch } from "solid-js";
 import { rpc } from "../../platform/rpc";
-import { ChangesetSummary } from "./ChangesetSummary";
 import { getOutput } from "../tools/renderers/shared";
+import { ChangesetSummary } from "./ChangesetSummary";
 
 interface Props {
   part: ToolPart;

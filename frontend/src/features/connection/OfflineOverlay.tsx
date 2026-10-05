@@ -1,7 +1,11 @@
 import WifiOff from "lucide-solid/icons/wifi-off";
 import type { JSX } from "solid-js";
 import { createSignal, onCleanup, onMount, Show } from "solid-js";
-import { changeServer, client, wakeStorageKey } from "../../platform/connection";
+import {
+  changeServer,
+  client,
+  wakeStorageKey,
+} from "../../platform/connection";
 import { rpc } from "../../platform/rpc";
 
 const PROBE_INTERVAL = 5_000;

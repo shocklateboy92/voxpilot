@@ -1,6 +1,6 @@
-import { createEffect, createSignal, onCleanup, type Accessor } from "solid-js";
-import { client } from "../../../platform/api-client";
+import { type Accessor, createEffect, createSignal, onCleanup } from "solid-js";
 import { activeSession } from "../../../app/navigation";
+import { client } from "../../../platform/api-client";
 
 const POLL_INTERVAL_MS = 1_000;
 

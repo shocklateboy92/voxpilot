@@ -2,6 +2,7 @@
 import { batch, createEffect, createRoot, on } from "solid-js";
 import { produce, reconcile } from "solid-js/store";
 import { effectiveAgent } from "../features/chat/agent-selection";
+import { selectedModel } from "../features/chat/preferences";
 import type {
   AssistantMessage,
   Event,
@@ -23,7 +24,6 @@ import {
 } from "../platform/api-client";
 import { init } from "./init";
 import { activeSession, activeSessionId } from "./navigation";
-import { selectedModel } from "../features/chat/preferences";
 import { replaceMessages, setStore, store } from "./store";
 
 type ContentEvent = Extract<

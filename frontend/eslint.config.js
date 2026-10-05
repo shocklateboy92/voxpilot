@@ -1,5 +1,5 @@
-import solid from "eslint-plugin-solid/configs/typescript";
 import * as tsParser from "@typescript-eslint/parser";
+import solid from "eslint-plugin-solid/configs/typescript";
 
 export default [
   {
@@ -20,8 +20,17 @@ export default [
         {
           patterns: [
             {
-              group: ["**/app/**", "**/features/**", "**/platform/api-client", "**/platform/rpc", "**/platform/connection", "@plugin/*", "@opencode/*"],
-              message: "UI primitives receive data and callbacks through props; keep application state and transport in their owning feature or app module.",
+              group: [
+                "**/app/**",
+                "**/features/**",
+                "**/platform/api-client",
+                "**/platform/rpc",
+                "**/platform/connection",
+                "@plugin/*",
+                "@opencode/*",
+              ],
+              message:
+                "UI primitives receive data and callbacks through props; keep application state and transport in their owning feature or app module.",
             },
           ],
         },

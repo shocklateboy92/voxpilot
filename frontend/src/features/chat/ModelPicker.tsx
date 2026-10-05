@@ -7,13 +7,13 @@
  */
 
 import { createEffect, createMemo, For, Show } from "solid-js";
+import { isStreaming } from "../../app/navigation";
 import {
   defaultModelData,
   formatVariantLabel,
   modelData,
   providerData,
 } from "./model-utils";
-import { isStreaming } from "../../app/navigation";
 import {
   selectedModel,
   selectedModelKey,

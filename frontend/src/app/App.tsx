@@ -9,9 +9,9 @@
 
 import { MetaProvider, Title } from "@solidjs/meta";
 import { ErrorBoundary } from "solid-js";
+import { serverUrl } from "../platform/connection";
 import { ChatView } from "./ChatView";
 import { ToastContainer } from "./ToastContainer";
-import { serverUrl } from "../platform/connection";
 import "./wake-lock"; // Keep screen awake while AI sessions are busy
 
 // The static frontend may connect to many hosts; label tabs by the API host.

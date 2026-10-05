@@ -27,8 +27,8 @@ import {
   Show,
   Suspense,
 } from "solid-js";
-import { rpc } from "../../platform/rpc";
 import { ContentShell } from "../../app/ContentShell";
+import { rpc } from "../../platform/rpc";
 import { Spinner } from "../../ui/Spinner";
 
 /** What the overlay needs to display a single file diff. */

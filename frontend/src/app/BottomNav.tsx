@@ -7,15 +7,15 @@ import GitFork from "lucide-solid/icons/git-fork";
 import Plus from "lucide-solid/icons/plus";
 import Settings from "lucide-solid/icons/settings";
 import { createSignal, Show } from "solid-js";
+import { ReviewPicker } from "../features/review/ReviewPicker";
+import { ForkOverlay } from "../features/sessions/ForkOverlay";
+import { SessionPicker } from "../features/sessions/SessionPicker";
 import { changeServer } from "../platform/connection";
 import {
   activeSession,
   handleNewSession,
   isNewSessionPage,
 } from "./navigation";
-import { ForkOverlay } from "../features/sessions/ForkOverlay";
-import { ReviewPicker } from "../features/review/ReviewPicker";
-import { SessionPicker } from "../features/sessions/SessionPicker";
 
 export function BottomNav() {
   const [pickerOpen, setPickerOpen] = createSignal(false);
