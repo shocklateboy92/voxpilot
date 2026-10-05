@@ -7,6 +7,16 @@ export VOXPILOT_PLUGIN_DIR="$ROOT/plugins/voxpilot"
 # constructing JSON from paths in shell (home paths can contain quotes/spaces).
 export OPENCODE_CONFIG_CONTENT='{"plugins":["{env:VOXPILOT_PLUGIN_DIR}"]}'
 set -- serve --hostname "${VOXPILOT_HOSTNAME:-0.0.0.0}" --port "${VOXPILOT_PORT:-8000}"
+# The centrally hosted production and staging frontends are always allowed.
+for origin in \
+  https://voxpilot.apps.lasath.com \
+  https://voxpilot.staging.lasath.com \
+  https://voxpilot.lasath.com
+do
+  set -- "$@" --cors "$origin"
+done
+# Deployments may allow one additional exact origin without replacing the
+# standard VoxPilot origins. OpenCode intentionally does not support `*`.
 if [ -n "${VOXPILOT_ORIGIN:-}" ]; then
   set -- "$@" --cors "$VOXPILOT_ORIGIN"
 fi

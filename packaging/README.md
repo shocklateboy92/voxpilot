@@ -27,14 +27,17 @@ Configure `~/.config/voxpilot/service.env` (systemd syntax, no `export`):
 ```ini
 VOXPILOT_HOSTNAME=0.0.0.0
 VOXPILOT_PORT=8000
-VOXPILOT_ORIGIN=https://voxpilot.apps.example.com
+# Optional additional frontend origin; standard lasath.com origins are built in.
+# VOXPILOT_ORIGIN=https://voxpilot.apps.example.com
 OPENCODE_PASSWORD=your-server-password
 # VOXPILOT_WAKE_URL=https://your-home-assistant-webhook
 ```
 
 The bind address defaults to all interfaces for a homelab proxy on another machine.
-Use 127.0.0.1 if the reverse proxy is local. `VOXPILOT_ORIGIN` must be the exact
-browser origin, with no trailing slash. OpenCode owns authentication, including
+Use 127.0.0.1 if the reverse proxy is local. The launcher always allows
+`https://voxpilot.apps.lasath.com`, `https://voxpilot.staging.lasath.com`, and
+`https://voxpilot.lasath.com`. `VOXPILOT_ORIGIN` adds one more exact browser
+origin and must not have a trailing slash. OpenCode owns authentication, including
 pairing; the launcher does not supply a default password.
 
 ```sh
