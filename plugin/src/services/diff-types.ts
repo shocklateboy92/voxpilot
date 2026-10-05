@@ -1,10 +1,8 @@
 /**
  * Core diff data types used by diff-render and review artifacts.
  *
- * Extracted from the old Zod schemas so that diff-render.ts and its
- * tests can compile without dragging in the deleted Drizzle / Zod
- * infrastructure.  These will be replaced by OpenCode-native types
- * once the review pipeline is rebuilt in Phase 3.
+ * Internal rendering data after width-aware formatting. Public RPC response
+ * types are inferred from the shared schemas in ../rpc.ts.
  */
 
 export type DiffLineKind = "context" | "add" | "del";

@@ -622,6 +622,35 @@ h1 {
   font-size: 0.85rem;
 }
 
+/* Server connection and review controls. */
+.connection-page {
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+.connection-page form,
+form.connection-page,
+.connection-page label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.connection-page input,
+.connection-page select {
+  background: var(--color-option-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-option-border);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  font: inherit;
+}
+.connection-page p {
+  color: var(--color-muted);
+  margin: 1rem 0;
+}
+.connection-page button {
+  overflow-wrap: anywhere;
+}
+
 /* ═══════════════════════════════════════════════
    6. CHAT
    ═══════════════════════════════════════════════ */

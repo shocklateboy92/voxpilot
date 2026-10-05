@@ -1,18 +1,19 @@
 [Unit]
-Description=VoxPilot self-hosted AI coding assistant
+Description=OpenCode with VoxPilot review plugin
 After=network-online.target
 Wants=network-online.target
+StartLimitBurst=3
+StartLimitIntervalSec=60
 
 [Service]
 Type=simple
 WorkingDirectory=%h/.local/share/voxpilot
-ExecStart=%h/.local/share/voxpilot/voxpilot
+EnvironmentFile=-%h/.config/voxpilot/service.env
+ExecStart=%h/.local/share/voxpilot/bin/voxpilot-opencode
 # Restart on transient failures, but stop trying after 3 failures in 60s so we
 # don't loop forever when something is genuinely broken (e.g. opencode missing).
 Restart=on-failure
 RestartSec=5
-StartLimitBurst=3
-StartLimitIntervalSec=60
 # PATH is intentionally not set here. systemd --user inherits PATH from the
 # user manager, which users can extend declaratively via
 # ~/.config/environment.d/*.conf (see environment.d(5)) -- the right layer

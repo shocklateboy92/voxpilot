@@ -20,8 +20,8 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Install backend dependencies
-        working-directory: backend
+      - name: Install plugin dependencies
+        working-directory: plugin
         run: bun install
 
       - name: Set up Node.js

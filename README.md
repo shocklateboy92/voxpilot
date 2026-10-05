@@ -1,55 +1,47 @@
 # VoxPilot
 
-Self-hosted, web-based AI coding assistant. Wraps the [OpenCode](https://opencode.ai) agent runtime with a mobile-first SolidJS frontend and an interactive diff review system. Runs on local hardware, accessible from any device on the network.
+Mobile-first coding UI for [OpenCode 2](https://opencode.ai/v2/docs/). VoxPilot
+formats both versions of a file to the phone's character width **before**
+computing the diff, including comment reflow.
 
-## Prerequisites
+## Architecture
 
-- [Bun 1.3+](https://bun.sh/)
-- [Node.js 22+](https://nodejs.org/)
-- [just](https://github.com/casey/just)
-- [OpenCode 2.x](https://opencode.ai/v2/docs/) (`@opencode/cli`, tested with 2.0.22). The old `opencode-ai` 1.x binary is not compatible.
-- An OpenAI-compatible inference server (e.g. [Ollama](https://ollama.ai/))
+- **Static frontend:** build once, serve on your Caddy host, connect to any host.
+- **Native OpenCode plugin:** formatting RPCs, persistent review snapshots,
+  `voxpilot_show_diff` agent tool, and desktop idle inhibition.
+- **systemd service:** runs `opencode serve` directly via an `exec` launcher.
+  OpenCode owns plugin lifecycle, HTTP authentication, API, and SSE.
 
-## Quick Start
+There is no VoxPilot HTTP backend or MCP server. Plugin source and shared RPC
+schemas live in `plugin/`; the frontend imports their inferred types.
 
-```bash
-cp .env.example .env          # Configure the OpenCode binary and app ports
-just install                 # Install dependencies
-just dev                     # Start backend (:8001) + frontend (:3000)
+## Development
+
+Prerequisites: Bun, Node.js 22+, just, Git, native OpenCode 2.0.22, Ruff and
+clang-format. Prettier is bundled. Provider configuration belongs to OpenCode.
+
+```sh
+cp .env.example .env
+just install
+just dev
 ```
 
-Configure models and credentials through OpenCode's own configuration. VoxPilot
-starts an owned OpenCode server on all interfaces; it does not manage the shared
-OpenCode service. OpenCode V2 requires server authentication; direct LAN clients
-use username `opencode` and `VOXPILOT_OC_PASSWORD` (default `abc123`). VoxPilot
-injects the same credential for its passwordless `/oc` proxy. The native V2
-`opencode` executable must be on `PATH`. Separate processes still
-share OpenCode data/configuration by default; use the isolated browser harness
-when validating a migration without touching existing sessions or credentials.
+Vite serves the frontend on port 3000 and proxies `/api` and `/auth` to OpenCode
+on port 8001. Open the frontend and connect using its own URL and the development
+server password. Rebuild the plugin and restart the development server after edits.
 
-See [browser regression tests](frontend/e2e/README.md) for a disposable setup.
+```sh
+just typecheck
+just test       # formatter tests + real isolated OpenCode plugin integration
+just lint
+just build     # plugin/dist and frontend/dist
+scripts/build-release.sh bun-linux-x64
+```
 
-## Commands
+The release includes a host-install tarball and a separate architecture-independent
+`voxpilot-frontend-<version>.tar.gz` for central static hosting. The existing
+dev-setup installer can continue extracting the host tarball and restarting its
+systemd unit. Runtime installation requires neither Bun nor npm.
 
-| Recipe | Description |
-|---|---|
-| `just install` | Install all dependencies (backend + frontend) |
-| `just dev` | Run both servers concurrently |
-| `just dev-backend` | Backend only (Bun with hot reload on :8001) |
-| `just dev-frontend` | Frontend only (Vite on :3000, proxies to :8001) |
-| `just test` | Run backend tests |
-| `just lint` | Biome + tsc type checking |
-| `just typecheck` | tsc --noEmit for both packages |
-| `just format` | Biome auto-fix |
-| `just build` | Production frontend build |
-| `just build-static` | Build + copy to backend/static/ |
-| `just check` | install + lint + typecheck + test |
-
-## Stack
-
-- **Backend**: TypeScript, Bun, Hono, Drizzle ORM, SQLite
-- **Frontend**: SolidJS, TypeScript, Vite
-- **Agent**: OpenCode 2.x via `@opencode/client` and an owned server process
-- **Tools**: MCP server (show_diff)
-
-See [ARCHITECTURE.md](ARCHITECTURE.md) for full details.
+See [deployment instructions](packaging/README.md),
+[architecture](ARCHITECTURE.md), and [browser tests](frontend/e2e/README.md).

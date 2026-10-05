@@ -15,8 +15,15 @@ import type {
   SessionInfo as Session,
   WorktreeInfo,
 } from "@opencode/client";
-import { OpenCode } from "@opencode/client";
 
+export { client } from "./connection";
+
+import { client } from "./connection";
+
+export type {
+  SessionMessageAssistantTool as ToolPart,
+  SessionStatus,
+} from "@opencode/client";
 export type {
   Agent,
   AssistantMessage,
@@ -30,15 +37,7 @@ export type {
   SdkFile,
   Session,
 };
-export type {
-  SessionMessageAssistantTool as ToolPart,
-  SessionStatus,
-} from "@opencode/client";
 export type Part = AssistantMessage["content"][number];
-
-export const client = OpenCode.make({
-  baseUrl: `${window.location.origin}/oc`,
-});
 
 export type EventListener = (event: Event) => void;
 

@@ -1,4 +1,4 @@
-import type { AppType } from "@backend/index";
-import { hc } from "hono/client";
+import { VoxPilotRpc } from "@plugin/rpc";
+import { client } from "./connection";
 
-export const rpc = hc<AppType>(window.location.origin);
+export const rpc = client.rpc(VoxPilotRpc);

@@ -1,178 +1,81 @@
-# VoxPilot Architecture
+# VoxPilot architecture
 
-Self-hosted web UI for AI-assisted coding. Wraps the OpenCode agent runtime with a mobile-first SolidJS frontend and a diff review system.
-
-## Stack
-
-| Layer | Tech |
-|---|---|
-| Runtime | Bun 1.3 |
-| Backend | TypeScript 5.9, Hono 4, Drizzle ORM, SQLite (bun:sqlite, WAL) |
-| Frontend | SolidJS 1.9, TypeScript 5.7, Vite 7 |
-| Agent | OpenCode 2.x (`@opencode/client`) -- owned server, passwordless LAN proxy at `/oc/*` |
-| Tools | MCP server (`@modelcontextprotocol/sdk`) -- exposes `show_diff` to the agent |
-| Diff engine | `prettier` (formatting) + `diff` (line diffing) |
-| Linter | Biome (shared config at repo root `biome.json`) |
-| Task runner | `just` (Justfile) |
-| Icons | `lucide-solid` |
-| Markdown | `markdown-it` (both backend and frontend) |
-
-## Project Layout
+## Runtime
 
 ```
-backend/
-  src/
-    index.ts              Entry point: Hono app, OpenCode server, proxy, static serving
-    db.ts                 SQLite + Drizzle init, auto-migration on startup
-    schema.ts             Drizzle schema: diff_entries, diff_entry_files
-    proxy.ts              Generic HTTP request proxy (used for /oc/*)
-    mcp.ts                MCP server with show_diff tool (Streamable HTTP transport)
-    routes/
-      review.ts           GET /api/review/ref-diff/cache/:id, POST /api/review/ref-diff
-    schemas/
-      api.ts              Zod v4 request schemas (RefDiffRequest)
-    services/
-      opencode.ts         Version check, owned stdio server, authentication, lifecycle
-      git-utils.ts        runGit(), ensureGitRepo(), getFileAtRef(ref, path)
-      format-diff.ts      Prettier formatting + line diff + hunk building
-      diff-render.ts      Diff HTML rendering (hunk view + full-file view)
-      diff-types.ts       DiffLine, DiffHunk interfaces
-  tests/
-    format-diff.test.ts   Diff formatting + hunk building tests
-    diff-render.test.ts   HTML rendering tests
-  drizzle/                Migration SQL files (auto-applied on startup)
-frontend/
-  src/
-    index.tsx             SolidJS render entry, global error handler
-    App.tsx               ErrorBoundary wrapper, renders ChatView + ToastContainer
-    store.ts              All reactive state (signals, stores, resources, memos)
-    api-client.ts         OpenCode SDK client wrapper (sessions, messages, permissions, etc.)
-    rpc.ts                Hono RPC client (hc<AppType>) for VoxPilot-specific endpoints
-    streaming.ts          Native event handling, rAF batching, snapshot recovery
-    navigation.ts         Session orchestration (switch, create, delete, navigate)
-    gestures.ts           Touch swipe detection (axis locking, edge exclusion)
-    markdown.ts           markdown-it instance
-    review-state.ts       localStorage-backed review state (viewed files, comments)
-    style.css             Single stylesheet, CSS custom properties, dark-first
-    components/
-      ChatView.tsx        Main layout container
-      ChatMain.tsx        Scrollable message list + swipe gestures
-      ChatInput.tsx       Textarea + send, Enter to submit, auto-resize
-      MessageBubble.tsx   User/assistant messages, markdown, tool parts, streaming cursor
-      ToolPartBlock.tsx   Collapsible tool call display with status icons
-      ToolConfirmBlock.tsx  Permission prompt (allow once / always / reject)
-      QuestionBlock.tsx   AI question prompt with option chips + custom input
-      ChangesetCard.tsx   Inline diff card, extracts [ref:UUID], opens ReviewOverlay
-      ReviewOverlay.tsx   Fullscreen diff viewer, measures width for printWidth
-      StatusBar.tsx       Floating bar: git branch + context usage
-      ContextUsageBar.tsx Token usage indicator vs model context limit
-      AgentPicker.tsx     Segmented control for agent selection (persisted to localStorage)
-      BottomNav.tsx       Session title + new chat button
-      SessionPicker.tsx   Bottom sheet overlay listing all sessions
-      ToastContainer.tsx  Auto-dismissing error toasts
-  DESIGN_SYSTEM.md        CSS design system reference (kept up to date separately)
-Justfile                  just install/dev/test/lint/typecheck/format/build/check
-biome.json                Shared Biome config (backend + frontend)
-.env.example              Native OpenCode executable and server ports
+Central Caddy static site → browser SolidJS application
+                                   │
+                                   ├─ OpenCode HTTP API + SSE
+                                   └─ OpenCode plugin RPC
+                                          │
+systemd → exec opencode serve → VoxPilot plugin
+                                 ├─ compare / snapshot / formatComparison
+                                 ├─ voxpilot_show_diff agent tool
+                                 └─ location-filtered idle inhibition
 ```
 
-## Request Flow
+`packaging/voxpilot-opencode` supplies the bundled plugin through
+`OPENCODE_CONFIG_CONTENT` using OpenCode's environment substitution, then replaces
+itself with `opencode serve`. The setting applies across locations in that server;
+it does not modify global config. Global provider/agent settings still apply.
+Plugin activation is location-scoped and asynchronous; the frontend waits for the
+plugin RPC at connection time. Cleanup belongs to OpenCode.
 
-```
-Browser (SolidJS)
-  ├── hc<AppType>() ───► POST /api/review/ref-diff     ──► format-diff service ──► Prettier + diff
-  │                      GET  /api/review/ref-diff/cache/:id ──► SQLite lookup
-  │
-  ├── OpenCode SDK  ───► ALL /oc/*  ───► proxy ───► OpenCode server (auto-picked port)
-  │   client                                          ├── sessions, messages, prompts
-  │                                                   ├── permissions, forms
-  │                                                   ├── SSE event stream
-  │                                                   └── calls MCP tools ──► POST /mcp
-  │                                                                            └── show_diff
-  │                                                                                 ├── git diff
-  │                                                                                 ├── cache to SQLite
-  │                                                                                 └── return stat summary
-  └── static assets ──► /* serveStatic (production)
-```
+## Frontend and authentication
 
-## Data
+`frontend/src/connection.ts` owns the single OpenCode client. The server URL is
+stored in localStorage, while an optionally entered password lives in sessionStorage
+and is sent as Basic auth. Existing pairing cookies are supported for same-origin
+connections. No password is compiled into static assets. Connections can be
+changed from the bottom navigation, or with `?connect=1`.
 
-VoxPilot's SQLite database (`VOXPILOT_DB_PATH`, default `voxpilot.db`) stores only diff cache data. Session/message data is managed entirely by the OpenCode server (separate storage).
+Central hosting requires each API host to allow the exact frontend origin via
+`--cors`. HTTPS frontends require HTTPS API endpoints (typically homelab Caddy
+reverse proxies). An authenticated browser talks directly to OpenCode; there is no
+credential-injecting VoxPilot proxy. OpenCode 2.0.22's CORS responses do not permit
+cross-origin credentialed fetch; remote connections use an explicit Authorization
+header and omit browser cookies. Pairing cookies are used only on the same origin.
 
-### Tables
+`rpc.ts` calls `client.rpc(VoxPilotRpc)`. The contract in `plugin/src/rpc.ts` uses
+Zod Standard Schema and infers request, handler and frontend response types without
+Hono, code generation, or manually synchronized interfaces. It is browser-safe.
 
-**diff_entries** -- one row per diff invocation
+The native live-only event stream reconnects and reconciles HTTP snapshots on
+`server.connected`. Existing per-message fragment revision handling and paginated
+history remain in `streaming.ts` and `api-client.ts`.
 
-| Column | Type | Notes |
-|---|---|---|
-| id | TEXT PK | UUID |
-| from_ref | TEXT | e.g. HEAD, INDEX, SHA |
-| to_ref | TEXT | e.g. WORKTREE, INDEX, SHA |
-| resolved_from | TEXT | Resolved SHA or synthetic name |
-| resolved_to | TEXT | Resolved SHA or synthetic name |
-| repo_root | TEXT | Absolute path |
-| path | TEXT? | Optional path filter |
-| created_at | INTEGER | Timestamp |
+## Width-aware review
 
-**diff_entry_files** -- per-file content for each diff entry
+Both the agent tool and the UI's Review changes button call the same comparison
+service. It pins commit refs, enumerates changed/untracked files with NUL-delimited
+Git output, and stores complete before/after contents in OpenCode's durable
+plugin storage. Snapshots preserve the captured working copy as the user resizes
+or revisits a review. Capture is not an atomic filesystem transaction.
 
-| Column | Type | Notes |
-|---|---|---|
-| id | TEXT PK | UUID |
-| entry_id | TEXT FK | CASCADE DELETE to diff_entries |
-| file_path | TEXT | Relative path |
-| additions | INTEGER | |
-| deletions | INTEGER | |
-| before_content | TEXT | Full file at from_ref |
-| after_content | TEXT | Full file at to_ref |
+The UI supports HEAD → working copy, base merge-base → working copy, and base
+merge-base → HEAD. The agent additionally accepts Git refs and INDEX comparisons.
+Renames are represented as deletion/addition. Binary comparisons report an error.
 
-Schema changes: edit `schema.ts`, run `bunx drizzle-kit generate` to create migration SQL.
+`formatComparison` formats both full files with the requested printWidth using
+Prettier, Ruff, or clang-format, reflows comments, recomputes line differences and
+returns escaped diff HTML. Formatting never edits the repository. Existing
+formatter fallback behavior preserves raw code when a formatter cannot run.
 
-## Environment Variables
+Snapshots use `snapshot/<uuid>` keys in plugin storage. Old `[ref:uuid]` chat
+cards remain recognizable. When `VOXPILOT_LEGACY_DB` points at a former cache,
+the plugin imports requested entries read-only and saves them into plugin storage.
+Old database files are never deleted or migrated in place. There is no new
+VoxPilot database or Drizzle migration system.
 
-| Variable | Default | Purpose |
-|---|---|---|
-| VOXPILOT_PORT | 8000 | HTTP server port |
-| VOXPILOT_OC_PORT | 0 (auto-pick) | Embedded OpenCode server port |
-| VOXPILOT_DB_PATH | voxpilot.db | SQLite database path |
-| VOXPILOT_API_TARGET | http://127.0.0.1:8000 | Vite dev proxy target |
+## Packages and release
 
-## Key Patterns
+- `plugin/src`: shared RPC schema, native plugin, Git/format/render services.
+- `plugin/tests`: formatter and real OpenCode HTTP integration tests.
+- `frontend/src`: connection screen, chat, review UI and native API wrappers.
+- `frontend/e2e`: isolated OpenCode service, deterministic provider and browser tests.
+- `packaging`: exec launcher, systemd unit, Caddy example, installation docs.
 
-**Type-safe RPC**: Backend exports `AppType` from Hono. Frontend imports via `@backend/*` tsconfig alias, uses `hc<AppType>()`. No codegen. Schema change = compile error everywhere.
-
-**Two API clients on frontend**: OpenCode SDK client for agent features (sessions, messages, permissions, questions, events). Hono RPC client for VoxPilot-specific endpoints (diff review).
-
-**rAF-batched streaming**: Native SSE content events queue per assistant message and flush once per frame. Independent fragment revisions protect live text from older HTTP snapshots. Completed snapshots repair missed fragments.
-
-**Prompt admission**: Sessions own agent/model selection. Prompt submission marks the session busy, then inbox delivery supplies the canonical user message. No synthetic duplicate message is inserted.
-
-**Reconnect recovery**: `event.subscribe()` is live-only. VoxPilot retries failed/closed subscriptions and reconciles sessions, active status, permissions/forms, files, and active message history on `server.connected`. Message/session lists follow cursor pagination.
-
-**Owned runtime**: `serve --stdio` listens on all interfaces. OpenCode V2 cannot disable server authentication, so direct clients use username `opencode` and `VOXPILOT_OC_PASSWORD` (default `abc123`); the backend injects the same credential for its passwordless `/oc` proxy. Closing stdin releases this process's ownership lease. VoxPilot never calls the shared service lifecycle APIs; ordinary OpenCode config/data locations still apply outside the isolated test harness.
-
-**MCP tool flow**: OpenCode agent calls `show_diff` via MCP. The tool runs git diff, stores full file contents in SQLite, returns a stat summary with `[ref:UUID]` to the LLM. The frontend's `ChangesetCard` detects `[ref:UUID]` in tool output, fetches the cache, and renders an interactive diff viewer.
-
-**Git ref handling**: `getFileAtRef()` supports three modes: `WORKTREE` (read from disk), `INDEX` (git show :path), real refs (git show ref:path). Refs are validated against `SAFE_REF_PATTERN` to prevent shell injection.
-
-**No auth**: Single-user self-hosted. All routes public.
-
-**No client-side router**: Single-view chat app. Active session tracked in URL hash.
-
-**Mobile-first**: No media breakpoints. Touch swipe for session navigation. Safe area insets for iOS. See `frontend/DESIGN_SYSTEM.md` for CSS conventions.
-
-## Commands
-
-```
-just install          # bun install (backend) + npm install (frontend)
-just dev              # Run both servers concurrently
-just dev-backend      # bun run --hot backend/src/index.ts
-just dev-frontend     # cd frontend && npm run dev (Vite on :3000, proxies /oc and /api to :8001)
-just test             # cd backend && bun test
-just lint             # Biome check (both) + tsc --noEmit (frontend)
-just typecheck        # tsc --noEmit (both)
-just format           # Biome --write (both)
-just build            # vite build
-just build-static     # vite build + copy dist to backend/static/
-just check            # install + lint + typecheck + test
-```
+The plugin bundle includes JS dependencies and needs no install-time npm commands.
+Native Git, Ruff and clang-format remain host prerequisites. Static frontend and
+plugin artifacts are released together; the RPC exposes protocol version 1 so
+the connection screen can detect incompatible frontend/plugin combinations.

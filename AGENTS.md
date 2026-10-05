@@ -8,10 +8,10 @@ Never use the null forgiving operator (`!`). Never use `any`. Avoid casting and 
 
 Type safety is very important. Types should flow across boundaries with no manual syncing:
 
-1. **Database -> Backend**: Drizzle ORM schema in `schema.ts` defines the diff cache types.
-2. **Backend -> API**: Hono route handlers infer types from the schema and Zod validators; the app exports `AppType`.
-3. **API -> Frontend**: The frontend imports `AppType` via the `@backend/*` path alias and uses `hc<AppType>()` for fully typed RPC calls to VoxPilot endpoints.
-4. **OpenCode SDK**: Session/message types come from `@opencode-ai/sdk` -- used by both backend and frontend.
+1. **Storage -> Plugin**: The Snapshot Zod schema in `plugin/src/rpc.ts` validates durable plugin data.
+2. **Plugin -> API**: `Rpc.define` uses Zod Standard Schema for inferred handler inputs and outputs.
+3. **API -> Frontend**: Import the shared contract via `@plugin/rpc` and call `client.rpc(VoxPilotRpc)`.
+4. **OpenCode client**: Session/message types come from `@opencode/client`.
 5. **Frontend -> UI**: Component props should be derived from API response types, not redeclared.
 
 Prefer letting types propagate through inference rather than duplicating type definitions across layers.

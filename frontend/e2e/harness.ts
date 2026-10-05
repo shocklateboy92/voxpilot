@@ -5,7 +5,8 @@ import type { ConfigEntry } from "@opencode/client";
 import { startProvider } from "./provider";
 
 const frontend = resolve(import.meta.dir, "..");
-const backend = resolve(frontend, "../backend/src/index.ts");
+const plugin = resolve(frontend, "../plugin");
+const binary = "opencode";
 const vite = resolve(frontend, "node_modules/vite/bin/vite.js");
 
 function port(name: string, fallback: number) {
@@ -77,9 +78,9 @@ try {
   // V2 walks parent directories for config unless explicitly disabled.
   env.OPENCODE_CONFIG_PROJECT_DISABLE = "true";
   env.OPENCODE_DISABLE_MODELS_FETCH = "true";
-  env.VOXPILOT_PORT = String(backendPort);
-  env.VOXPILOT_OC_PORT = "0";
-  env.VOXPILOT_DB_PATH = resolve(root, "voxpilot.db");
+  env.OPENCODE_PASSWORD = "voxpilot-fixture";
+  env.VOXPILOT_PLUGIN_DIR = plugin;
+  env.OPENCODE_CONFIG_CONTENT = '{"plugins":["{env:VOXPILOT_PLUGIN_DIR}"]}';
   delete env.VOXPILOT_WAKE_URL;
   delete env.DBUS_SESSION_BUS_ADDRESS;
   for (const directory of [
@@ -96,7 +97,7 @@ try {
   const configDir = resolve(env.XDG_CONFIG_HOME, "opencode");
   await mkdir(configDir, { recursive: true });
   const config = {
-    plugins: ["-opencode.config.compatibility"],
+    plugins: [plugin],
     update: "disable",
     share: "disabled",
     model: "fixture/baseline",
@@ -215,7 +216,20 @@ try {
   console.log(
     `[e2e] Backend: http://127.0.0.1:${backendPort}; fixture: http://127.0.0.1:${providerPort}/health`,
   );
-  launch([process.execPath, "--no-env-file", backend], workdir, env);
+  launch(
+    [
+      binary,
+      "serve",
+      "--hostname",
+      "0.0.0.0",
+      "--port",
+      String(backendPort),
+      "--cors",
+      `http://localhost:${frontendPort}`,
+    ],
+    workdir,
+    env,
+  );
   launch(
     [
       process.execPath,
@@ -235,13 +249,16 @@ try {
   );
   const deadline = Date.now() + 60_000;
   for (const url of [
-    `http://127.0.0.1:${backendPort}/oc/api/info`,
+    `http://127.0.0.1:${backendPort}/api/info`,
     `http://127.0.0.1:${frontendPort}`,
   ]) {
     let ready = false;
     while (Date.now() < deadline && stopping === false) {
       try {
         const response = await fetch(url, {
+          headers: {
+            authorization: `Basic ${Buffer.from("opencode:voxpilot-fixture").toString("base64")}`,
+          },
           signal: AbortSignal.timeout(1000),
         });
         ready = response.ok;

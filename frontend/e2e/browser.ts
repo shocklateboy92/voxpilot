@@ -23,6 +23,25 @@ export const test = base.extend<{ app: Page }>({
       await page.setViewportSize({ width: 390, height: 844 });
       await page.bringToFront();
       await page.goto(baseURL, { waitUntil: "domcontentloaded" });
+      if (
+        await page
+          .getByRole("button", { name: "Connect", exact: true })
+          .isVisible()
+      ) {
+        await page
+          .getByLabel("Server URL")
+          .fill(process.env.VOXPILOT_E2E_API ?? baseURL);
+        // Password managers can populate an input without dispatching input/change.
+        // Assign the DOM value directly to cover that connection path.
+        await page.getByLabel("Server password").evaluate((element) => {
+          if (!(element instanceof HTMLInputElement))
+            throw new Error("Password control is not an input");
+          element.value = "voxpilot-fixture";
+        });
+        await page
+          .getByRole("button", { name: "Connect", exact: true })
+          .click();
+      }
       await expect(
         page.getByRole("heading", { name: "New Chat", exact: true }),
       ).toBeVisible();

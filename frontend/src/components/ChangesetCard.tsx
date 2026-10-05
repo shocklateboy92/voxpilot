@@ -43,13 +43,7 @@ export function ChangesetCard(props: Props) {
   const [cache] = createResource(
     cacheId,
     async (id) => {
-      const res = await rpc.api.review["ref-diff"].cache[":id"].$get({
-        param: { id },
-      });
-      if (!res.ok) return null;
-      const data = await res.json();
-      if ("error" in data) return null;
-      return data;
+      return rpc.snapshot({ id });
     },
     { initialValue: null },
   );

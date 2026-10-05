@@ -1,0 +1,14 @@
+#!/bin/sh
+# Replaced by OpenCode via exec: systemd owns the only long-running process.
+set -eu
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+export VOXPILOT_PLUGIN_DIR="$ROOT/plugins/voxpilot"
+export VOXPILOT_LEGACY_DB="${VOXPILOT_LEGACY_DB:-$ROOT/voxpilot.db}"
+# Environment substitution is performed by OpenCode's config loader. Avoid
+# constructing JSON from paths in shell (home paths can contain quotes/spaces).
+export OPENCODE_CONFIG_CONTENT='{"plugins":["{env:VOXPILOT_PLUGIN_DIR}"]}'
+set -- serve --hostname "${VOXPILOT_HOSTNAME:-0.0.0.0}" --port "${VOXPILOT_PORT:-8000}"
+if [ -n "${VOXPILOT_ORIGIN:-}" ]; then
+  set -- "$@" --cors "$VOXPILOT_ORIGIN"
+fi
+exec opencode "$@"

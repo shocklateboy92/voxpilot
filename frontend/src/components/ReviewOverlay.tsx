@@ -5,7 +5,7 @@
  * 1. User clicks a file in ChangesetCard -> setReviewFile() called
  * 2. Overlay opens with ContentShell (floating status bar + diff + input)
  * 3. Measures container width -> calculates printWidth
- * 4. POST /api/review/ref-diff -> gets formatted HTML
+ * 4. Plugin formatComparison RPC -> gets width-formatted HTML
  * 5. Renders HTML diff; resize re-renders at correct width
  *
  * Swipe / keyboard navigation:
@@ -98,22 +98,12 @@ export function ReviewOverlay() {
   };
 
   const [diffHtml] = createResource(fetchKey, async ({ req, printWidth }) => {
-    const res = await rpc.api.review["ref-diff"].$post({
-      json: {
-        fromRef: req.fromRef,
-        toRef: req.toRef,
-        filePath: req.filePath,
-        printWidth,
-        repoRoot: req.repoRoot,
-        cacheId: req.cacheId,
-      },
+    if (!req.cacheId) throw new Error("A review snapshot is required");
+    const data = await rpc.formatComparison({
+      filePath: req.filePath,
+      printWidth,
+      cacheId: req.cacheId,
     });
-
-    if (!res.ok) {
-      throw new Error(`Failed to load diff: ${String(res.status)}`);
-    }
-
-    const data = await res.json();
     return data.html;
   });
 

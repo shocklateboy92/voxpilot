@@ -47,35 +47,24 @@ echo "==> Building VoxPilot ${VERSION} for ${TARGET} (${OS_ARCH})"
 rm -rf "$STAGE" "$OUTDIR"
 mkdir -p "$STAGE" "$OUTDIR"
 
-# --- backend deps (frontend imports types via @backend alias, so backend
-#     node_modules must exist before frontend build) ----------------------
-echo "==> Installing backend dependencies"
-( cd backend && bun install --frozen-lockfile 2>/dev/null || bun install )
+# --- plugin and shared RPC contract ----------------------------------------
+echo "==> Building plugin"
+( cd plugin && bun install --frozen-lockfile && bun run typecheck && bun run build )
 
 # --- frontend -------------------------------------------------------------
 echo "==> Installing frontend dependencies"
-( cd frontend && npm install --no-audit --no-fund )
+( cd frontend && npm ci --no-audit --no-fund )
 echo "==> Building frontend"
 ( cd frontend && npm run build )
-
-# --- backend binary -------------------------------------------------------
-echo "==> Compiling VoxPilot binary (target=${TARGET})"
-# --define injects the version as a string literal at build time. The binary
-# itself disables Bun.serve dev mode by checking BUILD_VERSION at runtime.
-# --minify + --sourcemap follows Bun's production recommendation.
-( cd backend && bun build \
-    --compile \
-    --target="$TARGET" \
-    --minify \
-    --sourcemap \
-    --define "BUILD_VERSION=\"${VERSION}\"" \
-    src/index.ts \
-    --outfile "$ROOT/$STAGE/voxpilot" )
 
 # --- assemble stage -------------------------------------------------------
 echo "==> Assembling tarball contents"
 cp -r frontend/dist "$STAGE/static"
-cp -r backend/drizzle "$STAGE/drizzle"
+mkdir -p "$STAGE/plugins/voxpilot" "$STAGE/bin"
+cp -r plugin/dist "$STAGE/plugins/voxpilot/dist"
+cp plugin/package.json "$STAGE/plugins/voxpilot/package.json"
+cp plugin/index.js "$STAGE/plugins/voxpilot/index.js"
+install -m 755 packaging/voxpilot-opencode "$STAGE/bin/voxpilot-opencode"
 cp -r packaging/systemd "$STAGE/systemd"
 cp packaging/README.md "$STAGE/README.md"
 echo "$VERSION" > "$STAGE/VERSION"
@@ -85,9 +74,13 @@ echo "==> Creating $TARBALL"
 # --transform isn't portable; the stage dir is already named 'voxpilot' so
 # tar from its parent to get voxpilot/... at the root.
 tar -czf "$TARBALL" -C "$(dirname "$STAGE")" "$(basename "$STAGE")"
+# One architecture-independent static frontend for central hosting.
+FRONTEND_TARBALL="$OUTDIR/voxpilot-frontend-${VERSION}.tar.gz"
+tar -czf "$FRONTEND_TARBALL" -C frontend/dist .
 
 # --- checksum -------------------------------------------------------------
 ( cd "$OUTDIR" && sha256sum "$(basename "$TARBALL")" > "$(basename "$TARBALL").sha256" )
+( cd "$OUTDIR" && sha256sum "$(basename "$FRONTEND_TARBALL")" > "$(basename "$FRONTEND_TARBALL").sha256" )
 
 echo
 echo "Built:    $TARBALL"

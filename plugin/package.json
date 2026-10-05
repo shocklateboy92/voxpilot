@@ -1,0 +1,26 @@
+{
+  "name": "voxpilot-opencode-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "exports": { ".": "./dist/index.js", "./rpc": "./dist/rpc.js" },
+  "scripts": {
+    "build": "bun build src/index.ts src/rpc.ts --target=bun --outdir=dist",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@opencode/plugin": "2.0.22",
+    "diff": "^8.0.3",
+    "prettier": "^3.8.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@opencode/client": "2.0.22",
+    "@biomejs/biome": "^2.4.4",
+    "@types/bun": "latest",
+    "@types/diff": "^8.0.0",
+    "typescript": "^5.9.3"
+  }
+}

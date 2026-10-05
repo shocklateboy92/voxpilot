@@ -9,6 +9,7 @@ interface FormatDiffInput {
   after: string;
   filePath: string;
   printWidth: number;
+  signal?: AbortSignal;
 }
 
 interface FormatDiffResult {
@@ -21,12 +22,26 @@ interface FormatDiffResult {
 export async function formatAndDiff(
   input: FormatDiffInput,
 ): Promise<FormatDiffResult> {
+  input.signal?.throwIfAborted();
   const formatter = detectFormatter(input.filePath);
 
   const [formattedBefore, formattedAfter] = await Promise.all([
-    tryFormat(input.before, formatter, input.printWidth, input.filePath),
-    tryFormat(input.after, formatter, input.printWidth, input.filePath),
+    tryFormat(
+      input.before,
+      formatter,
+      input.printWidth,
+      input.filePath,
+      input.signal,
+    ),
+    tryFormat(
+      input.after,
+      formatter,
+      input.printWidth,
+      input.filePath,
+      input.signal,
+    ),
   ]);
+  input.signal?.throwIfAborted();
 
   // Reflow comments to fit printWidth (formatters don't touch comment prose)
   const commentLang = languageForFile(input.filePath);
@@ -117,6 +132,7 @@ async function tryFormat(
   formatter: FormatterKind,
   printWidth: number,
   filePath: string,
+  signal?: AbortSignal,
 ): Promise<string> {
   try {
     switch (formatter.type) {
@@ -126,9 +142,14 @@ async function tryFormat(
           parser: formatter.parser,
         });
       case "ruff":
-        return await formatWithRuff(content, printWidth, filePath);
+        return await formatWithRuff(content, printWidth, filePath, signal);
       case "clang-format":
-        return await formatWithClangFormat(content, printWidth, filePath);
+        return await formatWithClangFormat(
+          content,
+          printWidth,
+          filePath,
+          signal,
+        );
       case "passthrough":
         return content;
     }
@@ -145,6 +166,7 @@ async function formatWithRuff(
   content: string,
   printWidth: number,
   filePath: string,
+  signal?: AbortSignal,
 ): Promise<string> {
   const proc = Bun.spawn(
     [
@@ -158,6 +180,8 @@ async function formatWithRuff(
     ],
     {
       stdin: new Blob([content]),
+      signal,
+      timeout: 30_000,
       stdout: "pipe",
       stderr: "pipe",
     },
@@ -185,12 +209,15 @@ async function formatWithClangFormat(
   content: string,
   printWidth: number,
   filePath: string,
+  signal?: AbortSignal,
 ): Promise<string> {
   const style = `{ColumnLimit: ${printWidth}, AlignAfterOpenBracket: BlockIndent}`;
   const proc = Bun.spawn(
     ["clang-format", `--style=${style}`, `--assume-filename=${filePath}`],
     {
       stdin: new Blob([content]),
+      signal,
+      timeout: 30_000,
       stdout: "pipe",
       stderr: "pipe",
     },

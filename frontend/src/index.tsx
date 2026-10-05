@@ -1,9 +1,13 @@
 import type { Component } from "solid-js";
 import { createSignal, Show } from "solid-js";
 import { Dynamic, render } from "solid-js/web";
+import { ConnectionPage } from "./components/ConnectionPage";
 import { OfflineOverlay } from "./components/OfflineOverlay";
 import { Spinner } from "./components/Spinner";
+import { ToastContainer } from "./components/ToastContainer";
+import { changeServer, waitForPlugin, wakeStorageKey } from "./connection";
 import { rpc } from "./rpc";
+import "./style.css";
 import { extractErrorMessage, showToast } from "./toast";
 
 // ── Global unhandled-rejection handler ───────────────────────────────────────
@@ -25,32 +29,51 @@ window.addEventListener(
 // calls in child components can never tear down the component tree.
 const [AppComponent, setAppComponent] = createSignal<Component>();
 
-import("./App").then(
-  (m) => {
-    setAppComponent(() => m.default);
-    // Persist wake URL for offline fallback
-    rpc.api.config
-      .$get()
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.wakeUrl) {
-          localStorage.setItem("voxpilot:wakeUrl", data.wakeUrl);
-        }
-      })
-      .catch(() => {});
-  },
-  (err) => showToast(extractErrorMessage(err)),
-);
+const connecting =
+  !localStorage.getItem("voxpilot:server") ||
+  new URLSearchParams(window.location.search).has("connect");
+
+if (!connecting)
+  waitForPlugin()
+    .then(() => import("./App"))
+    .then(
+      (m) => {
+        setAppComponent(() => m.default);
+        // Persist wake URL for offline fallback
+        rpc
+          .config({})
+          .then((data) => {
+            if (data.wakeUrl) {
+              localStorage.setItem(wakeStorageKey, data.wakeUrl);
+            }
+          })
+          .catch(() => {});
+      },
+      (err) => {
+        showToast(extractErrorMessage(err));
+        changeServer();
+      },
+    );
 
 const root = document.getElementById("root");
 if (root) {
   render(
     () => (
-      <OfflineOverlay>
-        <Show when={AppComponent()} fallback={<Spinner fullscreen />}>
-          {(App) => <Dynamic component={App()} />}
-        </Show>
-      </OfflineOverlay>
+      <Show
+        when={!connecting}
+        fallback={
+          <>
+            <ConnectionPage />
+            <ToastContainer />
+          </>
+        }
+      >
+        <OfflineOverlay>
+          <Show when={AppComponent()} fallback={<Spinner fullscreen />}>
+            {(App) => <Dynamic component={App()} />}
+          </Show>
+        </OfflineOverlay>
+      </Show>
     ),
     root,
   );

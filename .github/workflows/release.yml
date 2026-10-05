@@ -49,7 +49,7 @@ jobs:
         run: |
           scripts/build-release.sh bun-linux-x64
           # Surface paths + version to downstream steps.
-          tarball="$(ls dist/release/voxpilot-*.tar.gz)"
+          tarball="$(ls dist/release/voxpilot-*-linux-x64.tar.gz)"
           version="$(cat dist/stage/voxpilot/VERSION)"
           {
             echo "tarball=$tarball"
@@ -85,4 +85,6 @@ jobs:
           See the README inside the tarball for install instructions." \
             --latest \
             "$tarball" \
-            "$checksum"
+            "$checksum" \
+            dist/release/voxpilot-frontend-*.tar.gz \
+            dist/release/voxpilot-frontend-*.tar.gz.sha256

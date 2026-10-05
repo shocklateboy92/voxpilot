@@ -1,62 +1,43 @@
 set dotenv-load
 
-# List available recipes
 default:
     @just --list
 
-# Install all dependencies
 install:
-    cd backend && bun install
-    cd frontend && npm install
+    cd plugin && bun install
+    cd frontend && npm ci
 
-# Dev uses port 8001 to avoid conflict with the systemd VoxPilot service on :8000.
-
-# Run both frontend and backend dev servers
-dev:
+# Foreground OpenCode owns plugin lifecycle; Vite is only a development server.
+dev: build-plugin
     trap 'kill 0' EXIT; \
-    VOXPILOT_PORT=8001 bun run --hot backend/src/index.ts & \
+    VOXPILOT_PLUGIN_DIR="$PWD/plugin" OPENCODE_CONFIG_CONTENT='{"plugins":["{env:VOXPILOT_PLUGIN_DIR}"]}' opencode serve --hostname 127.0.0.1 --port 8001 & \
     (cd frontend && VOXPILOT_API_TARGET=http://127.0.0.1:8001 npm run dev) & \
     wait
 
-# Run backend dev server
-dev-backend:
-    VOXPILOT_PORT=8001 bun run --hot backend/src/index.ts
-
-# Run frontend dev server
 dev-frontend:
     cd frontend && VOXPILOT_API_TARGET=http://127.0.0.1:8001 npm run dev
 
-# Run backend tests
-test:
-    cd backend && bun test
+build-plugin:
+    cd plugin && bun run build
 
-# Lint everything
+test:
+    cd plugin && bun test
+
 lint:
-    cd backend && bunx @biomejs/biome check src tests ../frontend/src
-    cd frontend && npx tsc --noEmit
+    cd plugin && bunx biome check src tests ../frontend/src
     cd frontend && npx eslint src/
 
-# Type check everything
 typecheck:
-    cd backend && bunx tsc --noEmit
+    cd plugin && bunx tsc --noEmit
     cd frontend && npx tsc --noEmit
 
-# Format all code
 format:
-    cd backend && bunx @biomejs/biome check --write src tests ../frontend/src
+    cd plugin && bunx biome check --write src tests ../frontend/src
 
-# Build frontend for production
-build:
+build: build-plugin
     cd frontend && npm run build
 
-# Build frontend and copy to backend static dir
-build-static: build
-    rm -rf backend/static/assets
-    cp -r frontend/dist/* backend/static/
-
-# Clean build artifacts
 clean:
-    rm -rf frontend/dist backend/tsconfig.tsbuildinfo
+    rm -rf frontend/dist plugin/dist
 
-# Run everything (install, lint, typecheck, test)
-check: install lint typecheck test
+check: typecheck test lint

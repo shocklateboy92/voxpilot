@@ -1,6 +1,7 @@
 import WifiOff from "lucide-solid/icons/wifi-off";
 import type { JSX } from "solid-js";
 import { createSignal, onCleanup, onMount, Show } from "solid-js";
+import { changeServer, client, wakeStorageKey } from "../connection";
 import { rpc } from "../rpc";
 
 const PROBE_INTERVAL = 5_000;
@@ -12,11 +13,8 @@ async function probeAlive(): Promise<boolean> {
   try {
     // Query string ensures the request bypasses the service worker's
     // NetworkFirst runtime cache rule (whose regex anchors at end-of-string).
-    const r = await fetch("/api/config?probe=1", {
-      cache: "no-store",
-      signal: ctrl.signal,
-    });
-    return r.ok;
+    await client.server.info({ signal: ctrl.signal });
+    return true;
   } catch {
     return false;
   } finally {
@@ -129,14 +127,13 @@ export function OfflineOverlay(props: { children: JSX.Element }) {
   onMount(async () => {
     // Fetch wake URL from SW-cached config, fall back to localStorage
     try {
-      const r = await rpc.api.config.$get();
-      const data = await r.json();
+      const data = await rpc.config({});
       if (data.wakeUrl) {
         setWakeUrl(data.wakeUrl);
-        localStorage.setItem("voxpilot:wakeUrl", data.wakeUrl);
+        localStorage.setItem(wakeStorageKey, data.wakeUrl);
       }
     } catch {
-      const stored = localStorage.getItem("voxpilot:wakeUrl");
+      const stored = localStorage.getItem(wakeStorageKey);
       if (stored) setWakeUrl(stored);
     }
 
@@ -152,6 +149,9 @@ export function OfflineOverlay(props: { children: JSX.Element }) {
       {props.children}
       <Show when={offline() && !dismissed()}>
         <div class="offline-overlay">
+          <button type="button" class="btn" onClick={changeServer}>
+            Connection settings
+          </button>
           <OfflineCard
             wakeUrl={wakeUrl()}
             onDismiss={() => setDismissed(true)}

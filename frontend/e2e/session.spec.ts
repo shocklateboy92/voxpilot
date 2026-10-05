@@ -77,7 +77,7 @@ test("event connection recovers after a temporary network interruption", async (
     await expect
       .poll(() =>
         app.evaluate(() =>
-          fetch("/api/config?probe=1", {
+          fetch("/api/info", {
             cache: "no-store",
             signal: AbortSignal.timeout(1000),
           }).then(
@@ -192,7 +192,9 @@ test("reload during generation restores the complete transcript without duplicat
   await expect(app.locator(".message.user")).toHaveCount(1);
 });
 
-test("MCP diff card opens the real cached diff", async ({ app }) => {
+test("native plugin diff card opens the persisted snapshot", async ({
+  app,
+}) => {
   await send(app, "BASELINE_DIFF");
   const card = app.locator(".changeset-card");
   await expect(card).toContainText("sample.txt");
@@ -205,6 +207,22 @@ test("MCP diff card opens the real cached diff", async ({ app }) => {
     "new baseline line",
   );
   await expect(review.locator(".fulltext-line-add")).not.toHaveCount(0);
+});
+
+test("user opens a working-copy review without an agent tool", async ({
+  app,
+}) => {
+  await send(app, "BASELINE_TEXT");
+  await idle(app);
+  await app.getByTitle("Review changes", { exact: true }).click();
+  await app.getByRole("button", { name: "Load changes", exact: true }).click();
+  await app.getByRole("button", { name: /sample.txt \(/ }).click();
+  await expect(app.locator(".review-overlay")).toContainText(
+    "new baseline line",
+  );
+  await expect(app.locator(".review-overlay")).toContainText(
+    "old baseline line",
+  );
 });
 
 test("new worktree hosts a session that survives reload", async ({ app }) => {
