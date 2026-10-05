@@ -4,12 +4,6 @@ import { VitePWA } from "vite-plugin-pwa";
 import solidPlugin from "vite-plugin-solid";
 
 const apiTarget = process.env.VOXPILOT_API_TARGET ?? "http://127.0.0.1:8000";
-const apiPassword = process.env.OPENCODE_PASSWORD;
-const apiHeaders = apiPassword
-  ? {
-      authorization: `Basic ${Buffer.from(`opencode:${apiPassword}`).toString("base64")}`,
-    }
-  : undefined;
 
 export default defineConfig({
   plugins: [
@@ -55,11 +49,10 @@ export default defineConfig({
     port: 3000,
     allowedHosts: true,
     proxy: {
-      "/auth": { target: apiTarget, changeOrigin: true, headers: apiHeaders },
+      "/auth": { target: apiTarget, changeOrigin: true },
       "/api": {
         target: apiTarget,
         changeOrigin: true,
-        headers: apiHeaders,
       },
     },
   },

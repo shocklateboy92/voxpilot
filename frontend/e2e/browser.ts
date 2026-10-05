@@ -38,9 +38,14 @@ export const test = base.extend<{ app: Page }>({
             throw new Error("Password control is not an input");
           element.value = "voxpilot-fixture";
         });
+        const infoRequest = page.waitForRequest((request) =>
+          request.url().endsWith("/api/info"),
+        );
         await page
           .getByRole("button", { name: "Connect", exact: true })
           .click();
+        const headers = await (await infoRequest).allHeaders();
+        expect(headers.authorization).toMatch(/^Basic /);
       }
       await expect(
         page.getByRole("heading", { name: "New Chat", exact: true }),

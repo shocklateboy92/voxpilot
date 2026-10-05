@@ -85,9 +85,8 @@ export function ConnectionPage() {
           />
         </label>
         <p>
-          Leave the password blank for a paired same-origin server or the local
-          Vite development proxy. A password is kept only for this tab’s
-          session.
+          Leave the password blank for a paired same-origin server. A password
+          is kept only for this tab’s session.
         </p>
         <button type="submit" class="btn" disabled={busy()}>
           {busy() ? "Connecting…" : "Connect"}

@@ -20,7 +20,8 @@ VOXPILOT_E2E_URL=http://localhost:13000 VOXPILOT_E2E_API=http://localhost:18001 
 
 `VOXPILOT_E2E_API` exercises direct cross-origin requests, matching central Caddy
 hosting. Omit it to use Vite's same-origin development proxy. The connection form
-uses the fixture-only password `voxpilot-fixture`.
+uses the fixture-only password `voxpilot-fixture`; the harness asserts that the
+browser itself adds the resulting Basic Authorization header to `/api/info`.
 
 The harness starts Vite on 13000, OpenCode on 18001, and the fixture provider on
 18002. It disables inherited OpenCode configuration and idle inhibition. Ctrl+C
