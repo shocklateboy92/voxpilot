@@ -1,9 +1,9 @@
 import type { ComponentProps } from "solid-js";
-import { createSignal, For, Show } from "solid-js";
+import { createSignal, Show } from "solid-js";
 import { activeSession } from "../navigation";
 import { rpc } from "../rpc";
+import { ChangesetSummary } from "./ChangesetSummary";
 import { Overlay } from "./Overlay";
-import { setReviewFile } from "./ReviewOverlay";
 
 export function ReviewPicker(props: { onClose: () => void }) {
   const [base, setBase] = createSignal("main");
@@ -35,21 +35,6 @@ export function ReviewPicker(props: { onClose: () => void }) {
     } finally {
       setBusy(false);
     }
-  }
-  function open(filePath: string) {
-    const snapshot = entry();
-    if (!snapshot) return;
-    const files = snapshot.files.map((file) => file.filePath);
-    setReviewFile({
-      cacheId: snapshot.id,
-      fromRef: snapshot.resolvedFrom,
-      toRef: snapshot.resolvedTo,
-      repoRoot: snapshot.repoRoot,
-      filePath,
-      files,
-      fileIndex: files.indexOf(filePath),
-    });
-    props.onClose();
   }
   const selectMode: ComponentProps<"select">["onChange"] = (event) => {
     const value = event.currentTarget.value;
@@ -98,17 +83,10 @@ export function ReviewPicker(props: { onClose: () => void }) {
               <Show when={snapshot().files.length === 0}>
                 <p>No changes.</p>
               </Show>
-              <For each={snapshot().files}>
-                {(file) => (
-                  <button
-                    type="button"
-                    class="btn btn-ghost"
-                    onClick={() => open(file.filePath)}
-                  >
-                    {file.filePath} (+{file.additions} −{file.deletions})
-                  </button>
-                )}
-              </For>
+              <ChangesetSummary
+                snapshot={snapshot()}
+                onOpen={() => props.onClose()}
+              />
             </>
           )}
         </Show>

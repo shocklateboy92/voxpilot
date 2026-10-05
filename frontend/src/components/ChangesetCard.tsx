@@ -10,13 +10,12 @@
  */
 
 import type { SessionMessageAssistantTool as ToolPart } from "@opencode/client";
-import ArrowRight from "lucide-solid/icons/arrow-right";
 import GitCompareArrows from "lucide-solid/icons/git-compare-arrows";
 import Loader from "lucide-solid/icons/loader";
 import X from "lucide-solid/icons/x";
-import { createResource, For, Match, Show, Switch } from "solid-js";
+import { createResource, Match, Show, Switch } from "solid-js";
 import { rpc } from "../rpc";
-import { setReviewFile } from "./ReviewOverlay";
+import { ChangesetSummary } from "./ChangesetSummary";
 import { getOutput } from "./tool-renderers/shared";
 
 interface Props {
@@ -48,34 +47,6 @@ export function ChangesetCard(props: Props) {
     { initialValue: null },
   );
 
-  function openFile(filePath: string): void {
-    const c = cache();
-    const id = cacheId();
-    if (!c) return;
-    const allFiles = c.files.map((f) => f.filePath);
-    const fileIndex = allFiles.indexOf(filePath);
-    setReviewFile({
-      fromRef: c.resolvedFrom,
-      toRef: c.resolvedTo,
-      repoRoot: c.repoRoot,
-      filePath,
-      cacheId: id ?? undefined,
-      files: allFiles,
-      fileIndex: fileIndex >= 0 ? fileIndex : 0,
-    });
-  }
-
-  const label = () => {
-    const c = cache();
-    if (c)
-      return (
-        <>
-          {c.fromRef} <ArrowRight size={12} /> {c.toRef}
-        </>
-      );
-    return "show_diff";
-  };
-
   const errorOutput = () => {
     const s = props.part.state;
     const output = getOutput(s);
@@ -85,71 +56,50 @@ export function ChangesetCard(props: Props) {
   };
 
   return (
-    <div class="changeset-card">
-      <div class="changeset-header">
-        <Switch>
-          <Match when={isActive()}>
-            <span class="tool-spinner">
-              <Loader size={14} class="icon-spin" />
-            </span>
-          </Match>
-          <Match when={status() === "completed" && !errorOutput()}>
-            <span class="changeset-icon">
-              <GitCompareArrows size={14} />
-            </span>
-          </Match>
-          <Match when={status() === "error" || errorOutput()}>
-            <span class="changeset-icon">
-              <X size={14} />
-            </span>
-          </Match>
-        </Switch>
-        <span class="changeset-label">{label()}</span>
-        <Show when={cache()}>
-          {(c) => (
-            <span class="changeset-stats">
-              {c().files.length} file{c().files.length !== 1 ? "s" : ""}
-            </span>
-          )}
-        </Show>
-      </div>
-
-      {/* Error state */}
-      <Show when={errorOutput()}>
-        {(err) => (
-          <div class="changeset-error">
-            <pre>{err()}</pre>
+    <Show
+      when={cache()}
+      fallback={
+        <div class="changeset-card">
+          <div class="changeset-header">
+            <Switch>
+              <Match when={isActive()}>
+                <span class="tool-spinner">
+                  <Loader size={14} class="icon-spin" />
+                </span>
+              </Match>
+              <Match when={status() === "completed" && !errorOutput()}>
+                <span class="changeset-icon">
+                  <GitCompareArrows size={14} />
+                </span>
+              </Match>
+              <Match when={status() === "error" || errorOutput()}>
+                <span class="changeset-icon">
+                  <X size={14} />
+                </span>
+              </Match>
+            </Switch>
+            <span class="changeset-label">show_diff</span>
           </div>
-        )}
-      </Show>
 
-      {/* File list */}
-      <Show when={cache()}>
-        {(c) => (
-          <Show when={!errorOutput()}>
-            <For each={c().files}>
-              {(f) => (
-                <button
-                  type="button"
-                  class="changeset-file-row"
-                  onClick={() => openFile(f.filePath)}
-                >
-                  <span class="changeset-file-path">{f.filePath}</span>
-                  <span class="changeset-file-stats">
-                    <span class="changeset-adds">+{f.additions}</span>{" "}
-                    <span class="changeset-dels">-{f.deletions}</span>
-                  </span>
-                </button>
-              )}
-            </For>
+          {/* Error state */}
+          <Show when={errorOutput()}>
+            {(err) => (
+              <div class="changeset-error">
+                <pre>{err()}</pre>
+              </div>
+            )}
           </Show>
-        )}
-      </Show>
 
-      {/* Loading cache */}
-      <Show when={status() === "completed" && !errorOutput() && cache.loading}>
-        <div class="changeset-loading">Loading files...</div>
-      </Show>
-    </div>
+          {/* Loading cache */}
+          <Show
+            when={status() === "completed" && !errorOutput() && cache.loading}
+          >
+            <div class="changeset-loading">Loading files...</div>
+          </Show>
+        </div>
+      }
+    >
+      {(snapshot) => <ChangesetSummary snapshot={snapshot()} />}
+    </Show>
   );
 }

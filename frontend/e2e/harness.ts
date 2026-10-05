@@ -175,18 +175,27 @@ try {
   }
   await git(["init", "--initial-branch=main"]);
   await Bun.write(resolve(workdir, "sample.txt"), "old baseline line\n");
+  await Bun.write(resolve(workdir, "second.txt"), "old second line\n");
   const blob = await git(["hash-object", "-w", "sample.txt"]);
+  const secondBlob = await git(["hash-object", "-w", "second.txt"]);
   await git([
     "update-index",
     "--add",
     "--cacheinfo",
     `100644,${blob},sample.txt`,
   ]);
+  await git([
+    "update-index",
+    "--add",
+    "--cacheinfo",
+    `100644,${secondBlob},second.txt`,
+  ]);
   const tree = await git(["write-tree"]);
   // A real commit in the disposable repo also allows native worktree creation.
   const commit = await git(["commit-tree", tree, "-m", "Browser fixture"]);
   await git(["update-ref", "refs/heads/main", commit]);
   await Bun.write(resolve(workdir, "sample.txt"), "new baseline line\n");
+  await Bun.write(resolve(workdir, "second.txt"), "new second line\n");
 
   provider = startProvider({ port: providerPort, workdir });
   function launch(command: string[], cwd: string, childEnv: NodeJS.ProcessEnv) {

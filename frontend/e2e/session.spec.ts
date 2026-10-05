@@ -202,7 +202,7 @@ test("native plugin diff card opens the persisted snapshot", async ({
   await card.getByRole("button", { name: /sample.txt/ }).click();
   const review = app.locator(".review-overlay");
   await expect(review).toBeVisible();
-  await expect(review.locator(".review-file-path")).toHaveText("sample.txt");
+  await expect(review.locator(".review-file-path")).toContainText("sample.txt");
   await expect(review.locator(".review-diff-container")).toContainText(
     "new baseline line",
   );
@@ -216,13 +216,18 @@ test("user opens a working-copy review without an agent tool", async ({
   await idle(app);
   await app.getByTitle("Review changes", { exact: true }).click();
   await app.getByRole("button", { name: "Load changes", exact: true }).click();
-  await app.getByRole("button", { name: /sample.txt \(/ }).click();
+  await expect(app.locator(".changeset-card")).toContainText("2 files");
+  await app.locator(".changeset-file-row", { hasText: "sample.txt" }).click();
   await expect(app.locator(".review-overlay")).toContainText(
     "new baseline line",
   );
   await expect(app.locator(".review-overlay")).toContainText(
     "old baseline line",
   );
+  await expect(app.locator(".review-file-counter")).toHaveText("1/2");
+  await app.locator(".review-overlay").press("PageDown");
+  await expect(app.locator(".review-file-counter")).toHaveText("2/2");
+  await expect(app.locator(".review-file-path")).toContainText("second.txt");
 });
 
 test("new worktree hosts a session that survives reload", async ({ app }) => {
