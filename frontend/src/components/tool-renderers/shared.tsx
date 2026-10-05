@@ -26,8 +26,7 @@ export function StatusIcon(props: { state: ToolState }): JSX.Element {
 export function ToolStatusIcon(props: {
   status: "streaming" | "running" | "completed" | "error";
 }): JSX.Element {
-  const active = () =>
-    props.status === "streaming" || props.status === "running";
+  const active = () => props.status === "streaming" || props.status === "running";
   return (
     <>
       <Show when={active()}>

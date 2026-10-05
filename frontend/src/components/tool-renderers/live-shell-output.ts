@@ -1,4 +1,4 @@
-import { type Accessor, createEffect, createSignal, onCleanup } from "solid-js";
+import { createEffect, createSignal, onCleanup, type Accessor } from "solid-js";
 import { client } from "../../api-client";
 import { activeSession } from "../../navigation";
 

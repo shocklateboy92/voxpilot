@@ -1,6 +1,6 @@
 import type {
-  SessionMessageInfo,
   SessionMessageAssistantTool as ToolPart,
+  SessionMessageInfo,
 } from "@opencode/client";
 import { store } from "./store";
 

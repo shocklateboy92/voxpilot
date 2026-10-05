@@ -18,7 +18,7 @@ import type {
   SessionStatus,
 } from "./api-client";
 
-export type { Message, Part, Project, Session };
+export type { Session, Message, Part, Project };
 
 // Re-export PendingPermission type for ToolConfirmBlock
 export type PendingPermission = PermissionRequest;

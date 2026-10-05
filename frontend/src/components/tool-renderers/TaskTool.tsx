@@ -2,15 +2,19 @@ import type { SessionMessageAssistantTool as ToolPart } from "@opencode/client";
 import Bot from "lucide-solid/icons/bot";
 import { type JSX, Show } from "solid-js";
 import { backgroundToolStatus } from "../../background-tools";
-import { inputString, isActive, OutputSection, ToolStatusIcon } from "./shared";
+import {
+  inputString,
+  isActive,
+  OutputSection,
+  ToolStatusIcon,
+} from "./shared";
 
 export function TaskTool(props: { part: ToolPart }): JSX.Element {
   const description = () => inputString(props.part.state, "description");
   const subagentType = () =>
     inputString(props.part.state, "agent") ||
     inputString(props.part.state, "subagent_type");
-  const status = () =>
-    backgroundToolStatus(props.part) ?? props.part.state.status;
+  const status = () => backgroundToolStatus(props.part) ?? props.part.state.status;
   const active = () => status() === "running" || isActive(props.part.state);
 
   return (
