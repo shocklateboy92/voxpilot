@@ -3,7 +3,6 @@
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 export VOXPILOT_PLUGIN_DIR="$ROOT/plugins/voxpilot"
-export VOXPILOT_LEGACY_DB="${VOXPILOT_LEGACY_DB:-$ROOT/voxpilot.db}"
 # Environment substitution is performed by OpenCode's config loader. Avoid
 # constructing JSON from paths in shell (home paths can contain quotes/spaces).
 export OPENCODE_CONFIG_CONTENT='{"plugins":["{env:VOXPILOT_PLUGIN_DIR}"]}'

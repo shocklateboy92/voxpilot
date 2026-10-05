@@ -61,11 +61,9 @@ Prettier, Ruff, or clang-format, reflows comments, recomputes line differences a
 returns escaped diff HTML. Formatting never edits the repository. Existing
 formatter fallback behavior preserves raw code when a formatter cannot run.
 
-Snapshots use `snapshot/<uuid>` keys in plugin storage. Old `[ref:uuid]` chat
-cards remain recognizable. When `VOXPILOT_LEGACY_DB` points at a former cache,
-the plugin imports requested entries read-only and saves them into plugin storage.
-Old database files are never deleted or migrated in place. There is no new
-VoxPilot database or Drizzle migration system.
+Snapshots use `snapshot/<uuid>` keys in plugin storage. There is no VoxPilot
+database or Drizzle migration system. Review references created by the retired
+backend are intentionally unsupported.
 
 ## Packages and release
 

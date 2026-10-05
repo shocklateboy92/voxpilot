@@ -2,17 +2,13 @@ import { Plugin } from "@opencode/plugin";
 import { ComparisonInput, Snapshot, VoxPilotRpc } from "./rpc";
 import { captureComparison } from "./services/comparison";
 import { formatAndDiff } from "./services/format-diff";
-import { legacySnapshot } from "./services/legacy-snapshot";
 
 export default Plugin.define({
   id: "voxpilot",
   async setup(ctx) {
     async function snapshot(id: string) {
       const stored = await ctx.storage.get(`snapshot/${id}`);
-      if (stored !== undefined) return Snapshot.parse(stored);
-      const legacy = legacySnapshot(id);
-      if (legacy) await ctx.storage.set(`snapshot/${id}`, legacy);
-      return legacy;
+      return stored === undefined ? null : Snapshot.parse(stored);
     }
     async function compare(
       input: Parameters<typeof captureComparison>[0],

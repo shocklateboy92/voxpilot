@@ -58,10 +58,9 @@ Port 8000 now serves OpenCode directly; `/oc` and the old `/api/review` and
 `/api/config` routes are gone. Set `OPENCODE_PASSWORD` instead of
 `VOXPILOT_OC_PASSWORD`. There is no separate `VOXPILOT_OC_PORT`.
 
-The launcher finds an old `voxpilot.db` beside the release and imports requested
-review snapshots read-only. For an old custom DB path, set `VOXPILOT_LEGACY_DB`.
-Stale binaries/migration directories left by an in-place extraction are unused;
-existing data files remain intact.
+Stale binaries, databases, and migration directories left by an in-place
+extraction are unused. Review references created by the retired backend are not
+imported into plugin storage.
 
 ## Central Caddy frontend
 
