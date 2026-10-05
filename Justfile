@@ -10,7 +10,7 @@ install:
 # Foreground OpenCode owns plugin lifecycle; Vite is only a development server.
 dev: build-plugin
     trap 'kill 0' EXIT; \
-    VOXPILOT_PLUGIN_DIR="$PWD/plugin" OPENCODE_CONFIG_CONTENT='{"plugins":["{env:VOXPILOT_PLUGIN_DIR}"]}' opencode serve --hostname 127.0.0.1 --port 8001 & \
+    VOXPILOT_PLUGIN_DIR="$PWD/plugin" VOXPILOT_HOSTNAME=127.0.0.1 VOXPILOT_PORT=8001 packaging/voxpilot-opencode & \
     (cd frontend && VOXPILOT_API_TARGET=http://127.0.0.1:8001 npm run dev) & \
     wait
 
