@@ -456,14 +456,18 @@ async function refreshPending(sessionID: string): Promise<void> {
         if (next) pending[sessionID] = next;
       }),
     );
-    setStore(
-      "sessionQuestions",
-      produce((pending) => {
-        delete pending[sessionID];
-        const next = details.find((form) => form.state.status === "pending");
-        if (next) pending[sessionID] = next;
-      }),
-    );
+    const question = details.find((form) => form.state.status === "pending");
+    if (question) {
+      // Keep the same form's identity so refreshes preserve unsubmitted answers.
+      setStore("sessionQuestions", sessionID, reconcile(question));
+    } else {
+      setStore(
+        "sessionQuestions",
+        produce((pending) => {
+          delete pending[sessionID];
+        }),
+      );
+    }
   });
 }
 

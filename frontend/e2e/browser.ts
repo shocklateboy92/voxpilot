@@ -1,7 +1,24 @@
 import { test as base, chromium, expect, type Page } from "@playwright/test";
+import { renderMarkdown } from "../src/features/chat/markdown";
+import { client, createWorkspace, model, modelKey, password } from "./dev";
 
-export const test = base.extend<{ app: Page }>({
-  app: async ({ baseURL }, use, testInfo) => {
+export const test = base.extend<
+  { app: Page },
+  { workspace: Awaited<ReturnType<typeof createWorkspace>> }
+>({
+  workspace: [
+    // biome-ignore lint/correctness/noEmptyPattern: Playwright requires fixture destructuring
+    async ({}, use) => {
+      const workspace = await createWorkspace();
+      try {
+        await use(workspace);
+      } finally {
+        await workspace.dispose();
+      }
+    },
+    { scope: "worker" },
+  ],
+  app: async ({ baseURL, workspace }, use, testInfo) => {
     if (baseURL === undefined) throw new Error("Missing browser test baseURL");
     const cdp = process.env.VOXPILOT_E2E_CDP;
     const browser = cdp
@@ -16,28 +33,48 @@ export const test = base.extend<{ app: Page }>({
     if (context === undefined)
       throw new Error("CDP browser has no existing context");
     const page = await context.newPage();
-    page.setDefaultTimeout(15_000);
+    page.setDefaultTimeout(30_000);
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
+    // Guard before sending a prompt, including tests that click Send directly.
+    await page.route("**/api/session/*/prompt", async (route) => {
+      const sessionID = new URL(route.request().url()).pathname
+        .split("/")
+        .at(-2);
+      if (!sessionID) throw new Error("Missing prompt session ID");
+      const session = await client.session.get({ sessionID });
+      if (
+        !session.location.directory.startsWith(`${workspace.root}/`) ||
+        session.model?.providerID !== model.providerID ||
+        session.model?.id !== model.id
+      ) {
+        await route.abort();
+        throw new Error(
+          `E2E prompts require ${modelKey} in the test workspace`,
+        );
+      }
+      await route.continue();
+    });
     try {
       await page.setViewportSize({ width: 390, height: 844 });
       await page.bringToFront();
-      await page.goto(baseURL, { waitUntil: "domcontentloaded" });
+      // Exercise the connection form even when attaching to a logged-in browser.
+      await page.goto(`${baseURL}/?connect=1`, {
+        waitUntil: "domcontentloaded",
+      });
       if (
         await page
           .getByRole("button", { name: "Connect", exact: true })
           .isVisible()
       ) {
-        await page
-          .getByLabel("Server URL")
-          .fill(process.env.VOXPILOT_E2E_API ?? baseURL);
+        await page.getByLabel("Server URL").fill(baseURL);
         // Password managers can populate an input without dispatching input/change.
         // Assign the DOM value directly to cover that connection path.
-        await page.getByLabel("Server password").evaluate((element) => {
+        await page.getByLabel("Server password").evaluate((element, value) => {
           if (!(element instanceof HTMLInputElement))
             throw new Error("Password control is not an input");
-          element.value = "voxpilot-fixture";
-        });
+          element.value = value;
+        }, password);
         const infoRequest = page.waitForRequest((request) =>
           request.url().endsWith("/api/info"),
         );
@@ -45,11 +82,21 @@ export const test = base.extend<{ app: Page }>({
           .getByRole("button", { name: "Connect", exact: true })
           .click();
         const headers = await (await infoRequest).allHeaders();
-        expect(headers.authorization).toMatch(/^Basic /);
+        if (password) expect(headers.authorization).toMatch(/^Basic /);
       }
       await expect(
         page.getByRole("heading", { name: "New Chat", exact: true }),
       ).toBeVisible();
+      await page
+        .getByRole("combobox", { name: "Project", exact: true })
+        .selectOption(workspace.directory);
+      await page.getByRole("button", { name: "Build", exact: true }).click();
+      await page
+        .getByRole("combobox", { name: "Model", exact: true })
+        .selectOption(modelKey);
+      await page
+        .getByRole("combobox", { name: "Thinking level", exact: true })
+        .selectOption(model.variant);
       await use(page);
       expect(errors, "Unhandled application errors").toEqual([]);
     } finally {
@@ -70,6 +117,7 @@ export const test = base.extend<{ app: Page }>({
         }
       }
       await page.close();
+      await workspace.cleanSessions();
       if (!cdp) await context.close();
       // Disconnect from CDP; never close the user's browser or other tabs.
       await browser.close();
@@ -80,6 +128,9 @@ export const test = base.extend<{ app: Page }>({
 export { expect };
 
 export async function send(page: Page, prompt: string) {
+  await expect(
+    page.getByRole("combobox", { name: "Model", exact: true }),
+  ).toHaveValue(modelKey);
   await page.getByPlaceholder("Send a message...").fill(prompt);
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect(page.locator(".message.user").last()).toHaveText(prompt);
@@ -92,4 +143,39 @@ export async function idle(page: Page) {
   await expect(
     page.getByRole("button", { name: "Send", exact: true }),
   ).toBeEnabled();
+}
+
+/** Compare against server truth so model wording cannot mask lost/duplicated events. */
+export async function expectPersistedResponse(page: Page) {
+  const sessionID = new URL(page.url()).hash.slice(1);
+  await client.session.wait(
+    { sessionID },
+    { signal: AbortSignal.timeout(60_000) },
+  );
+  const messages = await client.message.list({
+    sessionID,
+    limit: 100,
+    order: "asc",
+  });
+  const assistant = messages.data
+    .filter((message) => message.type === "assistant")
+    .at(-1);
+  if (assistant?.type !== "assistant")
+    throw new Error("Missing assistant response");
+  expect(assistant.error).toBeUndefined();
+  expect(assistant.model.providerID).toBe(model.providerID);
+  expect(assistant.model.id).toBe(model.id);
+  const text = assistant.content
+    .flatMap((part) => (part.type === "text" ? [part.text] : []))
+    .join("");
+  expect(text.length).toBeGreaterThan(1000);
+  const expected = await page.evaluate((html) => {
+    const element = document.createElement("div");
+    element.innerHTML = html;
+    return element.textContent ?? "";
+  }, renderMarkdown(text));
+  await expect(page.locator(".message.assistant .markdown-body")).toHaveText(
+    expected,
+  );
+  await idle(page);
 }

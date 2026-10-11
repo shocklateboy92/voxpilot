@@ -1,23 +1,6 @@
 import { chromium } from "@playwright/test";
 import { expect, idle, send, test } from "./browser";
-
-test.beforeEach(async ({ baseURL }) => {
-  test.skip(
-    process.env.VOXPILOT_E2E_FIXTURE !== "1",
-    "Requires disposable fixture server",
-  );
-  if (!baseURL) throw new Error("Missing baseURL");
-  const target = new URL(baseURL);
-  if (
-    target.protocol !== "http:" ||
-    target.port !== "13000" ||
-    !["localhost", "127.0.0.1"].includes(target.hostname)
-  ) {
-    throw new Error(
-      "Presentation tests require the isolated local server on port 13000",
-    );
-  }
-});
+import { markdownPrompt } from "./dev";
 
 test("theme tokens, native controls, and reactive selection survive system-theme changes", async ({
   app,
@@ -40,19 +23,19 @@ test("theme tokens, native controls, and reactive selection survive system-theme
       .toBe(scheme === "dark" ? "#1a1d27" : "#ffffff");
 
     const agents = app.getByRole("group", { name: "Agent", exact: true });
-    const baseline = agents.getByRole("button", {
-      name: "baseline",
+    const plan = agents.getByRole("button", {
+      name: "Plan",
       exact: true,
     });
     const build = agents.getByRole("button", { name: "Build", exact: true });
-    await baseline.click();
-    await expect(baseline).toHaveAttribute("aria-pressed", "true");
+    await plan.click();
+    await expect(plan).toHaveAttribute("aria-pressed", "true");
     await expect(build).toHaveAttribute("aria-pressed", "false");
     await app.mouse.move(0, 0);
-    await expect(baseline).toHaveCSS("background-color", accent);
+    await expect(plan).toHaveCSS("background-color", accent);
     await build.click();
     await expect(build).toHaveAttribute("aria-pressed", "true");
-    await expect(baseline).toHaveAttribute("aria-pressed", "false");
+    await expect(plan).toHaveAttribute("aria-pressed", "false");
     await info.attach(`new-chat-${scheme}`, {
       body: await app.screenshot(),
       contentType: "image/png",
@@ -79,7 +62,7 @@ test("narrow layouts keep controls reachable and review rows below floating chro
     expect(bounds?.width).toBeGreaterThan(40);
   }
   await app.setViewportSize({ width: 390, height: 844 });
-  await send(app, "BASELINE_TEXT");
+  await send(app, markdownPrompt);
   await expect(app.locator(".markdown-body")).toContainText(
     "Browser baseline passed.",
   );
@@ -146,7 +129,7 @@ test("touch keyboard layout and safe-area variables remain coordinated", async (
       document.documentElement.style.setProperty("--safe-top", "24px");
       document.documentElement.style.setProperty("--safe-bottom", "20px");
     });
-    await send(app, "BASELINE_TEXT");
+    await send(app, markdownPrompt);
     await expect(app.locator(".markdown-body")).toContainText(
       "Browser baseline passed.",
     );

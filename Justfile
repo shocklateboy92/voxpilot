@@ -29,7 +29,7 @@ lint:
 
 typecheck:
     cd plugin && bunx tsc --noEmit
-    cd frontend && npx tsc --noEmit
+    cd frontend && npm run typecheck
 
 format:
     cd plugin && bunx biome check --write src tests ../frontend/src

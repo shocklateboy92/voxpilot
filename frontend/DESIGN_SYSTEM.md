@@ -143,9 +143,9 @@ and tables scroll independently rather than widening the page.
 ## Verification
 
 Use npm and the npm lockfile for frontend dependencies. Run typecheck, Solid lint,
-the production build, and fixture browser tests after a styling migration.
+the production build, and browser tests against the dev backend after a styling migration.
 `e2e/presentation.spec.ts` covers theme switching, the no-JavaScript launch,
 reactive selected states, narrow widths, modal keyboard handling, safe areas,
 and touch-keyboard layout. It attaches screenshots to the Playwright report.
 Compare dark/light chat, question, picker, and review views when changing tokens
-or shared controls; see `e2e/README.md` for the isolated harness.
+or shared controls; see `e2e/README.md` for the dev-server test setup.

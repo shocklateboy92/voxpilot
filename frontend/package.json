@@ -6,10 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p e2e/tsconfig.json",
     "lint:solid": "eslint src/",
     "test:e2e": "playwright test",
-    "test:e2e:serve": "bun e2e/harness.ts",
     "clean": "rm -rf dist"
   },
   "devDependencies": {
