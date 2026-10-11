@@ -27,9 +27,7 @@ export const test = base.extend<{
           executablePath:
             process.env.VOXPILOT_E2E_CHROMIUM ?? "/usr/bin/chromium",
         });
-    const context = cdp
-      ? browser.contexts()[0]
-      : await browser.newContext();
+    const context = cdp ? browser.contexts()[0] : await browser.newContext();
     if (context === undefined)
       throw new Error("CDP browser has no existing context");
     const page = await context.newPage();
@@ -60,6 +58,10 @@ export const test = base.extend<{
       await route.continue();
     });
     try {
+      // Keep existing scenarios on the manual flow regardless of local config.
+      await page.route("**/config.json", (route) =>
+        route.fulfill({ status: 404 }),
+      );
       await page.setViewportSize({ width: 390, height: 844 });
       await page.bringToFront();
       // Exercise the connection form even when attaching to a logged-in browser.

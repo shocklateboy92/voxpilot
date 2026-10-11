@@ -1,0 +1,10 @@
+{
+  "servers": [
+    {
+      "id": "dev2",
+      "name": "Dev2",
+      "url": "https://opencode-dev2.apps.lasath.com",
+      "password": "REPLACE_ON_DEPLOYMENT"
+    }
+  ]
+}

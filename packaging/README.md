@@ -77,10 +77,18 @@ Example Caddy configuration (adjust paths and hostnames):
 ```caddyfile
 voxpilot.apps.example.com {
     root * /srv/voxpilot
-    @fresh path /index.html /manifest.webmanifest
-    header @fresh Cache-Control "no-cache"
-    try_files {path} /index.html
-    file_server
+    # Apply your network restriction / reverse-proxy auth to the ENTIRE site,
+    # including config.json. Do not expose this endpoint anonymously.
+    handle /config.json {
+        header Cache-Control "no-store"
+        file_server
+    }
+    handle {
+        @fresh path /index.html /manifest.webmanifest
+        header @fresh Cache-Control "no-cache"
+        try_files {path} /index.html
+        file_server
+    }
 }
 
 opencode-dev2.apps.example.com {
@@ -90,10 +98,38 @@ opencode-dev2.apps.example.com {
 }
 ```
 
-Open the frontend, enter `https://opencode-dev2.apps.example.com` and its server
-password, then Connect. The password stays in the tab's sessionStorage. Leave it
-blank only for a paired same-origin deployment. Cross-origin connections use the
-password flow because OpenCode's CORS does not enable credentialed cookie requests.
+### Shared server configuration
+
+Copy `packaging/config.example.json` to `/srv/voxpilot/config.json` and fill in
+the deployment's server URLs and passwords. The file is deployment-owned: keep it
+outside source control and preserve it when upgrading frontend assets. Every server
+needs a unique, stable `id`, a display `name`, an HTTP(S) `url` without embedded
+credentials/query/fragment, and a `password` (an empty string uses same-origin cookies).
+
+VoxPilot fetches `config.json` at startup with `cache: no-store`. New devices choose
+a named server and Connect; no credential entry is needed. Only the selected ID is
+saved in localStorage. Configured credentials stay in memory and are refetched on
+reload, so password changes take effect without clearing browser storage. Removed
+IDs return to the picker. An invalid, empty, or inaccessible configuration blocks
+connections with a configuration error (without input values or response bodies);
+a true 404 enables the legacy manual form.
+
+**Anyone who can access config.json can read and copy every backend password.**
+This is a trusted-user deployment, not server-side secret storage. Protect the
+entire site with trusted-network restrictions or reverse-proxy authentication,
+serve it over HTTPS, and keep backend authentication enabled. Do not add CORS
+access to the config endpoint. The dedicated Caddy handler above prevents a missing
+config from becoming the SPA HTML fallback and disables caching.
+
+For local development, put the same JSON in `frontend/config.local.json` (ignored
+by Git). Vite serves it with `no-store` but never copies it into production assets.
+Builds refuse `frontend/public/config.json` to prevent accidental secret packaging.
+Do not put the real file in public or dist before creating release archives.
+
+Without a config file, enter a server URL and password manually. The password
+stays in the tab's sessionStorage. Leave it blank only for a paired same-origin
+deployment. Cross-origin connections use Basic auth because OpenCode's CORS does
+not enable credentialed cookie requests.
 API hosts must use HTTPS when the frontend does.
 
 Settings in the bottom bar change hosts. Saved wake URLs are scoped by API host.

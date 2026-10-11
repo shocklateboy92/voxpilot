@@ -39,7 +39,10 @@ export default defineConfig({
       command: `npm run dev -- --port ${frontend.port || "80"} --strictPort`,
       url: baseURL,
       reuseExistingServer: true,
-      env: { VOXPILOT_API_TARGET: api },
+      env: {
+        VOXPILOT_API_TARGET: api,
+        VOXPILOT_VITE_CACHE_DIR: "node_modules/.vite/e2e",
+      },
       timeout: 30_000,
     },
   ],

@@ -52,8 +52,11 @@ request to the real host's wake endpoint.
 
 Each test owns its repository so comparisons and saved permissions cannot leak
 into subsequent tests. `just test-e2e` runs the browser suite; `just check` now
-includes it. Auth overhaul and CORS/deployment are
-intentionally outside the coverage scope. Chromium emulation is not a substitute
+includes it. `connection.spec.ts` covers runtime config selection, fresh devices,
+reload/credential rotation, storage, removed IDs, invalid/denied config, and manual
+fallback against the real dev backend. Existing scenarios force config 404 to
+retain manual-flow coverage. Reverse-proxy access policy and deployment CORS still
+require deployment verification. Chromium emulation is not a substitute
 for occasional verification on a physical phone.
 
 The GitHub release build does not run this credential-dependent suite. Run

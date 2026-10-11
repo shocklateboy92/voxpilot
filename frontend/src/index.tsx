@@ -4,11 +4,11 @@ import { Dynamic, render } from "solid-js/web";
 import { ToastContainer } from "./app/ToastContainer";
 import { ConnectionPage } from "./features/connection/ConnectionPage";
 import { OfflineOverlay } from "./features/connection/OfflineOverlay";
+import { waitForPlugin, wakeStorageKey } from "./platform/connection";
 import {
-  changeServer,
-  waitForPlugin,
-  wakeStorageKey,
-} from "./platform/connection";
+  configuredServer,
+  connectionConfig,
+} from "./platform/connection-config";
 import { rpc } from "./platform/rpc";
 import { Spinner } from "./ui/Spinner";
 import "./styles/app.css";
@@ -33,11 +33,15 @@ window.addEventListener(
 // calls in child components can never tear down the component tree.
 const [AppComponent, setAppComponent] = createSignal<Component>();
 
-const connecting =
-  !localStorage.getItem("voxpilot:server") ||
+const initiallyConnecting =
+  Boolean(connectionConfig.error) ||
+  (connectionConfig.servers.length > 0
+    ? !configuredServer
+    : !localStorage.getItem("voxpilot:server")) ||
   new URLSearchParams(window.location.search).has("connect");
+const [connecting, setConnecting] = createSignal(initiallyConnecting);
 
-if (!connecting)
+if (!initiallyConnecting)
   waitForPlugin()
     .then(() => import("./app/App"))
     .then(
@@ -55,7 +59,8 @@ if (!connecting)
       },
       (err) => {
         showToast(extractErrorMessage(err));
-        changeServer();
+        // Keep the error visible instead of losing it in a redirect loop.
+        setConnecting(true);
       },
     );
 
@@ -64,7 +69,7 @@ if (root) {
   render(
     () => (
       <Show
-        when={!connecting}
+        when={!connecting()}
         fallback={
           <>
             <ConnectionPage />

@@ -30,6 +30,9 @@ Vite serves the frontend on port 3000 and proxies `/api` and `/auth` to OpenCode
 on port 8001. Development uses the production launcher, including its standard
 CORS origins, while overriding the plugin path to the source checkout. Open the
 frontend and connect using its own URL and the development server password.
+Alternatively, configure named servers and credentials in the Git-ignored
+`frontend/config.local.json`; see `packaging/config.example.json` for the format.
+Vite serves this runtime file without including it in production builds.
 Rebuild the plugin and restart the development server after plugin edits.
 
 ```sh

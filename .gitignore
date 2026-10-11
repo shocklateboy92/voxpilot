@@ -33,6 +33,8 @@ Thumbs.db
 # Environment
 .env
 .env.local
+frontend/config.local.json
+frontend/public/config.json
 
 # OpenCode
 .opencode/index/

@@ -24,7 +24,15 @@ plugin RPC at connection time. Cleanup belongs to OpenCode.
 ## Frontend and authentication
 
 `frontend/src/platform/connection.ts` owns the single OpenCode client. The server URL is
-stored in localStorage, while an optionally entered password lives in sessionStorage
+selected from a deployment-owned `config.json`, parsed with a small shape check
+in `frontend/src/platform/connection-config.ts`. The frontend loads it before creating the
+client, using a same-origin, no-store request. Only the chosen server ID persists;
+configured passwords remain in memory and are refetched on reload. Site access
+grants access to all listed backend credentials, so network/proxy protection must
+cover the config endpoint as well as the UI. A missing file (404) enables the
+manual flow; invalid or inaccessible config fails closed.
+
+In the manual flow, the URL is stored in localStorage and the password in sessionStorage
 and is sent as Basic auth. Existing pairing cookies are supported for same-origin
 connections. No password is compiled into static assets. Connections can be
 changed from the bottom navigation, or with `?connect=1`.

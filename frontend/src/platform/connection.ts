@@ -1,8 +1,13 @@
 import { OpenCode } from "@opencode/client";
 import { VoxPilotRpc } from "@plugin/rpc";
+import { configuredServer, connectionConfig } from "./connection-config";
 
 export const serverUrl =
-  localStorage.getItem("voxpilot:server") ?? window.location.origin;
+  configuredServer?.url ??
+  (connectionConfig.servers.length === 0 && !connectionConfig.error
+    ? localStorage.getItem("voxpilot:server")
+    : undefined) ??
+  window.location.origin;
 export const wakeStorageKey = `voxpilot:wakeUrl:${serverUrl}`;
 
 export function makeClient(url: string, password: string) {
@@ -27,7 +32,11 @@ export function makeClient(url: string, password: string) {
 
 export const client = makeClient(
   serverUrl,
-  sessionStorage.getItem(`voxpilot:password:${serverUrl}`) ?? "",
+  configuredServer?.password ??
+    (connectionConfig.servers.length === 0 && !connectionConfig.error
+      ? sessionStorage.getItem(`voxpilot:password:${serverUrl}`)
+      : undefined) ??
+    "",
 );
 
 /** Local plugins activate asynchronously when a location is first requested. */
