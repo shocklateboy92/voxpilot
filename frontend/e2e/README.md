@@ -21,7 +21,8 @@ no mock provider, separate OpenCode home, or mutation opt-in flag.
 
 ## Generation and test data
 
-All prompts use **GPT-6 Luna** (`github-copilot/gpt-6-luna`, thinking `none`).
+All prompts use **GPT-6 Luna** (`github-copilot/gpt-6-luna`, normally thinking
+`none`; selection coverage also exercises `low`).
 The suite fails if the model is unavailable. The shared browser helper selects
 it and checks the actual session model before forwarding every prompt.
 
@@ -30,7 +31,7 @@ select it in the UI. Its local configuration pins all discovered agents and the
 hidden title, summary, and compaction agents to Luna too. Warming and automatic
 compaction are disabled for these test locations. Worktrees inherit the same
 configuration. Test-created sessions are interrupted and deleted after each
-test; worker teardown removes test worktrees and temporary files. OpenCode may
+test; test teardown removes test worktrees, saved permissions, and temporary files. OpenCode may
 retain project metadata for the deleted temporary repository.
 
 Real prompts exercise streaming Markdown, cancellation, SSE recovery, reload,
@@ -39,6 +40,24 @@ Assertions cover the rendered result and persisted transcript; generation tests
 have longer timeouts to accommodate provider latency. Presentation tests cover
 themes, narrow layouts, review geometry, focus, safe areas, and no-JavaScript
 launch. Failure screenshots and browser errors are attached to the report.
+
+The suite contains 40 browser scenarios. Additional native API-created histories cover paginated transcripts and session lists, selected-turn
+forks, session switching during generation, scroll restoration, touch navigation,
+all specialized tool-card families, background completion/failure, typed forms,
+permission rejection/saving, review resize and stable snapshots, branch review,
+missing snapshots, request failure recovery, offline overlays, wake requests,
+and wake-lock lifecycle. No fake AI provider is used. Failed-request and device
+tests isolate their fault injection to the test page; wake tests never send a
+request to the real host's wake endpoint.
+
+Each test owns its repository so comparisons and saved permissions cannot leak
+into subsequent tests. `just test-e2e` runs the browser suite; `just check` now
+includes it. Auth overhaul, CORS/deployment, and service-worker behavior are
+intentionally outside the coverage scope. Chromium emulation is not a substitute
+for occasional verification on a physical phone.
+
+The GitHub release build does not run this credential-dependent suite. Run
+`just check` locally before releasing; no provider credentials are copied into CI.
 
 ## Overrides
 

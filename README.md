@@ -35,6 +35,8 @@ Rebuild the plugin and restart the development server after plugin edits.
 ```sh
 just typecheck
 just test       # formatter tests + real isolated OpenCode plugin integration
+just test-e2e  # real dev backend; GPT-6 Luna for generated AI responses
+just check     # typecheck, both test suites, and lint
 just lint
 just build     # plugin/dist and frontend/dist
 scripts/build-release.sh bun-linux-x64

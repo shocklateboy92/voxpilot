@@ -1,5 +1,6 @@
 import { expect, expectPersistedResponse, idle, send, test } from "./browser";
-import { longPrompt, markdownPrompt, modelKey } from "./dev";
+import { openSession } from "./data";
+import { client, longPrompt, markdownPrompt, modelKey } from "./dev";
 
 test("renders markdown, persists on reload, forks, and deletes through the UI", async ({
   app,
@@ -26,12 +27,28 @@ test("renders markdown, persists on reload, forks, and deletes through the UI", 
   await expect.poll(() => app.url()).not.toBe(original);
   await expect(app.getByRole("dialog")).toHaveCount(0);
   await expect(response).toHaveText(transcript);
+  const forkID = new URL(app.url()).hash.slice(1);
+  const originalID = new URL(original).hash.slice(1);
+  expect(
+    (await client.session.get({ sessionID: forkID })).fork?.sessionID,
+  ).toBe(originalID);
   await app.locator(".bottom-nav .session-title-btn").click();
   await app
     .locator(".picker-item.active")
     .getByTitle("Delete", { exact: true })
     .click();
   await expect(app.locator(".picker-item.child.active")).toHaveCount(0);
+  await expect(client.session.get({ sessionID: forkID })).rejects.toMatchObject(
+    { _tag: "SessionNotFoundError" },
+  );
+  expect((await client.session.get({ sessionID: originalID })).id).toBe(
+    originalID,
+  );
+  await app.reload({ waitUntil: "domcontentloaded" });
+  await openSession(app, originalID);
+  await expect(app.locator(".message.assistant .markdown-body")).toHaveText(
+    transcript,
+  );
 });
 
 test("event connection recovers after a temporary network interruption", async ({
@@ -132,6 +149,8 @@ test("pending permission survives reload and Allow once resumes execution", asyn
 test("explicit model selection persists across reload", async ({ app }) => {
   const model = app.locator("select.model-select:not(.model-variant-select)");
   await expect(model.locator(`option[value="${modelKey}"]`)).toHaveCount(1);
+  await model.selectOption("");
+  await expect(model).toHaveValue("");
   await model.selectOption(modelKey);
   await send(app, markdownPrompt);
   await expect(app.locator(".model-badge")).toContainText("GPT-6 Luna");
@@ -194,18 +213,28 @@ test("user opens a working-copy review without an agent tool", async ({
   await expect(app.locator(".review-file-path")).toContainText("second.txt");
 });
 
-test("new worktree hosts a session that survives reload", async ({ app }) => {
+test("new worktree hosts a session that survives reload", async ({
+  app,
+  workspace,
+}) => {
   await app
     .getByPlaceholder("Worktree name (optional)")
     .fill(`browser-${Date.now()}`);
   await app.getByRole("button", { name: "New worktree", exact: true }).click();
   const worktree = app.locator(".worktree-section select");
   await expect(worktree).not.toHaveValue("", { timeout: 30_000 });
+  const directory = await worktree.inputValue();
+  expect(directory.startsWith(`${workspace.root}/worktrees/`)).toBe(true);
   await send(app, markdownPrompt);
   await expect(app.locator(".message.assistant .markdown-body")).toContainText(
     "Browser baseline passed.",
   );
   await idle(app);
+  const session = await client.session.get({
+    sessionID: new URL(app.url()).hash.slice(1),
+  });
+  expect(session.location.directory).toBe(directory);
+  expect(session.projectID).toBe(workspace.projectID);
   await app.reload({ waitUntil: "domcontentloaded" });
   await expect(app.locator(".message.user")).toHaveText(markdownPrompt);
   await expect(app.locator(".message.assistant .markdown-body")).toContainText(

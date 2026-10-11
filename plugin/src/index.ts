@@ -2,6 +2,7 @@ import { Plugin } from "@opencode/plugin";
 import { ComparisonInput, Snapshot, VoxPilotRpc } from "./rpc";
 import { captureComparison } from "./services/comparison";
 import { formatAndDiff } from "./services/format-diff";
+import { shouldInhibitIdle } from "./services/idle";
 
 export default Plugin.define({
   id: "voxpilot",
@@ -77,16 +78,7 @@ export default Plugin.define({
         for await (const event of ctx.event.subscribe({
           signal: controller.signal,
         })) {
-          if (
-            !("location" in event) ||
-            event.location?.directory !== ctx.location.directory
-          )
-            continue;
-          if (
-            event.type === "session.step.ended" ||
-            (event.type === "session.status" &&
-              event.data.status.type === "busy")
-          ) {
+          if (shouldInhibitIdle(event, ctx.location.directory)) {
             const proc = Bun.spawn(
               [
                 "dbus-send",

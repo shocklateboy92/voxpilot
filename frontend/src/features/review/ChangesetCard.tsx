@@ -54,6 +54,13 @@ export function ChangesetCard(props: Props) {
     const output = getOutput(s);
     if (s.status === "error") return output;
     if (s.status === "completed" && output?.startsWith("Error:")) return output;
+    if (
+      s.status === "completed" &&
+      cacheId() &&
+      !cache.loading &&
+      cache() === null
+    )
+      return "Review snapshot not found. Open a new comparison.";
     return null;
   };
 

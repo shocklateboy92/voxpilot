@@ -116,9 +116,17 @@ export async function createWorkspace() {
   return {
     root,
     directory,
+    git,
+    projectID: location.project.id,
     cleanSessions,
     async dispose() {
       await cleanSessions();
+      // Saved permissions created by these tests are project-scoped, never global.
+      const permissions = await client.permission.saved.list({
+        projectID: location.project.id,
+      });
+      for (const permission of permissions)
+        await client.permission.saved.remove({ id: permission.id });
       const worktrees = await client.worktree.list({
         projectID: location.project.id,
       });

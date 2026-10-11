@@ -70,7 +70,7 @@ backend are intentionally unsupported.
 - `plugin/src`: shared RPC schema, native plugin, Git/format/render services.
 - `plugin/tests`: formatter and real OpenCode HTTP integration tests.
 - `frontend/src`: connection screen, chat, review UI and native API wrappers.
-- `frontend/e2e`: isolated OpenCode service, deterministic provider and browser tests.
+- `frontend/e2e`: browser tests against the authenticated dev OpenCode service using GPT-6 Luna and disposable test repositories.
 - `packaging`: exec launcher, systemd unit, Caddy example, installation docs.
 
 The plugin bundle includes JS dependencies and needs no install-time npm commands.

@@ -30,7 +30,11 @@ export function ToolStatusIcon(props: {
   const active = () =>
     props.status === "streaming" || props.status === "running";
   return (
-    <>
+    <span
+      class="inline-flex items-center"
+      role="img"
+      aria-label={`Tool ${props.status}`}
+    >
       <Show when={active()}>
         <span class="inline-flex items-center text-xs">
           <Loader size={14} class="animate-spin" />
@@ -42,7 +46,7 @@ export function ToolStatusIcon(props: {
       <Show when={props.status === "error"}>
         <X size={14} />
       </Show>
-    </>
+    </span>
   );
 }
 

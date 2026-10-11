@@ -2,10 +2,10 @@ import { test as base, chromium, expect, type Page } from "@playwright/test";
 import { renderMarkdown } from "../src/features/chat/markdown";
 import { client, createWorkspace, model, modelKey, password } from "./dev";
 
-export const test = base.extend<
-  { app: Page },
-  { workspace: Awaited<ReturnType<typeof createWorkspace>> }
->({
+export const test = base.extend<{
+  app: Page;
+  workspace: Awaited<ReturnType<typeof createWorkspace>>;
+}>({
   workspace: [
     // biome-ignore lint/correctness/noEmptyPattern: Playwright requires fixture destructuring
     async ({}, use) => {
@@ -16,7 +16,7 @@ export const test = base.extend<
         await workspace.dispose();
       }
     },
-    { scope: "worker" },
+    { scope: "test" },
   ],
   app: async ({ baseURL, workspace }, use, testInfo) => {
     if (baseURL === undefined) throw new Error("Missing browser test baseURL");
@@ -36,6 +36,10 @@ export const test = base.extend<
     page.setDefaultTimeout(30_000);
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
+    const eventsReady = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/api/event" && response.ok(),
+    );
     // Guard before sending a prompt, including tests that click Send directly.
     await page.route("**/api/session/*/prompt", async (route) => {
       const sessionID = new URL(route.request().url()).pathname
@@ -97,6 +101,8 @@ export const test = base.extend<
       await page
         .getByRole("combobox", { name: "Thinking level", exact: true })
         .selectOption(model.variant);
+      // Native events are live-only: mutations must wait for the subscription.
+      await eventsReady;
       await use(page);
       expect(errors, "Unhandled application errors").toEqual([]);
     } finally {

@@ -23,8 +23,11 @@ build-plugin:
 test:
     cd plugin && bun test
 
+test-e2e:
+    cd frontend && npm run test:e2e
+
 lint:
-    cd plugin && bunx biome check src tests ../frontend/src
+    cd plugin && bunx biome check src tests ../frontend/src ../frontend/e2e ../frontend/playwright.config.ts
     cd frontend && npx eslint src/
 
 typecheck:
@@ -32,7 +35,7 @@ typecheck:
     cd frontend && npm run typecheck
 
 format:
-    cd plugin && bunx biome check --write src tests ../frontend/src
+    cd plugin && bunx biome check --write src tests ../frontend/src ../frontend/e2e ../frontend/playwright.config.ts
 
 build: build-plugin
     cd frontend && npm run build
@@ -40,4 +43,4 @@ build: build-plugin
 clean:
     rm -rf frontend/dist plugin/dist
 
-check: typecheck test lint
+check: typecheck test lint test-e2e
