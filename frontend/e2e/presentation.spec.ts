@@ -162,7 +162,6 @@ test("launch stays dark without JavaScript even when the system prefers light", 
     const context = await browser.newContext({
       javaScriptEnabled: false,
       colorScheme: "light",
-      serviceWorkers: "block",
     });
     const page = await context.newPage();
     await page.goto(baseURL);

@@ -16,8 +16,6 @@ async function probeAlive(): Promise<boolean> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), PROBE_TIMEOUT);
   try {
-    // Query string ensures the request bypasses the service worker's
-    // NetworkFirst runtime cache rule (whose regex anchors at end-of-string).
     await client.server.info({ signal: ctrl.signal });
     return true;
   } catch {
@@ -127,7 +125,7 @@ export function OfflineOverlay(props: { children: JSX.Element }) {
   }
 
   onMount(async () => {
-    // Fetch wake URL from SW-cached config, fall back to localStorage
+    // Fetch wake URL from the backend, fall back to saved host settings.
     try {
       const data = await rpc.config({});
       if (data.wakeUrl) {

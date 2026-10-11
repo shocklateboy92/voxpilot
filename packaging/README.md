@@ -77,7 +77,7 @@ Example Caddy configuration (adjust paths and hostnames):
 ```caddyfile
 voxpilot.apps.example.com {
     root * /srv/voxpilot
-    @fresh path /index.html /sw.js /registerSW.js /manifest.webmanifest
+    @fresh path /index.html /manifest.webmanifest
     header @fresh Cache-Control "no-cache"
     try_files {path} /index.html
     file_server
@@ -97,7 +97,9 @@ password flow because OpenCode's CORS does not enable credentialed cookie reques
 API hosts must use HTTPS when the frontend does.
 
 Settings in the bottom bar change hosts. Saved wake URLs are scoped by API host.
-The frontend remains a PWA and renders width-aware reviews on resize.
+The frontend has a static manifest for home-screen installation and renders
+width-aware reviews on resize. It does not register a service worker or cache
+frontend assets/API responses in Cache Storage.
 
 ## Uninstall
 

@@ -29,7 +29,7 @@ export const test = base.extend<{
         });
     const context = cdp
       ? browser.contexts()[0]
-      : await browser.newContext({ serviceWorkers: "block" });
+      : await browser.newContext();
     if (context === undefined)
       throw new Error("CDP browser has no existing context");
     const page = await context.newPage();

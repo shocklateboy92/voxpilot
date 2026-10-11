@@ -52,7 +52,7 @@ request to the real host's wake endpoint.
 
 Each test owns its repository so comparisons and saved permissions cannot leak
 into subsequent tests. `just test-e2e` runs the browser suite; `just check` now
-includes it. Auth overhaul, CORS/deployment, and service-worker behavior are
+includes it. Auth overhaul and CORS/deployment are
 intentionally outside the coverage scope. Chromium emulation is not a substitute
 for occasional verification on a physical phone.
 
