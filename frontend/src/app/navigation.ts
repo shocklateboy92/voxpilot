@@ -4,8 +4,12 @@
  * that depend on activeSessionId.
  */
 
-import { createEffect, createRoot, createSignal } from "solid-js";
+import { batch, createEffect, createRoot, createSignal, on } from "solid-js";
 import { produce } from "solid-js/store";
+import {
+  setSelectedModelKey,
+  setSelectedModelVariant,
+} from "../features/chat/preferences";
 import {
   createSession,
   deleteSession,
@@ -55,6 +59,22 @@ createRoot(() => {
       setActiveSessionId(undefined);
     }
   });
+
+  // Restore this conversation's last model when entering it, including via
+  // the URL hash. Only track navigation so metadata updates cannot overwrite
+  // an explicit picker choice made before sending the next message.
+  createEffect(
+    on(activeSessionId, (id) => {
+      if (!id) return; // New conversations keep the persisted preference.
+      const session = store.sessions.find((entry) => entry.id === id);
+      if (!session) return;
+      const model = session.model;
+      batch(() => {
+        setSelectedModelKey(model ? `${model.providerID}/${model.id}` : "");
+        setSelectedModelVariant(model?.variant ?? "");
+      });
+    }),
+  );
 });
 
 // ── Derived accessors ───────────────────────────────────────────

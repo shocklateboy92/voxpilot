@@ -1,6 +1,6 @@
 import { expect, expectPersistedResponse, idle, send, test } from "./browser";
-import { openSession } from "./data";
-import { client, longPrompt, markdownPrompt, modelKey } from "./dev";
+import { openSession, selectSession } from "./data";
+import { client, longPrompt, markdownPrompt, model, modelKey } from "./dev";
 
 test("renders markdown, persists on reload, forks, and deletes through the UI", async ({
   app,
@@ -158,6 +158,63 @@ test("explicit model selection persists across reload", async ({ app }) => {
   await app.reload({ waitUntil: "domcontentloaded" });
   await expect(model).toHaveValue(modelKey);
   await expect(app.locator(".model-badge")).toContainText("GPT-6 Luna");
+});
+
+test("switching conversations restores their model and thinking level", async ({
+  app,
+  workspace,
+}) => {
+  const alternate = (await client.model.list()).data.find(
+    (entry) =>
+      entry.enabled &&
+      entry.providerID === model.providerID &&
+      entry.id !== model.id,
+  );
+  if (!alternate) throw new Error("Model switching requires a second model");
+  await client.session.create({
+    title: "Model selection first",
+    location: { directory: workspace.directory },
+    model: { ...model, variant: "low" },
+  });
+  const second = await client.session.create({
+    title: "Model selection second",
+    location: { directory: workspace.directory },
+    model: { providerID: alternate.providerID, id: alternate.id },
+  });
+  const picker = app.getByRole("combobox", { name: "Model", exact: true });
+  const thinking = app.getByRole("combobox", {
+    name: "Thinking level",
+    exact: true,
+  });
+  const alternateKey = `${alternate.providerID}/${alternate.id}`;
+
+  await selectSession(app, "Model selection first");
+  await expect(picker).toHaveValue(modelKey);
+  await expect(thinking).toHaveValue("low");
+  // An unused selection must not follow us into another conversation.
+  await picker.selectOption("");
+  await selectSession(app, "Model selection second");
+  await expect(picker).toHaveValue(alternateKey);
+  await expect
+    .poll(() =>
+      app.evaluate(() =>
+        localStorage.getItem("voxpilot-selected-model-variant"),
+      ),
+    )
+    .toBe("");
+  await selectSession(app, "Model selection first");
+  await expect(picker).toHaveValue(modelKey);
+  await expect(thinking).toHaveValue("low");
+
+  // Reload and hash navigation must also ignore a different global preference.
+  await picker.selectOption(alternateKey);
+  await app.reload({ waitUntil: "domcontentloaded" });
+  await expect(picker).toHaveValue(modelKey);
+  await expect(thinking).toHaveValue("low");
+  await app.evaluate((id) => {
+    window.location.hash = id;
+  }, second.id);
+  await expect(picker).toHaveValue(alternateKey);
 });
 
 test("reload during generation restores the complete transcript without duplicated text", async ({
