@@ -1,11 +1,15 @@
 import { OpenCode } from "@opencode/client";
 import { VoxPilotRpc } from "@plugin/rpc";
-import { configuredServer, connectionConfig } from "./connection-config";
+import {
+  configuredServer,
+  connectionConfig,
+  requestedServerUrl,
+} from "./connection-config";
 
 export const serverUrl =
   configuredServer?.url ??
   (connectionConfig.servers.length === 0 && !connectionConfig.error
-    ? localStorage.getItem("voxpilot:server")
+    ? (requestedServerUrl ?? localStorage.getItem("voxpilot:server"))
     : undefined) ??
   window.location.origin;
 export const wakeStorageKey = `voxpilot:wakeUrl:${serverUrl}`;

@@ -1,5 +1,5 @@
 import { test as base, chromium, expect, type Page } from "@playwright/test";
-import { renderMarkdown } from "../src/features/chat/markdown";
+import { renderMarkdown } from "../src/ui/markdown";
 import { client, createWorkspace, model, modelKey, password } from "./dev";
 
 export const test = base.extend<{

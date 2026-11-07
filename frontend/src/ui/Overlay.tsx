@@ -10,8 +10,8 @@ import { type JSX, onCleanup, onMount } from "solid-js";
 interface OverlayProps {
   label: string;
   onClose: () => void;
-  /** Panel position: "bottom" (bottom sheet) or "center". Default: "bottom". */
-  position?: "bottom" | "center";
+  /** Panel position. Default: "bottom" (bottom sheet). */
+  position?: "bottom" | "center" | "fullscreen";
   /** Extra CSS class(es) applied to the inner panel element. */
   class?: string;
   children: JSX.Element;
@@ -61,11 +61,14 @@ export function Overlay(props: OverlayProps) {
 
   return (
     <div
-      class="fixed inset-0 z-100 flex justify-center bg-overlay outline-none"
+      class="fixed inset-0 flex justify-center outline-none"
       role="dialog"
       aria-modal="true"
       aria-label={props.label}
       classList={{
+        "z-200 bg-bg [--bottom-nav-height:0px] [--status-bar-clearance:calc(4.5rem+var(--safe-top))]":
+          props.position === "fullscreen",
+        "z-100 bg-overlay": props.position !== "fullscreen",
         "items-end": !isCenter(),
         "items-center": isCenter(),
       }}
@@ -75,10 +78,13 @@ export function Overlay(props: OverlayProps) {
       ref={backdrop}
     >
       <div
-        class="flex max-h-[80vh] w-full max-w-lg flex-col bg-surface pb-(--safe-bottom) text-left"
+        class="flex w-full flex-col text-left"
         role="document"
         classList={{
-          "rounded-t-2xl": !isCenter(),
+          "relative h-full bg-bg": props.position === "fullscreen",
+          "max-h-[80vh] max-w-lg bg-surface pb-(--safe-bottom)":
+            props.position !== "fullscreen",
+          "rounded-t-2xl": props.position !== "fullscreen" && !isCenter(),
           "m-4 rounded-2xl": isCenter(),
           [props.class ?? ""]: Boolean(props.class),
         }}

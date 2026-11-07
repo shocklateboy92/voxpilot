@@ -18,7 +18,8 @@ import stores, features, or API clients. ESLint enforces the import boundary.
 | `CodeOutput` | Scrolling monospace pre; optional `compact` height and `error` tone. |
 | `SegmentedControl` | Typed options, value/label accessors, selection callback, disabled state. |
 | `ChoiceOption` | Selected button with optional description and checkmark. |
-| `Overlay`, `OverlayHeader` | Named bottom/center dialog, keyboard focus handling, dismissal, and shared header. |
+| `Overlay`, `OverlayHeader` | Named bottom/center/fullscreen dialog, keyboard focus handling, dismissal, and shared header. |
+| `MarkdownView` | Shared Markdown typography and heading anchors, caller-supplied link resolution/click handling, and gesture isolation for code blocks and tables. |
 | `ListRow` | Native full-width selection button for picker rows. |
 | `EmptyState` | Centered, muted empty-state content. |
 | `Spinner` | Centered loading indicator, optionally fullscreen. |

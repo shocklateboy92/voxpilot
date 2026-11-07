@@ -38,11 +38,9 @@ createRoot(() => {
   // Sync signal → URL hash
   createEffect(() => {
     const id = activeSessionId();
-    if (id) {
-      history.replaceState(null, "", `#${id}`);
-    } else {
-      history.replaceState(null, "", window.location.pathname);
-    }
+    const url = new URL(window.location.href);
+    url.hash = id ?? "";
+    history.replaceState(null, "", url.href);
   });
 
   // ── Session validation ────────────────────────────────────────

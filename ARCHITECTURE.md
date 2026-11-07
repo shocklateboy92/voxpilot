@@ -52,6 +52,13 @@ The native live-only event stream reconnects and reconciles HTTP snapshots on
 `server.connected`. Existing per-message fragment revision handling and paginated
 history remain in `streaming.ts` and `api-client.ts`.
 
+## Markdown files
+
+The file viewer reads current contents through the authenticated native file API
+and shares Markdown rendering with chat. File links are resolved at render time
+against the owning session or document directory, without modifying saved messages.
+Viewer URLs retain backend and location context across reloads and new tabs.
+
 ## Width-aware review
 
 Both the agent tool and the UI's Review changes button call the same comparison

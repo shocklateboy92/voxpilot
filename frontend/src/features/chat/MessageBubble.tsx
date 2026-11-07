@@ -7,39 +7,53 @@
 
 import type { SessionMessageInfo } from "@opencode/client";
 import { For, Show } from "solid-js";
+import { activeSession } from "../../app/navigation";
 import { store } from "../../app/store";
+import { serverUrl } from "../../platform/connection";
+import { configuredServer } from "../../platform/connection-config";
 import { Badge } from "../../ui/Badge";
 import { CodeOutput } from "../../ui/CodeOutput";
 import { Disclosure, DisclosureSummary } from "../../ui/Disclosure";
+import { MarkdownView } from "../../ui/MarkdownView";
+import {
+  clickedFileRequest,
+  fileViewerUrl,
+  resolveFileLink,
+} from "../files/file-links";
+import { setMarkdownFile } from "../files/file-state";
 import { backgroundCompletion } from "../tools/background-tools";
 import { ToolCallRenderer } from "../tools/ToolCallRenderer";
-import { renderMarkdown } from "./markdown";
 import { formatVariantLabel, resolveModelName } from "./model-utils";
-
-/**
- * Attach a touchstart listener that stops propagation when the touch
- * originates inside a `.scroll-wrapper`.  This prevents the parent
- * swipe-navigation handler from hijacking horizontal scrolls inside
- * code blocks and tables.
- */
-function guardScrollWrappers(el: HTMLElement): void {
-  el.addEventListener(
-    "touchstart",
-    (e: TouchEvent) => {
-      const target = e.target;
-      if (target instanceof Element && target.closest(".scroll-wrapper")) {
-        e.stopPropagation();
-      }
-    },
-    { passive: true },
-  );
-}
 
 interface Props {
   msg: SessionMessageInfo;
 }
 
 export function MessageBubble(props: Props) {
+  const fileLinkContext = () => {
+    const session = activeSession();
+    if (!session) return undefined;
+    return {
+      request: { location: session.location, path: "" },
+      sessionID: session.id,
+      serverUrl,
+      serverId: configuredServer?.id,
+      appUrl: window.location.href,
+    };
+  };
+  function resolveLink(href: string) {
+    const context = fileLinkContext();
+    if (!context) return undefined;
+    return resolveFileLink(href, context);
+  }
+  function followFileLink(event: MouseEvent) {
+    const request = clickedFileRequest(event, window.location.href, serverUrl);
+    const context = fileLinkContext();
+    if (!request || !context) return;
+    event.preventDefault();
+    history.replaceState(null, "", fileViewerUrl(request, context));
+    setMarkdownFile(request);
+  }
   const textContent = () => {
     const msg = props.msg;
     if (
@@ -168,11 +182,10 @@ export function MessageBubble(props: Props) {
           </div>
         </Show>
         <Show when={role() !== "user" && textContent()}>
-          <div
-            class="markdown-body"
-            ref={guardScrollWrappers}
-            // eslint-disable-next-line solid/no-innerhtml -- intentional: markdown renderer produces trusted HTML
-            innerHTML={renderMarkdown(textContent())}
+          <MarkdownView
+            text={textContent()}
+            resolveLink={resolveLink}
+            onClick={followFileLink}
           />
         </Show>
         <Show when={role() === "user" && textContent()}>

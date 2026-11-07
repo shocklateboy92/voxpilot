@@ -80,6 +80,21 @@ async function loadConfig() {
 }
 
 export const connectionConfig = await loadConfig();
-export const configuredServer = connectionConfig.servers.find(
-  (server) => server.id === localStorage.getItem("voxpilot:serverId"),
+export const requestedServerUrl = (() => {
+  const value = new URLSearchParams(window.location.search).get("server");
+  if (!value) return undefined;
+  try {
+    return normalizeServerUrl(value);
+  } catch {
+    return undefined;
+  }
+})();
+const requestedServerId = new URLSearchParams(window.location.search).get(
+  "serverId",
+);
+export const configuredServer = connectionConfig.servers.find((server) =>
+  requestedServerUrl
+    ? server.url === requestedServerUrl &&
+      (!requestedServerId || server.id === requestedServerId)
+    : server.id === localStorage.getItem("voxpilot:serverId"),
 );

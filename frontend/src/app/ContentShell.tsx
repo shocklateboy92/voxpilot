@@ -3,10 +3,10 @@
  * swipeable scrollable content area, optional above-input slot, and
  * floating chat input at bottom.
  *
- * Used by ChatView (active session) and ReviewOverlay.
+ * Used by ChatView, ReviewOverlay, and the read-only Markdown viewer.
  */
 
-import type { JSX } from "solid-js";
+import { type JSX, Show } from "solid-js";
 import { ChatInput } from "../features/chat/ChatInput";
 import { SwipeablePane } from "../ui/SwipeablePane";
 
@@ -45,6 +45,8 @@ export interface ContentShellProps {
   composerOverlay?: JSX.Element;
   /** Optional callback fired after a message is sent from the chat input. */
   onSend?: () => void;
+  /** Read-only viewers can omit the floating chat composer. */
+  showComposer?: boolean;
 
   /** The scrollable content. */
   children: JSX.Element;
@@ -78,11 +80,13 @@ export function ContentShell(props: ContentShellProps) {
           {props.children}
         </SwipeablePane>
       </div>
-      <div class="absolute inset-x-3 bottom-[calc(var(--bottom-nav-height)+var(--safe-bottom)+0.75rem)] z-40 flex flex-col items-center gap-2">
-        {props.composerOverlay}
-        {props.aboveInput}
-        <ChatInput onSend={props.onSend} />
-      </div>
+      <Show when={props.showComposer !== false}>
+        <div class="absolute inset-x-3 bottom-[calc(var(--bottom-nav-height)+var(--safe-bottom)+0.75rem)] z-40 flex flex-col items-center gap-2">
+          {props.composerOverlay}
+          {props.aboveInput}
+          <ChatInput onSend={props.onSend} />
+        </div>
+      </Show>
     </>
   );
 }

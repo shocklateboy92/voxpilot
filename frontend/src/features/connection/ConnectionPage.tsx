@@ -8,11 +8,13 @@ import {
   configuredServer,
   connectionConfig,
   normalizeServerUrl,
+  requestedServerUrl,
 } from "../../platform/connection-config";
 import { Button } from "../../ui/Button";
 import { FormField } from "../../ui/FormField";
 import { Select } from "../../ui/Select";
 import { TextInput } from "../../ui/TextInput";
+import { clearFileRoute } from "../files/file-links";
 
 export function ConnectionPage() {
   const [url, setUrl] = createSignal(serverUrl);
@@ -73,8 +75,20 @@ export function ConnectionPage() {
       }
       const page = new URL(window.location.href);
       page.searchParams.delete("connect");
-      page.hash = "";
-      window.location.replace(page.href);
+      if (page.searchParams.has("file") && normalized === requestedServerUrl) {
+        page.searchParams.set("server", normalized);
+        if (selected) page.searchParams.set("serverId", selected.id);
+        else page.searchParams.delete("serverId");
+      } else {
+        clearFileRoute(page);
+        page.searchParams.delete("server");
+        page.searchParams.delete("serverId");
+        page.hash = "";
+      }
+      // Replacing an unchanged URL with a session hash can be a same-document
+      // navigation. Recreate the client after saving credentials in that case.
+      if (page.href === window.location.href) window.location.reload();
+      else window.location.replace(page.href);
     } finally {
       setBusy(false);
     }

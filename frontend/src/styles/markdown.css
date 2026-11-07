@@ -63,7 +63,7 @@
     font-size: 0.85em;
     white-space: pre;
   }
-  /* This class also identifies the gesture-isolation boundary in MessageBubble. */
+  /* This class also identifies the gesture-isolation boundary in MarkdownView. */
   .scroll-wrapper {
     overflow-x: auto;
   }

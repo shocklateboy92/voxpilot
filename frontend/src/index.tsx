@@ -8,6 +8,7 @@ import { waitForPlugin, wakeStorageKey } from "./platform/connection";
 import {
   configuredServer,
   connectionConfig,
+  requestedServerUrl,
 } from "./platform/connection-config";
 import { rpc } from "./platform/rpc";
 import { Spinner } from "./ui/Spinner";
@@ -37,7 +38,9 @@ const initiallyConnecting =
   Boolean(connectionConfig.error) ||
   (connectionConfig.servers.length > 0
     ? !configuredServer
-    : !localStorage.getItem("voxpilot:server")) ||
+    : !localStorage.getItem("voxpilot:server") ||
+      (requestedServerUrl !== undefined &&
+        requestedServerUrl !== localStorage.getItem("voxpilot:server"))) ||
   new URLSearchParams(window.location.search).has("connect");
 const [connecting, setConnecting] = createSignal(initiallyConnecting);
 

@@ -1,7 +1,11 @@
 import type { SessionMessageAssistantTool as ToolPart } from "@opencode/client";
 import FileText from "lucide-solid/icons/file-text";
 import type { JSX } from "solid-js";
+import { Show } from "solid-js";
+import { activeSession } from "../../../app/navigation";
+import { Button } from "../../../ui/Button";
 import { Disclosure, DisclosureSummary } from "../../../ui/Disclosure";
+import { isMarkdownPath, openMarkdown } from "../../files/file-state";
 import {
   getTitle,
   inputString,
@@ -12,6 +16,9 @@ import {
 } from "./shared";
 
 export function ReadTool(props: { part: ToolPart }): JSX.Element {
+  const sourcePath = () =>
+    inputString(props.part.state, "path") ||
+    inputString(props.part.state, "filePath");
   const filePath = () => {
     const title = getTitle(props.part.state);
     if (title) return title;
@@ -43,6 +50,22 @@ export function ReadTool(props: { part: ToolPart }): JSX.Element {
         </span>
         <StatusIcon state={props.part.state} />
       </DisclosureSummary>
+      <Show
+        when={
+          isMarkdownPath(sourcePath()) && activeSession()?.location.directory
+        }
+      >
+        {(directory) => (
+          <div class="px-3 py-2">
+            <Button
+              size="sm"
+              onClick={() => openMarkdown(sourcePath(), directory())}
+            >
+              View Markdown
+            </Button>
+          </div>
+        )}
+      </Show>
       <OutputSection state={props.part.state} />
     </Disclosure>
   );
