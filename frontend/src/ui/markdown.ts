@@ -32,7 +32,12 @@ md.renderer.rules.table_close = () => "</table></div>";
 
 export function renderMarkdown(
   text: string,
-  resolveLink?: (href: string) => string | undefined,
+  resolveLink?: (
+    href: string,
+  ) =>
+    | string
+    | { href: string; attributes: Record<string, string> }
+    | undefined,
 ): string {
   if (!text) return "";
   const tokens = md.parse(text, {});
@@ -58,7 +63,12 @@ export function renderMarkdown(
       if (token.type === "link_open") {
         const href = token.attrGet("href");
         const resolved = href === null ? undefined : resolveLink?.(href);
-        if (resolved !== undefined) token.attrSet("href", resolved);
+        if (typeof resolved === "string") token.attrSet("href", resolved);
+        else if (resolved !== undefined) {
+          token.attrSet("href", resolved.href);
+          for (const [name, value] of Object.entries(resolved.attributes))
+            token.attrSet(name, value);
+        }
       }
       if (token.children) rewriteLinks(token.children);
     }

@@ -3,9 +3,10 @@ import FileText from "lucide-solid/icons/file-text";
 import type { JSX } from "solid-js";
 import { Show } from "solid-js";
 import { activeSession } from "../../../app/navigation";
+import { openMarkdown } from "../../../app/routing";
 import { Button } from "../../../ui/Button";
 import { Disclosure, DisclosureSummary } from "../../../ui/Disclosure";
-import { isMarkdownPath, openMarkdown } from "../../files/file-state";
+import { isMarkdownPath } from "../../files/file-state";
 import {
   getTitle,
   inputString,

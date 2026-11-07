@@ -1,4 +1,3 @@
-import type { JSX } from "solid-js";
 import { renderMarkdown } from "./markdown";
 
 /** Shared typography and touch handling for generated Markdown. */
@@ -6,16 +5,14 @@ export function MarkdownView(props: {
   text: string;
   resolveLink?: Parameters<typeof renderMarkdown>[1];
   onMount?: (element: HTMLDivElement) => void;
-  onClick?: JSX.EventHandler<HTMLDivElement, MouseEvent>;
 }) {
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: delegates native link clicks from generated Markdown
+    // biome-ignore lint/a11y/noStaticElementInteractions: handles in-message heading anchors, not app navigation
     // biome-ignore lint/a11y/useKeyWithClickEvents: native anchors already support keyboard activation
     <div
       class="markdown-body"
       ref={(element) => props.onMount?.(element)}
       onClick={(event) => {
-        props.onClick?.(event);
         if (
           event.defaultPrevented ||
           event.button !== 0 ||

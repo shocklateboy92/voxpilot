@@ -41,7 +41,8 @@ have longer timeouts to accommodate provider latency. Presentation tests cover
 themes, narrow layouts, review geometry, focus, safe areas, and no-JavaScript
 launch. Failure screenshots and browser errors are attached to the report.
 
-The suite contains 40 browser scenarios. Additional native API-created histories cover paginated transcripts and session lists, selected-turn
+Routing tests cover native file-link interception, session/document back and forward,
+reloads, and new tabs. Additional native API-created histories cover paginated transcripts and session lists, selected-turn
 forks, session switching during generation, scroll restoration, touch navigation,
 all specialized tool-card families, background completion/failure, typed forms,
 permission rejection/saving, review resize and stable snapshots, branch review,

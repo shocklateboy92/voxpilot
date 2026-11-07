@@ -24,7 +24,6 @@ import { MarkdownViewer } from "../features/files/MarkdownViewer";
 import { ReviewOverlay } from "../features/review/ReviewOverlay";
 import { BottomNav } from "./BottomNav";
 import { ContentShell } from "./ContentShell";
-import { useFileNavigation } from "./file-navigation";
 import {
   canNavigateNext,
   canNavigatePrev,
@@ -35,7 +34,6 @@ import {
 import { store } from "./store";
 
 export function ChatView() {
-  useFileNavigation();
   const changeCounts = createMemo(() => {
     const files = store.changedFiles;
     let added = 0;

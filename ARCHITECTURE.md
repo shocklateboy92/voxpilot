@@ -52,6 +52,9 @@ The native live-only event stream reconnects and reconciles HTTP snapshots on
 `server.connected`. Existing per-message fragment revision handling and paginated
 history remain in `streaming.ts` and `api-client.ts`.
 
+Solid Router owns session/file URL state, native file-link interception, and browser
+history; backend changes still reload the app to recreate its authenticated client.
+
 ## Markdown files
 
 The file viewer reads current contents through the authenticated native file API

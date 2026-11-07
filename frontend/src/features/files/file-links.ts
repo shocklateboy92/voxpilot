@@ -74,38 +74,3 @@ export function resolveFileLink(
     return undefined;
   }
 }
-
-export function clickedFileRequest(
-  event: MouseEvent,
-  appUrl: string,
-  serverUrl: string,
-): FileRequest | undefined {
-  if (
-    event.defaultPrevented ||
-    event.button !== 0 ||
-    event.ctrlKey ||
-    event.metaKey ||
-    event.shiftKey ||
-    event.altKey
-  )
-    return undefined;
-  const target = event.target;
-  if (!(target instanceof Element)) return undefined;
-  const link = target.closest("a[href]");
-  if (
-    link?.getAttribute("target") === "_blank" ||
-    link?.hasAttribute("download")
-  )
-    return undefined;
-  const href = link?.getAttribute("href");
-  if (!href || !URL.canParse(href, appUrl)) return undefined;
-  const url = new URL(href, appUrl);
-  const current = new URL(appUrl);
-  if (
-    url.origin !== current.origin ||
-    url.hash !== current.hash ||
-    url.searchParams.get("server") !== serverUrl
-  )
-    return undefined;
-  return fileRequestFromUrl(url);
-}

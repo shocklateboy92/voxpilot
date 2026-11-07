@@ -4,13 +4,21 @@ import X from "lucide-solid/icons/x";
 import {
   createEffect,
   createResource,
-  createSignal,
   onCleanup,
   Show,
   Suspense,
 } from "solid-js";
 import { ContentShell } from "../../app/ContentShell";
 import { activeSessionId } from "../../app/navigation";
+import {
+  appLocation,
+  appUrl,
+  closeFile,
+  currentFile,
+  hasPreviousFile,
+  navigateApp,
+  resolveViewerLink,
+} from "../../app/routing";
 import { client, serverUrl } from "../../platform/connection";
 import { configuredServer } from "../../platform/connection-config";
 import { Button } from "../../ui/Button";
@@ -19,19 +27,7 @@ import { IconButton } from "../../ui/IconButton";
 import { MarkdownView } from "../../ui/MarkdownView";
 import { Overlay } from "../../ui/Overlay";
 import { Spinner } from "../../ui/Spinner";
-import {
-  clearFileRoute,
-  clickedFileRequest,
-  fileViewerUrl,
-  resolveFileLink,
-} from "./file-links";
-import {
-  type FileRequest,
-  fileUrl,
-  isMarkdownPath,
-  markdownFile,
-  setMarkdownFile,
-} from "./file-state";
+import { fileUrl, isMarkdownPath } from "./file-state";
 
 const NO_SWIPE = () => false;
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -48,76 +44,58 @@ const imageTypes: Record<string, string> = {
 
 export function MarkdownViewer() {
   return (
-    <Show when={markdownFile()}>
+    <Show when={currentFile()}>
       <OpenMarkdownViewer />
     </Show>
   );
 }
 
 function OpenMarkdownViewer() {
-  const close = () => {
-    const url = new URL(window.location.href);
-    clearFileRoute(url);
-    window.history.replaceState(null, "", url.href);
-    setMarkdownFile(undefined);
-  };
-  const [history, setHistory] = createSignal<FileRequest[]>([]);
   let content: HTMLDivElement | undefined;
   let pane: HTMLDivElement | undefined;
-  const [loaded, { refetch }] = createResource(
-    markdownFile,
-    async (request) => {
-      try {
-        if (!isMarkdownPath(request.path))
-          throw new Error(
-            "This viewer currently supports Markdown files only.",
-          );
-        const bytes = await client.file.read(request);
-        if (bytes.byteLength > MAX_BYTES)
-          throw new Error(
-            "This Markdown file is too large to preview (maximum 5 MiB).",
-          );
-        const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-        if (text.includes("\0"))
-          throw new Error("This file contains binary data.");
-        return { request, text };
-      } catch (error) {
-        // Loading failures stay inside the viewer, leaving navigation and refresh usable.
-        return {
-          request,
-          error:
-            error instanceof Error
-              ? error.message
-              : "Unable to load this file.",
-        };
-      }
-    },
-  );
+  const [loaded, { refetch }] = createResource(currentFile, async (request) => {
+    try {
+      if (!isMarkdownPath(request.path))
+        throw new Error("This viewer currently supports Markdown files only.");
+      const bytes = await client.file.read(request);
+      if (bytes.byteLength > MAX_BYTES)
+        throw new Error(
+          "This Markdown file is too large to preview (maximum 5 MiB).",
+        );
+      const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+      if (text.includes("\0"))
+        throw new Error("This file contains binary data.");
+      return { request, text };
+    } catch (error) {
+      // Loading failures stay inside the viewer, leaving navigation and refresh usable.
+      return {
+        request,
+        error:
+          error instanceof Error ? error.message : "Unable to load this file.",
+      };
+    }
+  });
   const fileLinkContext = () => {
-    const request = loaded()?.request ?? markdownFile();
+    const request = loaded()?.request ?? currentFile();
     if (!request) return undefined;
     return {
       request,
       sessionID: activeSessionId(),
       serverUrl,
       serverId: configuredServer?.id,
-      appUrl: window.location.href,
+      appUrl: appUrl().href,
     };
   };
   function resolveLink(href: string) {
     const context = fileLinkContext();
     return context
-      ? resolveFileLink(href, context, { fragments: true })
+      ? resolveViewerLink(href, context, { fragments: true })
       : undefined;
-  }
-  function navigateToFile(request: FileRequest) {
-    const context = fileLinkContext();
-    if (!context) return;
-    window.history.replaceState(null, "", fileViewerUrl(request, context));
-    setMarkdownFile(request);
   }
 
   createEffect(() => {
+    // Link history metadata can re-render this body even at the same file URL.
+    appLocation()?.state;
     const value = loaded();
     if (!value || !("text" in value) || !content) return;
     const element = content;
@@ -172,45 +150,21 @@ function OpenMarkdownViewer() {
     });
   });
 
-  function followLink(event: MouseEvent) {
-    const next = clickedFileRequest(event, window.location.href, serverUrl);
-    const request = loaded()?.request;
-    if (!next || !request) return;
-    event.preventDefault();
-    const fragment = next.fragment;
-    if (next.path === request.path) {
-      navigateToFile(next);
-      if (!fragment) pane?.scrollTo({ top: 0 });
-      else
-        content?.querySelectorAll("[id]").forEach((heading) => {
-          if (heading.id === fragment)
-            heading.scrollIntoView({ block: "start", behavior: "smooth" });
-        });
-      return;
-    }
-    setHistory((entries) => [...entries, request]);
-    navigateToFile(next);
-  }
-
   return (
-    <Overlay label="Markdown viewer" position="fullscreen" onClose={close}>
+    <Overlay label="Markdown viewer" position="fullscreen" onClose={closeFile}>
       <ContentShell
         statusBarLeft={
-          <span class="min-w-0 truncate" title={markdownFile()?.path}>
-            {markdownFile()?.path}
+          <span class="min-w-0 truncate" title={currentFile()?.path}>
+            {currentFile()?.path}
           </span>
         }
         statusBarRight={
           <>
-            <Show when={history().length > 0}>
+            <Show when={hasPreviousFile()}>
               <IconButton
                 variant="ghost"
                 aria-label="Previous document"
-                onClick={() => {
-                  const previous = history().at(-1);
-                  setHistory((entries) => entries.slice(0, -1));
-                  if (previous) navigateToFile(previous);
-                }}
+                onClick={() => navigateApp(-1)}
               >
                 <ArrowLeft size={18} />
               </IconButton>
@@ -228,7 +182,7 @@ function OpenMarkdownViewer() {
             <IconButton
               variant="ghost"
               aria-label="Close viewer"
-              onClick={close}
+              onClick={closeFile}
             >
               <X size={18} />
             </IconButton>
@@ -276,7 +230,6 @@ function OpenMarkdownViewer() {
                       onMount={(element) => {
                         content = element;
                       }}
-                      onClick={followLink}
                     />
                   )}
                 </Show>

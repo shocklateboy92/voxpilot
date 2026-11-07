@@ -8,6 +8,7 @@
 import type { SessionMessageInfo } from "@opencode/client";
 import { For, Show } from "solid-js";
 import { activeSession } from "../../app/navigation";
+import { appLocation, resolveViewerLink } from "../../app/routing";
 import { store } from "../../app/store";
 import { serverUrl } from "../../platform/connection";
 import { configuredServer } from "../../platform/connection-config";
@@ -15,12 +16,6 @@ import { Badge } from "../../ui/Badge";
 import { CodeOutput } from "../../ui/CodeOutput";
 import { Disclosure, DisclosureSummary } from "../../ui/Disclosure";
 import { MarkdownView } from "../../ui/MarkdownView";
-import {
-  clickedFileRequest,
-  fileViewerUrl,
-  resolveFileLink,
-} from "../files/file-links";
-import { setMarkdownFile } from "../files/file-state";
 import { backgroundCompletion } from "../tools/background-tools";
 import { ToolCallRenderer } from "../tools/ToolCallRenderer";
 import { formatVariantLabel, resolveModelName } from "./model-utils";
@@ -38,21 +33,14 @@ export function MessageBubble(props: Props) {
       sessionID: session.id,
       serverUrl,
       serverId: configuredServer?.id,
-      appUrl: window.location.href,
+      appUrl: new URL(appLocation()?.pathname ?? "/", window.location.origin)
+        .href,
     };
   };
   function resolveLink(href: string) {
     const context = fileLinkContext();
     if (!context) return undefined;
-    return resolveFileLink(href, context);
-  }
-  function followFileLink(event: MouseEvent) {
-    const request = clickedFileRequest(event, window.location.href, serverUrl);
-    const context = fileLinkContext();
-    if (!request || !context) return;
-    event.preventDefault();
-    history.replaceState(null, "", fileViewerUrl(request, context));
-    setMarkdownFile(request);
+    return resolveViewerLink(href, context, { fromChat: true });
   }
   const textContent = () => {
     const msg = props.msg;
@@ -182,11 +170,7 @@ export function MessageBubble(props: Props) {
           </div>
         </Show>
         <Show when={role() !== "user" && textContent()}>
-          <MarkdownView
-            text={textContent()}
-            resolveLink={resolveLink}
-            onClick={followFileLink}
-          />
+          <MarkdownView text={textContent()} resolveLink={resolveLink} />
         </Show>
         <Show when={role() === "user" && textContent()}>
           <p>{textContent()}</p>

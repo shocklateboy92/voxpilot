@@ -1,48 +1,39 @@
 /**
- * Session navigation — activeSessionId signal, URL hash sync,
+ * Session navigation — router-derived activeSessionId,
  * session switching, creation, deletion, and derived accessors
  * that depend on activeSessionId.
  */
 
-import { batch, createEffect, createRoot, createSignal, on } from "solid-js";
+import { batch, createEffect, on } from "solid-js";
 import { produce } from "solid-js/store";
 import {
   setSelectedModelKey,
   setSelectedModelVariant,
 } from "../features/chat/preferences";
+import { clearFileRoute } from "../features/files/file-links";
 import {
   createSession,
   deleteSession,
   type ModelRef,
   sendPromptAsync,
 } from "../platform/api-client";
+import { appLocation, appUrl, navigateApp } from "./routing";
 import { setStore, store } from "./store";
 
 // ── Active session ID ───────────────────────────────────────────
 
 /** ID of the currently active session. */
-export const [activeSessionId, setActiveSessionId] = createSignal<
-  string | undefined
->(window.location.hash.slice(1) || undefined);
+export const activeSessionId = () => appLocation()?.hash.slice(1) || undefined;
 
-// Sync URL hash → signal (browser back/forward, manual edits)
-window.addEventListener("hashchange", () => {
-  const hash = window.location.hash.slice(1);
-  setActiveSessionId(hash || undefined);
-});
+function navigateSession(sessionID: string | undefined, replace = false): void {
+  const url = appUrl();
+  clearFileRoute(url);
+  url.hash = sessionID ?? "";
+  navigateApp(url.href, { replace });
+}
 
-// Module-level reactive setup needs an owning root or Solid warns and any
-// onCleanup inside silently no-ops. The root lives for the document
-// lifetime, so it is never disposed.
-createRoot(() => {
-  // Sync signal → URL hash
-  createEffect(() => {
-    const id = activeSessionId();
-    const url = new URL(window.location.href);
-    url.hash = id ?? "";
-    history.replaceState(null, "", url.href);
-  });
-
+/** Mount session lifecycle effects under the router, before rendering pickers. */
+export function useSessionNavigation(): void {
   // ── Session validation ────────────────────────────────────────
   //
   // Reactive session validation: if activeSessionId points to a session
@@ -54,26 +45,26 @@ createRoot(() => {
     const id = activeSessionId();
     if (id === undefined) return; // Already on new session page
     if (!store.sessions.some((s) => s.id === id)) {
-      setActiveSessionId(undefined);
+      navigateSession(undefined, true);
     }
   });
 
-  // Restore this conversation's last model when entering it, including via
-  // the URL hash. Only track navigation so metadata updates cannot overwrite
-  // an explicit picker choice made before sending the next message.
-  createEffect(
-    on(activeSessionId, (id) => {
-      if (!id) return; // New conversations keep the persisted preference.
-      const session = store.sessions.find((entry) => entry.id === id);
-      if (!session) return;
-      const model = session.model;
-      batch(() => {
-        setSelectedModelKey(model ? `${model.providerID}/${model.id}` : "");
-        setSelectedModelVariant(model?.variant ?? "");
-      });
-    }),
-  );
-});
+  function restoreModel(id: string | undefined): void {
+    if (!id) return; // New conversations keep the persisted preference.
+    const session = store.sessions.find((entry) => entry.id === id);
+    if (!session) return;
+    const model = session.model;
+    batch(() => {
+      setSelectedModelKey(model ? `${model.providerID}/${model.id}` : "");
+      setSelectedModelVariant(model?.variant ?? "");
+    });
+  }
+  // Initialize before select elements mount; otherwise their value can be set
+  // while options still belong to the previous global model preference.
+  restoreModel(activeSessionId());
+  // Only track navigation, not metadata updates or explicit picker choices.
+  createEffect(on(activeSessionId, restoreModel, { defer: true }));
+}
 
 // ── Derived accessors ───────────────────────────────────────────
 // These combine activeSessionId with store data. They live here
@@ -158,7 +149,7 @@ export function switchToIndex(index: number): void {
 export function switchToSession(sessionId: string): void {
   if (activeSessionId() === sessionId) return;
 
-  setActiveSessionId(sessionId);
+  navigateSession(sessionId);
   setStore("errorMessage", null);
 }
 
@@ -231,7 +222,7 @@ export function handleNewSession(): void {
 
 /** Navigate to the new session page (clears active session). */
 export function navigateToNewSession(): void {
-  setActiveSessionId(undefined);
+  navigateSession(undefined);
   setStore("errorMessage", null);
 }
 
@@ -263,7 +254,7 @@ export async function createSessionAndSend(
     }),
   );
 
-  setActiveSessionId(session.id);
+  navigateSession(session.id);
   setStore("sessionStatuses", session.id, { type: "busy" });
   try {
     await sendPromptAsync(session.id, content);

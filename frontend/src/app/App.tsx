@@ -8,10 +8,13 @@
  */
 
 import { MetaProvider, Title } from "@solidjs/meta";
+import { Route, Router, type RouteSectionProps } from "@solidjs/router";
 import { ErrorBoundary } from "solid-js";
 import { serverUrl } from "../platform/connection";
 import { Button } from "../ui/Button";
 import { ChatView } from "./ChatView";
+import { useSessionNavigation } from "./navigation";
+import { useAppRouting } from "./routing";
 import { ToastContainer } from "./ToastContainer";
 import "./wake-lock"; // Keep screen awake while AI sessions are busy
 
@@ -31,11 +34,19 @@ export default function App() {
     <MetaProvider>
       <Title>{pageTitle()}</Title>
       <ErrorBoundary fallback={(err) => <AppError error={err} />}>
-        <ChatView />
+        <Router root={AppRoutes} explicitLinks preload={false}>
+          <Route path="*path" component={ChatView} />
+        </Router>
         <ToastContainer />
       </ErrorBoundary>
     </MetaProvider>
   );
+}
+
+function AppRoutes(props: RouteSectionProps) {
+  useAppRouting();
+  useSessionNavigation();
+  return <>{props.children}</>;
 }
 
 function AppError(props: { error: unknown }) {
