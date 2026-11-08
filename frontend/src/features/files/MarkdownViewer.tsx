@@ -193,13 +193,13 @@ function OpenMarkdownViewer() {
         onPaneMount={(element) => {
           pane = element;
         }}
-        paneClass="markdown-pane min-h-0 flex-1 touch-pan-y overflow-x-clip overflow-y-auto scroll-pt-(--status-bar-clearance) px-[3vw] pt-(--status-bar-clearance) text-left"
+        paneClass="markdown-pane min-h-0 flex-1 touch-pan-y overflow-x-clip overflow-y-auto scroll-pt-(--status-bar-clearance) pt-(--status-bar-clearance) text-left"
         onSend={closeFile}
       >
         <Suspense fallback={<Spinner />}>
           <Show when={loaded()} keyed>
             {(value) => (
-              <div class="mx-auto w-full max-w-[66rem] text-[0.9rem] wrap-break-word">
+              <div class="text-[0.9rem] wrap-break-word">
                 <Show when={"error" in value ? value.error : undefined}>
                   {(message) => (
                     <div role="alert" class="p-4 text-error">
@@ -224,13 +224,17 @@ function OpenMarkdownViewer() {
                   }
                 >
                   {(text) => (
-                    <MarkdownView
-                      text={text()}
-                      resolveLink={resolveLink}
-                      onMount={(element) => {
-                        content = element;
-                      }}
-                    />
+                    <div class="px-3">
+                      <div class="mx-auto w-full max-w-[66rem] px-[3vw]">
+                        <MarkdownView
+                          text={text()}
+                          resolveLink={resolveLink}
+                          onMount={(element) => {
+                            content = element;
+                          }}
+                        />
+                      </div>
+                    </div>
                   )}
                 </Show>
               </div>

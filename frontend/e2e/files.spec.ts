@@ -133,6 +133,59 @@ ${"wide code ".repeat(60)}
   await expect(trigger).toBeFocused();
 });
 
+test("Markdown file side insets match chat without padding the generic file pane", async ({
+  app,
+  workspace,
+}) => {
+  await writeFile(
+    join(workspace.directory, "README.md"),
+    "# File document\n\nRendered file contents.\n",
+  );
+  const session = await history(workspace.directory, "Markdown file insets", [
+    assistant([
+      { type: "text", text: "[Preview](README.md)\n\n[Code](source.ts#L1)" },
+    ]),
+  ]);
+  await openSession(app, session.id);
+  const viewer = app.getByRole("dialog", { name: "Markdown viewer" });
+  for (const width of [280, 390, 1100, 1440]) {
+    await app.setViewportSize({ width, height: 844 });
+    const chat = await app
+      .locator(".message.assistant .markdown-body")
+      .boundingBox();
+    if (!chat) throw new Error("Missing chat Markdown geometry");
+    await app.getByRole("link", { name: "Preview", exact: true }).click();
+    await expect(
+      viewer.getByRole("heading", { name: "File document" }),
+    ).toBeVisible();
+    const file = await viewer.locator(".markdown-body").boundingBox();
+    if (!file) throw new Error("Missing file Markdown geometry");
+    expect(file.x).toBeCloseTo(chat.x, 0);
+    expect(file.width).toBeCloseTo(chat.width, 0);
+    await expect(viewer.locator(".markdown-pane")).toHaveCSS(
+      "padding-left",
+      "0px",
+    );
+    await expect(viewer.locator(".markdown-pane")).toHaveCSS(
+      "padding-right",
+      "0px",
+    );
+    await viewer.getByRole("button", { name: "Close viewer" }).click();
+    await expect(viewer).toHaveCount(0);
+  }
+  await app.getByRole("link", { name: "Code", exact: true }).click();
+  await expect(viewer.getByRole("alert")).toContainText("Markdown files only");
+  await expect(viewer.locator(".markdown-body")).toHaveCount(0);
+  await expect(viewer.locator(".markdown-pane")).toHaveCSS(
+    "padding-left",
+    "0px",
+  );
+  await expect(viewer.locator(".markdown-pane")).toHaveCSS(
+    "padding-right",
+    "0px",
+  );
+});
+
 test("Markdown composer clearance follows input growth and safe-area insets", async ({
   app,
   workspace,
