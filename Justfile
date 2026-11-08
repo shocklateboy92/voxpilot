@@ -40,6 +40,9 @@ format:
 build: build-plugin
     cd frontend && npm run build
 
+deploy-frontend release="latest":
+    python3 scripts/deploy-frontend.py --release '{{release}}'
+
 clean:
     rm -rf frontend/dist plugin/dist
 

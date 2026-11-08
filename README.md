@@ -50,5 +50,40 @@ The release includes a host-install tarball and a separate architecture-independ
 dev-setup installer can continue extracting the host tarball and restarting its
 systemd unit. Runtime installation requires neither Bun nor npm.
 
+## Personal frontend deployment
+
+The frontend is deployed independently of the homelab tenant image. From a
+LAN-connected machine with Python 3.12+:
+
+```sh
+just deploy-frontend                     # latest published GitHub release
+just deploy-frontend '0.1.298+5951fb8'    # a specific release, including rollback
+python3 scripts/deploy-frontend.py --release latest --dry-run
+python3 scripts/deploy-frontend.py --directory frontend/dist
+```
+
+The deploy script verifies the release artifact's SHA-256 checksum, uploads
+content-hashed assets first, and publishes `index.html` last using WebDAV
+MOVE. It retains old assets for open tabs and refuses to overwrite an existing
+asset with different content. Run only one deployment at a time. No SSH,
+Caddy reload, tenant rebuild, or plugin restart is involved. Frontend-only
+deployment does not update the native plugin; changes to the RPC contract may
+also require updating the connected OpenCode hosts.
+
+The default write destination is `https://push.apps.lasath.com/voxpilot/`;
+read-back verification uses `https://static.apps.lasath.com/sysupdate/voxpilot/`.
+The write endpoint is LAN-only and unauthenticated. Do not expose it to the
+public Internet. `--push-url` and `--read-url` can select another host, but must
+end in `/voxpilot`. Never publish `config.json`: the homelab's separate runtime
+credential route owns it.
+
+Homelab Caddy serves this directory at `https://voxpilot.apps.lasath.com/`.
+The first hosting-route change must be applied separately; uploading assets
+alone does not switch an existing image-baked frontend. Published files live
+on versioned `/srv`: they survive reboots and carry forward with tenant
+updates, but OS rollback can restore an older frontend. There is no baked
+frontend fallback on a fresh installation; publish assets before enabling
+the route.
+
 See [deployment instructions](packaging/README.md),
 [architecture](ARCHITECTURE.md), and [browser tests](frontend/e2e/README.md).
