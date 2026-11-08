@@ -1,3 +1,4 @@
+import { isShellNotFoundError } from "@opencode/client";
 import { type Accessor, createEffect, createSignal, onCleanup } from "solid-js";
 import { activeSession } from "../../../app/navigation";
 import { client } from "../../../platform/api-client";
@@ -8,12 +9,23 @@ export function createLiveShellOutput(input: {
   open: Accessor<boolean>;
   running: Accessor<boolean>;
   shellID: Accessor<string | undefined>;
-}): Accessor<string | undefined> {
+}) {
   const [output, setOutput] = createSignal<string>();
+  const [unavailable, setUnavailable] = createSignal(false);
   let currentID: string | undefined;
+  let currentDirectory: string | undefined;
+  let missing = false;
   let cursor = 0;
   let generation = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let controller: AbortController | undefined;
+
+  type Poll = {
+    version: number;
+    id: string;
+    directory: string;
+    signal: AbortSignal;
+  };
 
   const clearTimer = () => {
     if (timer === undefined) return;
@@ -21,20 +33,20 @@ export function createLiveShellOutput(input: {
     timer = undefined;
   };
 
-  const schedule = (version: number, id: string, delay: number) => {
+  const schedule = (request: Poll, delay: number) => {
     clearTimer();
     timer = setTimeout(() => {
       timer = undefined;
-      void poll(version, id);
+      void poll(request);
     }, delay);
   };
 
-  const poll = async (version: number, id: string): Promise<void> => {
-    const directory = activeSession()?.location.directory;
-    if (!directory || version !== generation || !input.open()) return;
+  const poll = async (request: Poll): Promise<void> => {
+    const { version, id, directory, signal } = request;
+    if (version !== generation || !input.open() || missing) return;
 
     await client.shell
-      .output({ id, location: { directory }, cursor })
+      .output({ id, location: { directory }, cursor }, { signal })
       .then((response) => {
         if (version !== generation || currentID !== id) return;
         if (response.data.output) {
@@ -43,39 +55,56 @@ export function createLiveShellOutput(input: {
         cursor = response.data.cursor;
         if (!input.open()) return;
         if (cursor < response.data.size) {
-          schedule(version, id, 0);
+          schedule(request, 0);
           return;
         }
-        if (input.running()) schedule(version, id, POLL_INTERVAL_MS);
+        if (input.running()) schedule(request, POLL_INTERVAL_MS);
       })
       .catch((error: unknown) => {
         if (version !== generation || currentID !== id) return;
+        if (isShellNotFoundError(error)) {
+          missing = true;
+          setUnavailable(true);
+          return;
+        }
         console.error("Failed to read live shell output:", error);
         if (input.open() && input.running()) {
-          schedule(version, id, POLL_INTERVAL_MS);
+          schedule(request, POLL_INTERVAL_MS);
         }
       });
   };
 
   createEffect(() => {
     const id = input.shellID();
+    const directory = activeSession()?.location.directory;
     const open = input.open();
     input.running();
     generation += 1;
     clearTimer();
-    if (id !== currentID) {
+    controller?.abort();
+    if (id !== currentID || directory !== currentDirectory) {
       currentID = id;
+      currentDirectory = directory;
+      missing = false;
       cursor = 0;
       setOutput(undefined);
+      setUnavailable(false);
     }
-    if (!id || !open) return;
-    void poll(generation, id);
+    if (!id || !directory || !open || missing) return;
+    controller = new AbortController();
+    void poll({
+      version: generation,
+      id,
+      directory,
+      signal: controller.signal,
+    });
   });
 
   onCleanup(() => {
     generation += 1;
     clearTimer();
+    controller?.abort();
   });
 
-  return output;
+  return { output, unavailable };
 }

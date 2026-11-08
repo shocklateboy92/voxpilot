@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { SessionMessageAssistantTool } from "@opencode/client";
 import { expect, idle, send, test } from "./browser";
 import { assistant, history, openSession } from "./data";
@@ -259,6 +260,126 @@ test("real shell progress is visible before completion and a failing command exp
       id: shell.data.id,
       location: { directory: workspace.directory },
     });
+  }
+});
+
+test("missing live shell tools stop polling and retain saved output", async ({
+  app,
+  workspace,
+}) => {
+  const toolID = `sh_${randomUUID()}`;
+  let requests = 0;
+  app.on("request", (request) => {
+    const pathname = new URL(request.url()).pathname;
+    if (pathname.endsWith(`/shell/${toolID}/output`)) requests += 1;
+  });
+  const session = await history(
+    workspace.directory,
+    "Unavailable live shells",
+    [
+      assistant([
+        tool("shell", {
+          status: "completed",
+          input: { command: "missing assistant command" },
+          metadata: { status: "running", shellID: toolID },
+          content: [{ type: "text", text: "Saved assistant output" }],
+        }),
+      ]),
+    ],
+  );
+  await openSession(app, session.id);
+  const toolCard = app.locator(".tool-block", {
+    hasText: "missing assistant command",
+  });
+  await expect(toolCard.getByRole("status")).toHaveText(
+    "Live output is unavailable on this server. Showing saved output.",
+  );
+  await expect(toolCard).toContainText("Saved assistant output");
+  await app.clock.install();
+  await app.clock.runFor(3500);
+  await toolCard.locator("summary").click();
+  await toolCard.locator("summary").click();
+  await app.clock.runFor(3500);
+  expect(requests).toBe(1);
+});
+
+test("user shell output missing on the connected server is not repeatedly retried", async ({
+  app,
+  workspace,
+}) => {
+  const session = await history(
+    workspace.directory,
+    "User shell wrong backend",
+  );
+  await openSession(app, session.id);
+  const missingID = `sh_${randomUUID()}`;
+  let requests = 0;
+  await app.route("**/api/shell/*/output**", async (route) => {
+    requests += 1;
+    const url = new URL(route.request().url());
+    url.pathname = url.pathname.replace(
+      /\/shell\/[^/]+\/output$/,
+      `/shell/${missingID}/output`,
+    );
+    // Use the real server's missing-shell response to simulate the wrong runtime.
+    const missing = await route.fetch({ url: url.href });
+    await route.fulfill({ response: missing });
+  });
+  const command = "sleep 8 # unavailable user shell";
+  const run = client.session.shell({ sessionID: session.id, command });
+  try {
+    const card = app.locator(".tool-block", { hasText: command });
+    await expect(card.getByRole("status")).toContainText(
+      "Live output is unavailable on this server.",
+    );
+    await app.clock.install();
+    await app.clock.runFor(3500);
+    await card.locator("summary").click();
+    await card.locator("summary").click();
+    await app.clock.runFor(3500);
+    expect(requests).toBe(1);
+  } finally {
+    await run;
+    const messages = await client.message.list({ sessionID: session.id });
+    const shell = messages.data.find(
+      (message) => message.type === "shell" && message.command === command,
+    );
+    if (shell?.type === "shell")
+      await client.shell.remove({
+        id: shell.shellID,
+        location: { directory: workspace.directory },
+      });
+  }
+});
+
+test("user-run session shell commands show live progress before they exit", async ({
+  app,
+  workspace,
+}) => {
+  const session = await history(workspace.directory, "User shell progress");
+  await openSession(app, session.id);
+  const command =
+    "printf USER_LIVE_FIRST; sleep 5; printf USER_LIVE_LAST; exit 7";
+  const run = client.session.shell({ sessionID: session.id, command });
+  try {
+    const card = app.locator(".tool-block", { hasText: command });
+    await expect(card.locator("summary")).toContainText("running");
+    await expect(card.locator("pre")).toHaveText("USER_LIVE_FIRST");
+    await expect(card.locator("pre")).toHaveText(
+      "USER_LIVE_FIRSTUSER_LIVE_LAST",
+    );
+    await expect(card.locator("summary")).toContainText("exited");
+  } finally {
+    await run;
+    const messages = await client.message.list({ sessionID: session.id });
+    const shell = messages.data.find(
+      (message) => message.type === "shell" && message.command === command,
+    );
+    if (shell?.type === "shell")
+      await client.shell.remove({
+        id: shell.shellID,
+        location: { directory: workspace.directory },
+      });
   }
 });
 

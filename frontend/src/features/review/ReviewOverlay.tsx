@@ -378,7 +378,7 @@ export function ReviewOverlay() {
               onPaneMount={(el) => {
                 paneRef = el;
               }}
-              paneClass="review-pane min-h-0 flex-1 touch-pan-y overflow-x-clip overflow-y-auto pt-(--status-bar-clearance) pb-24 text-left"
+              paneClass="review-pane min-h-0 flex-1 touch-pan-y overflow-x-clip overflow-y-auto pt-(--status-bar-clearance) text-left"
               onSend={close}
             >
               <ErrorBoundary

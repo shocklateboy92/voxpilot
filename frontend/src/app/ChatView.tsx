@@ -91,7 +91,7 @@ export function ChatView() {
           canSwipeRight={canNavigatePrev}
           onSwipeLeft={navigateNext}
           onSwipeRight={navigatePrev}
-          paneClass="messages mx-auto min-h-0 w-full max-w-[66rem] flex-1 touch-pan-y overflow-x-clip overflow-y-auto px-[3vw] pt-(--status-bar-clearance) pb-64 text-left"
+          paneClass="messages mx-auto min-h-0 w-full max-w-[66rem] flex-1 touch-pan-y overflow-x-clip overflow-y-auto px-[3vw] pt-(--status-bar-clearance) text-left"
           onPaneMount={chatPaneMount}
           onScroll={anchor.onScroll}
           composerOverlay={<ChatScrollButton />}

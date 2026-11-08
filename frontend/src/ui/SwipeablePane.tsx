@@ -23,6 +23,8 @@ export interface SwipeablePaneProps {
   onSwipeRight?: () => void;
   /** CSS class applied to the swipeable content container. */
   class?: string;
+  /** Caller-owned runtime layout styles; swipe transforms remain internal. */
+  style?: JSX.CSSProperties;
   /** Content to render inside the swipeable area. */
   children: JSX.Element;
   /**
@@ -117,6 +119,7 @@ export function SwipeablePane(props: SwipeablePaneProps) {
         ref={containerRef}
         class={props.class}
         style={{
+          ...props.style,
           transform: `translateX(${swipeOffset()}px)`,
           transition: animateSnap() ? "transform 200ms ease-out" : "none",
         }}

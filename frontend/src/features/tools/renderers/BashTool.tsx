@@ -62,7 +62,7 @@ export function BashTool(props: { part: ToolPart }): JSX.Element {
         )}
       </Show>
       <Show
-        when={liveOutput()}
+        when={liveOutput.output()}
         fallback={<OutputSection state={props.part.state} />}
       >
         {(output) => (
@@ -70,6 +70,14 @@ export function BashTool(props: { part: ToolPart }): JSX.Element {
             <CodeOutput>{output()}</CodeOutput>
           </div>
         )}
+      </Show>
+      <Show when={liveOutput.unavailable() && active()}>
+        <div
+          role="status"
+          class="border-t border-border px-3 py-2 text-xs text-muted"
+        >
+          Live output is unavailable on this server. Showing saved output.
+        </div>
       </Show>
     </Disclosure>
   );

@@ -190,11 +190,11 @@ function OpenMarkdownViewer() {
         }
         canSwipeLeft={NO_SWIPE}
         canSwipeRight={NO_SWIPE}
-        showComposer={false}
         onPaneMount={(element) => {
           pane = element;
         }}
-        paneClass="min-h-0 flex-1 touch-pan-y overflow-x-clip overflow-y-auto scroll-pt-(--status-bar-clearance) px-[3vw] pt-(--status-bar-clearance) pb-[calc(var(--safe-bottom)+2rem)] text-left"
+        paneClass="markdown-pane min-h-0 flex-1 touch-pan-y overflow-x-clip overflow-y-auto scroll-pt-(--status-bar-clearance) px-[3vw] pt-(--status-bar-clearance) text-left"
+        onSend={closeFile}
       >
         <Suspense fallback={<Spinner />}>
           <Show when={loaded()} keyed>

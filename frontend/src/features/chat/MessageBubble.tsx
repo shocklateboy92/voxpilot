@@ -13,12 +13,11 @@ import { store } from "../../app/store";
 import { serverUrl } from "../../platform/connection";
 import { configuredServer } from "../../platform/connection-config";
 import { Badge } from "../../ui/Badge";
-import { CodeOutput } from "../../ui/CodeOutput";
-import { Disclosure, DisclosureSummary } from "../../ui/Disclosure";
 import { MarkdownView } from "../../ui/MarkdownView";
 import { backgroundCompletion } from "../tools/background-tools";
 import { ToolCallRenderer } from "../tools/ToolCallRenderer";
 import { formatVariantLabel, resolveModelName } from "./model-utils";
+import { ShellMessage } from "./ShellMessage";
 
 interface Props {
   msg: SessionMessageInfo;
@@ -176,16 +175,7 @@ export function MessageBubble(props: Props) {
           <p>{textContent()}</p>
         </Show>
         <Show when={props.msg.type === "shell" && props.msg}>
-          {(shell) => (
-            <Disclosure class="tool-block" open={shell().status === "running"}>
-              <DisclosureSummary>
-                {shell().command} ({shell().status})
-              </DisclosureSummary>
-              <div class="border-t border-border bg-bg px-3 py-1.5">
-                <CodeOutput>{shell().output?.output}</CodeOutput>
-              </div>
-            </Disclosure>
-          )}
+          {(shell) => <ShellMessage message={shell()} />}
         </Show>
         <For each={toolParts()}>
           {(part) => <ToolCallRenderer part={part} />}

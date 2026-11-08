@@ -6,7 +6,7 @@
  * Used by ChatView, ReviewOverlay, and the read-only Markdown viewer.
  */
 
-import { type JSX, Show } from "solid-js";
+import { createEffect, createSignal, type JSX, onCleanup } from "solid-js";
 import { ChatInput } from "../features/chat/ChatInput";
 import { SwipeablePane } from "../ui/SwipeablePane";
 
@@ -25,7 +25,7 @@ export interface ContentShellProps {
   /** Called when a right swipe commits. */
   onSwipeRight?: () => void;
 
-  /** CSS class applied to the SwipeablePane's scrollable container. */
+  /** Pane classes; the shell owns bottom padding for its floating composer. */
   paneClass?: string;
   /** Ref callback — receives the SwipeablePane's container element after mount. */
   onPaneMount?: (el: HTMLDivElement) => void;
@@ -45,14 +45,55 @@ export interface ContentShellProps {
   composerOverlay?: JSX.Element;
   /** Optional callback fired after a message is sent from the chat input. */
   onSend?: () => void;
-  /** Read-only viewers can omit the floating chat composer. */
-  showComposer?: boolean;
 
   /** The scrollable content. */
   children: JSX.Element;
 }
 
 export function ContentShell(props: ContentShellProps) {
+  let composer: HTMLDivElement | undefined;
+  const [pane, setPane] = createSignal<HTMLDivElement>();
+  const [bottomClearance, setBottomClearance] = createSignal(0);
+
+  createEffect(() => {
+    const element = pane();
+    const stack = composer;
+    if (!stack || !element) return;
+    const measure = () => {
+      const pinned =
+        element.scrollHeight > element.clientHeight &&
+        element.scrollHeight - element.scrollTop - element.clientHeight <= 2;
+      const clearance =
+        Math.max(
+          0,
+          element.getBoundingClientRect().bottom -
+            stack.getBoundingClientRect().top,
+        ) + 16;
+      setBottomClearance(clearance);
+      if (pinned) element.scrollTop = element.scrollHeight;
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(stack);
+    observer.observe(element);
+    const insetsObserver = new MutationObserver(measure);
+    insetsObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["style"],
+    });
+    measure();
+    // Focus can change safe-area/nav insets without changing the input's size.
+    window.addEventListener("resize", measure);
+    document.addEventListener("focusin", measure);
+    document.addEventListener("focusout", measure);
+    onCleanup(() => {
+      observer.disconnect();
+      insetsObserver.disconnect();
+      window.removeEventListener("resize", measure);
+      document.removeEventListener("focusin", measure);
+      document.removeEventListener("focusout", measure);
+    });
+  });
+
   return (
     <>
       <div
@@ -70,23 +111,29 @@ export function ContentShell(props: ContentShellProps) {
         {props.overlay}
         <SwipeablePane
           class={props.paneClass}
+          style={{ "padding-bottom": `${bottomClearance()}px` }}
           canSwipeLeft={props.canSwipeLeft}
           canSwipeRight={props.canSwipeRight}
           onSwipeLeft={props.onSwipeLeft}
           onSwipeRight={props.onSwipeRight}
-          onMount={props.onPaneMount}
+          onMount={(element) => {
+            setPane(element);
+            props.onPaneMount?.(element);
+          }}
           onScroll={props.onScroll}
         >
           {props.children}
         </SwipeablePane>
       </div>
-      <Show when={props.showComposer !== false}>
-        <div class="absolute inset-x-3 bottom-[calc(var(--bottom-nav-height)+var(--safe-bottom)+0.75rem)] z-40 flex flex-col items-center gap-2">
-          {props.composerOverlay}
-          {props.aboveInput}
-          <ChatInput onSend={props.onSend} />
-        </div>
-      </Show>
+      <div
+        ref={composer}
+        data-composer-stack
+        class="absolute inset-x-3 bottom-[calc(var(--bottom-nav-height)+var(--safe-bottom)+0.75rem)] z-40 flex flex-col items-center gap-2"
+      >
+        {props.composerOverlay}
+        {props.aboveInput}
+        <ChatInput onSend={props.onSend} />
+      </div>
     </>
   );
 }

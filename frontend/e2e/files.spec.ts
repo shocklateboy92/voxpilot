@@ -61,7 +61,7 @@ ${"wide code ".repeat(60)}
   ).toBeVisible();
   await expect(viewer.locator("ul")).toHaveCSS("list-style-type", "disc");
   await expect(viewer.locator("table")).toContainText("Works");
-  await expect(viewer.getByRole("textbox", { name: "Message" })).toHaveCount(0);
+  await expect(viewer.getByRole("textbox", { name: "Message" })).toBeVisible();
   for (const alt of ["Local diagram", "Remote diagram"]) {
     await expect
       .poll(() =>
@@ -127,12 +127,62 @@ ${"wide code ".repeat(60)}
   ).toBeVisible();
   await viewer.getByRole("button", { name: "Close viewer" }).focus();
   await app.keyboard.press("Tab");
-  await expect(
-    viewer.getByRole("button", { name: "Refresh file" }),
-  ).toBeFocused();
+  await expect(viewer.getByRole("textbox", { name: "Message" })).toBeFocused();
   await app.keyboard.press("Escape");
   await expect(viewer).toHaveCount(0);
   await expect(trigger).toBeFocused();
+});
+
+test("Markdown composer clearance follows input growth and safe-area insets", async ({
+  app,
+  workspace,
+}) => {
+  await writeFile(
+    join(workspace.directory, "README.md"),
+    `# Long document\n\n${"Body paragraph.\n\n".repeat(80)}Final paragraph.\n`,
+  );
+  const session = await history(
+    workspace.directory,
+    "Markdown composer geometry",
+    [assistant([{ type: "text", text: "[Preview](README.md)" }])],
+  );
+  await openSession(app, session.id);
+  await app.getByRole("link", { name: "Preview", exact: true }).click();
+  const viewer = app.getByRole("dialog", { name: "Markdown viewer" });
+  const pane = viewer.locator(".markdown-pane");
+  const input = viewer.getByRole("textbox", { name: "Message", exact: true });
+  const padding = () =>
+    pane.evaluate((element) =>
+      Number.parseFloat(getComputedStyle(element).paddingBottom),
+    );
+  await expect.poll(padding).toBeGreaterThan(0);
+  const initialPadding = await padding();
+  await input.fill(
+    Array.from({ length: 12 }, (_, index) => `Composer line ${index}`).join(
+      "\n",
+    ),
+  );
+  await expect.poll(padding).toBeGreaterThan(initialPadding);
+  for (const inset of [0, 24]) {
+    await app.evaluate((value) => {
+      document.documentElement.style.setProperty("--safe-bottom", `${value}px`);
+    }, inset);
+    await input.blur();
+    await expect
+      .poll(async () => {
+        await pane.evaluate((element) => {
+          element.scrollTop = element.scrollHeight;
+        });
+        const last = await viewer
+          .getByText("Final paragraph.", { exact: true })
+          .boundingBox();
+        const composer = await viewer
+          .locator("[data-composer-stack]")
+          .boundingBox();
+        return last && composer ? composer.y - (last.y + last.height) : -1;
+      })
+      .toBeGreaterThanOrEqual(15);
+  }
 });
 
 test("Read tool Markdown preview loads the complete file and recovers from missing and empty files", async ({
