@@ -63,7 +63,7 @@
     font-size: 0.85em;
     white-space: pre;
   }
-  /* This class also identifies the gesture-isolation boundary in MarkdownView. */
+  /* This class also identifies the native-scrolling boundary in the swipe handler. */
   .scroll-wrapper {
     overflow-x: auto;
   }

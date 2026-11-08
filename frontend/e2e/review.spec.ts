@@ -97,6 +97,9 @@ test("code review reformats on resize, navigates regions both ways, and reopens 
   await app.locator(".changeset-file-row", { hasText: "review.ts" }).click();
   await expect(review).toContainText("changed35");
   await expect(review).not.toContainText("changed after snapshot capture");
+  await expect(review.locator(".current-change").first()).toContainText(
+    "changed2",
+  );
   await review.press("PageDown");
   await expect(review.locator(".current-change").first()).toContainText(
     "changed35",

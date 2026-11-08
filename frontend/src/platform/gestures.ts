@@ -5,9 +5,8 @@
  * Detects horizontal swipes on an element, excluding
  * touches near screen edges (to avoid Safari back/forward).
  *
- * Touches inside horizontally-scrollable children (code blocks,
- * tables) are handled separately — those elements call
- * stopPropagation() on touchstart so this handler never sees them.
+ * Touches inside horizontally-scrollable children are excluded before
+ * tracking starts, so native scrolling wins over swipe navigation.
  */
 
 export interface SwipeCallbacks {
@@ -44,6 +43,22 @@ export function attachSwipeHandler(
   let rejected = false; // axis locked to vertical (ignore)
 
   function onTouchStart(e: TouchEvent): void {
+    tracking = false;
+    committed = false;
+    rejected = false;
+    let target = e.target instanceof Element ? e.target : null;
+    while (target && target !== element) {
+      // Markdown wrappers remain gesture boundaries even when their content fits.
+      if (target.classList.contains("scroll-wrapper")) return;
+      if (
+        target instanceof HTMLElement &&
+        target.scrollWidth > target.clientWidth
+      ) {
+        const overflow = getComputedStyle(target).overflowX;
+        if (overflow === "auto" || overflow === "scroll") return;
+      }
+      target = target.parentElement;
+    }
     const touch = e.touches[0];
     if (!touch) return;
 

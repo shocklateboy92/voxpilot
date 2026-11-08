@@ -99,7 +99,7 @@ export async function swipe(
   if (!bounds) throw new Error("Missing swipe target");
   const start = direction === "left" ? 270 : 110;
   const end = direction === "left" ? 110 : 270;
-  const y = Math.max(160, Math.min(bounds.y + bounds.height / 2, 500));
+  const y = Math.max(80, Math.min(bounds.y + bounds.height / 2, 500));
   const cdp = await page.context().newCDPSession(page);
   try {
     await cdp.send("Input.dispatchTouchEvent", {

@@ -7,8 +7,7 @@ const md = new MarkdownIt({ html: false, typographer: true, linkify: true });
 /*
  * Wrap code blocks and tables in a `.scroll-wrapper` so they can be
  * scrolled horizontally without widening the chat view.  The wrapper
- * also gets its own touch handling (see MarkdownView) to avoid
- * conflicting with swipe gestures.
+ * is recognized by the swipe handler as a native-scrolling boundary.
  */
 
 const defaultFence = md.renderer.rules.fence;

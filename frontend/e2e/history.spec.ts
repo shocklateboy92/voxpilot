@@ -156,12 +156,80 @@ test("touch swipes navigate conversations but horizontal code-block scrolling do
     ]),
   ]);
   await openSession(app, newer.id);
-  await swipe(app, app.locator(".scroll-wrapper"), "left");
+  const code = app.locator(".scroll-wrapper");
+  await code.scrollIntoViewIfNeeded();
+  await swipe(app, code, "left");
+  await expect
+    .poll(() => code.evaluate((element) => element.scrollLeft))
+    .toBeGreaterThan(30);
   await expect.poll(() => new URL(app.url()).hash).toBe(`#${newer.id}`);
   await swipe(app, app.locator(".messages-content").locator(".."), "left");
   await expect.poll(() => new URL(app.url()).hash).toBe(`#${older.id}`);
   await swipe(app, app.locator(".messages-content").locator(".."), "right");
   await expect.poll(() => new URL(app.url()).hash).toBe(`#${newer.id}`);
+});
+
+test("tables and other overflow containers scroll horizontally without session swipes", async ({
+  app,
+  workspace,
+}) => {
+  test.skip(
+    Boolean(process.env.VOXPILOT_E2E_CDP),
+    "Touch input uses isolated Chromium",
+  );
+  await history(workspace.directory, "Older horizontal-scroll conversation", [
+    assistant([{ type: "text", text: "Older reply" }]),
+  ]);
+  const session = await history(
+    workspace.directory,
+    "Horizontal-scroll boundaries",
+    [
+      assistant([
+        {
+          type: "text",
+          text: `| Wide column | Other |\n| --- | --- |\n| ${"wide_table_cell".repeat(120)} | Value |`,
+        },
+        {
+          type: "tool",
+          id: "wide-read-output",
+          name: "read",
+          time: { created: Date.now(), completed: Date.now() },
+          state: {
+            status: "completed",
+            input: { path: "wide.txt" },
+            content: [{ type: "text", text: "wide tool output ".repeat(120) }],
+          },
+        },
+      ]),
+    ],
+  );
+  await openSession(app, session.id);
+  await app.locator(".tool-block summary").click();
+  // CodeOutput normally wraps. Use it as an unwrapped overflow fixture to
+  // exercise the generic boundary, without a Markdown scroll-wrapper class.
+  await app.locator(".tool-block pre").evaluate((element) => {
+    element.style.whiteSpace = "pre";
+    element.style.wordBreak = "normal";
+    element.style.overflowX = "auto";
+  });
+  for (const scroller of [
+    app.locator(".scroll-wrapper"),
+    app.locator(".tool-block pre"),
+  ]) {
+    await scroller.scrollIntoViewIfNeeded();
+    await expect
+      .poll(() =>
+        scroller.evaluate(
+          (element) => element.scrollWidth - element.clientWidth,
+        ),
+      )
+      .toBeGreaterThan(100);
+    await swipe(app, scroller, "left");
+    await expect
+      .poll(() => scroller.evaluate((element) => element.scrollLeft))
+      .toBeGreaterThan(30);
+    expect(new URL(app.url()).hash).toBe(`#${session.id}`);
+  }
 });
 
 test("keyboard sending, multiline input, and agent/thinking selections reach the native session", async ({

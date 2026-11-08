@@ -1,6 +1,6 @@
 import { renderMarkdown } from "./markdown";
 
-/** Shared typography and touch handling for generated Markdown. */
+/** Shared typography, link rendering, and heading anchors for Markdown. */
 export function MarkdownView(props: {
   text: string;
   resolveLink?: Parameters<typeof renderMarkdown>[1];
@@ -36,12 +36,6 @@ export function MarkdownView(props: {
           }
         } catch {
           // Ignore a malformed anchor rather than navigating away from the session.
-        }
-      }}
-      onTouchStart={(event) => {
-        const target = event.target;
-        if (target instanceof Element && target.closest(".scroll-wrapper")) {
-          event.stopPropagation();
         }
       }}
       // eslint-disable-next-line solid/no-innerhtml -- intentional: MarkdownIt has raw HTML disabled
