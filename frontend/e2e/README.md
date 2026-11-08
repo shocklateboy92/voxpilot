@@ -1,23 +1,35 @@
 # Browser regression tests
 
-Run against the real OpenCode dev backend with the machine's existing provider
-credentials and configuration:
+Run against a real, isolated OpenCode backend using the machine's existing
+configuration and GitHub Copilot account:
 
 ```sh
 cd frontend
 npm run test:e2e
 ```
 
-Playwright reuses the backend on **127.0.0.1:8001**. If it is down, Playwright
-builds the plugin and starts the normal `packaging/voxpilot-opencode` launcher.
-It starts a dedicated Vite frontend on **localhost:13000**, proxying that
-backend, so `just dev`'s frontend on port 3000 can keep running. Playwright stops
-processes it started when the run ends; an existing dev backend stays running.
+Playwright builds the plugin and starts `packaging/voxpilot-opencode` on
+**127.0.0.1:18001** with `OPENCODE_DB` pointing to a fresh database under
+`/tmp/opencode/voxpilot-e2e-backend-*`. It never reuses an existing backend,
+even when one is already listening on the test port. A dedicated Vite frontend
+on **localhost:13000** proxies that backend; it is not reused either, so an old
+frontend cannot silently proxy the normal database. `just dev` on ports 8001
+and 3000 can keep running. Teardown stops the test backend before removing its
+temporary database, including retained project metadata. Startup failure also
+cleans up the backend and its directory. A small supervisor watches a pipe owned
+by the runner, so an interrupted or killed runner also stops its backend and
+removes the database instead of leaving an orphan server.
 Install dependencies first with `just install` on a fresh checkout.
 
 The connection form uses `OPENCODE_PASSWORD` from the environment or the repo's
-`.env`, just like `just dev`. Provider login is assumed to be complete. There is
-no mock provider, separate OpenCode home, or mutation opt-in flag.
+`.env`, or a generated test password if neither is set. Provider login is assumed
+to be complete on the normal local OpenCode service. Setup discovers that service
+without starting it and reads only its active GitHub Copilot credential, then
+imports it into the disposable backend via the typed credential API. Credential
+values stay in memory: no export files, database copies, or logged secrets.
+The source service is not modified. There is no mock provider or separate
+OpenCode home; global configuration is still inherited. Account changes and
+credential refreshes on the test backend stay in its disposable database.
 
 ## Generation and test data
 
@@ -31,8 +43,12 @@ select it in the UI. Its local configuration pins all discovered agents and the
 hidden title, summary, and compaction agents to Luna too. Warming and automatic
 compaction are disabled for these test locations. Worktrees inherit the same
 configuration. Test-created sessions are interrupted and deleted after each
-test; test teardown removes test worktrees, saved permissions, and temporary files. OpenCode may
-retain project metadata for the deleted temporary repository.
+test; test teardown removes test worktrees, saved permissions, and temporary files.
+OpenCode may retain project metadata within the test database until suite teardown
+deletes it. No test project records are written to the normal database.
+`backend.spec.ts` verifies source-service isolation, database disposal, fresh
+subsequent startup, refusal to reuse an occupied backend port, and cleanup after
+the owning runner is killed.
 
 Real prompts exercise streaming Markdown, cancellation, SSE recovery, reload,
 model selection, questions, permissions, forks, worktrees, and plugin diff cards.
@@ -66,9 +82,13 @@ The GitHub release build does not run this credential-dependent suite. Run
 ## Overrides
 
 - `VOXPILOT_E2E_URL`: frontend URL (default `http://localhost:13000`).
-- `VOXPILOT_E2E_API`: backend URL (default `http://127.0.0.1:8001`). Temporary
-  repository paths must be accessible to it. Local HTTP URL overrides also let
-  Playwright start the servers on different ports for startup verification.
+- `VOXPILOT_E2E_API`: test backend origin (default `http://127.0.0.1:18001`).
+  Only local HTTP origins are accepted. The runner always starts an isolated
+  backend there; this is not an opt-in to reuse an existing server.
+- `VOXPILOT_E2E_AUTH_SERVER`: optional existing credential-source server URL.
+  Authenticates with `OPENCODE_PASSWORD`. When omitted, setup uses local service
+  discovery and its registered authentication. Only credentials are read from
+  this source; test mutations always go to the isolated backend.
 - `VOXPILOT_E2E_CHROMIUM`: Chromium executable (default `/usr/bin/chromium`).
 - `VOXPILOT_E2E_CDP`: attach to an existing browser. The runner reuses its context
   and only closes tabs it creates. Network, touch, and JavaScript-disabled tests

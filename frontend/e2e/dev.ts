@@ -13,7 +13,7 @@ export const model = {
 export const modelKey = `${model.providerID}/${model.id}`;
 export const password = process.env.OPENCODE_PASSWORD ?? "";
 export const client = OpenCode.make({
-  baseUrl: process.env.VOXPILOT_E2E_API ?? "http://127.0.0.1:8001",
+  baseUrl: process.env.VOXPILOT_E2E_API ?? "http://127.0.0.1:18001",
   headers: password
     ? {
         authorization: `Basic ${Buffer.from(`opencode:${password}`).toString("base64")}`,
