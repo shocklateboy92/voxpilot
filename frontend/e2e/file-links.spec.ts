@@ -5,10 +5,33 @@ import {
   fileRequestFromUrl,
   resolveFileLink,
 } from "../src/features/files/file-links";
+import { fileReadRequest } from "../src/features/files/file-state";
 import { renderMarkdown } from "../src/ui/markdown";
 import { expect, test } from "./browser";
 import { assistant, history, openSession } from "./data";
 import { client, password } from "./dev";
+
+unit(
+  "absolute file reads use their own parent without changing viewer context",
+  () => {
+    const location = { directory: "/work/project" };
+    for (const path of [
+      "/outside/AGENTS.md",
+      "/outside/guide #1%.md",
+      "/root.md",
+    ]) {
+      const request = { path, location, fragment: "details" };
+      const separator = path.lastIndexOf("/");
+      expect(fileReadRequest(request)).toEqual({
+        path: path.slice(separator + 1),
+        location: { directory: path.slice(0, separator + 1) },
+      });
+      expect(request).toEqual({ path, location, fragment: "details" });
+    }
+    const relative = { path: "docs/guide.md", location };
+    expect(fileReadRequest(relative)).toBe(relative);
+  },
+);
 
 unit(
   "file-link classification preserves web URLs and encodes paths and fragments",

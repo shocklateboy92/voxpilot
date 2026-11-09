@@ -27,7 +27,7 @@ import { IconButton } from "../../ui/IconButton";
 import { MarkdownView } from "../../ui/MarkdownView";
 import { Overlay } from "../../ui/Overlay";
 import { Spinner } from "../../ui/Spinner";
-import { fileUrl, isMarkdownPath } from "./file-state";
+import { fileReadRequest, fileUrl, isMarkdownPath } from "./file-state";
 
 const NO_SWIPE = () => false;
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -57,7 +57,7 @@ function OpenMarkdownViewer() {
     try {
       if (!isMarkdownPath(request.path))
         throw new Error("This viewer currently supports Markdown files only.");
-      const bytes = await client.file.read(request);
+      const bytes = await client.file.read(fileReadRequest(request));
       if (bytes.byteLength > MAX_BYTES)
         throw new Error(
           "This Markdown file is too large to preview (maximum 5 MiB).",
@@ -122,10 +122,9 @@ function OpenMarkdownViewer() {
       image.removeAttribute("src");
       const path = decodeURIComponent(url.pathname);
       void client.file
-        .read(
-          { location: value.request.location, path },
-          { signal: controller.signal },
-        )
+        .read(fileReadRequest({ location: value.request.location, path }), {
+          signal: controller.signal,
+        })
         .then((bytes) => {
           if (controller.signal.aborted) return;
           const extension = path.split(".").at(-1)?.toLowerCase() ?? "";

@@ -282,3 +282,68 @@ test("Read tool Markdown preview loads the complete file and recovers from missi
     viewer.getByRole("heading", { name: "Recovered" }),
   ).toBeVisible();
 });
+
+test("Read tool previews files outside the session with linked documents and images", async ({
+  app,
+  workspace,
+}) => {
+  const directory = join(workspace.root, "external docs");
+  await mkdir(directory);
+  const path = join(directory, "AGENTS.md");
+  await writeFile(
+    path,
+    "# External instructions\n\nFull contents outside the session.\n\n[Next document](next%20%231.md#details)\n\n![External diagram](diagram.svg)\n",
+  );
+  await writeFile(
+    join(directory, "next #1.md"),
+    "# Linked external document\n\n## Details\n\nExternal linked contents.\n",
+  );
+  await writeFile(
+    join(directory, "diagram.svg"),
+    '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="30"/>',
+  );
+  const session = await history(workspace.directory, "External Read Markdown", [
+    assistant([
+      {
+        type: "tool",
+        id: "read-external-markdown",
+        name: "read",
+        time: { created: Date.now(), completed: Date.now() },
+        state: {
+          status: "completed",
+          input: { path, limit: 1 },
+          content: [{ type: "text", text: "1: # External instructions" }],
+        },
+      },
+    ]),
+  ]);
+  await openSession(app, session.id);
+  await app.locator(".tool-block summary").click();
+  await app.getByRole("button", { name: "View Markdown" }).click();
+  const viewer = app.getByRole("dialog", { name: "Markdown viewer" });
+  await expect(viewer).toContainText("Full contents outside the session.");
+  await expect
+    .poll(() =>
+      viewer
+        .getByAltText("External diagram")
+        .evaluate(
+          (element) =>
+            element instanceof HTMLImageElement && element.naturalWidth > 0,
+        ),
+    )
+    .toBe(true);
+  await viewer
+    .getByRole("link", { name: "Next document", exact: true })
+    .click();
+  await expect(viewer).toContainText("External linked contents.");
+  await expect(viewer.locator("#details")).toHaveText("Details");
+  expect(new URL(app.url()).hash).toBe(`#${session.id}`);
+  expect(new URL(app.url()).searchParams.get("directory")).toBe(
+    workspace.directory,
+  );
+  await app.reload();
+  await expect(viewer).toContainText("External linked contents.");
+  await viewer.getByRole("button", { name: "Close viewer" }).click();
+  await expect(viewer).toHaveCount(0);
+  expect(new URL(app.url()).hash).toBe(`#${session.id}`);
+});
