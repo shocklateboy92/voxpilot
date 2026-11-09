@@ -1,4 +1,12 @@
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  onCleanup,
+  onMount,
+} from "solid-js";
 import { renderMarkdown } from "./markdown";
+import { renderMermaid } from "./mermaid";
 
 /** Shared typography, link rendering, and heading anchors for Markdown. */
 export function MarkdownView(props: {
@@ -6,12 +14,42 @@ export function MarkdownView(props: {
   resolveLink?: Parameters<typeof renderMarkdown>[1];
   onMount?: (element: HTMLDivElement) => void;
 }) {
+  let root: HTMLDivElement | undefined;
+  const html = createMemo(() => renderMarkdown(props.text, props.resolveLink));
+  const [light, setLight] = createSignal(false);
+  onMount(() => {
+    const media = window.matchMedia("(prefers-color-scheme: light)");
+    const update = () => setLight(media.matches);
+    update();
+    media.addEventListener("change", update);
+    onCleanup(() => media.removeEventListener("change", update));
+  });
+  createEffect(() => {
+    html();
+    const isLight = light();
+    const element = root;
+    if (!element) return;
+    let active = true;
+    // Debounce streamed tokens rather than rendering every partial diagram.
+    const timer = setTimeout(() => {
+      void renderMermaid(element, isLight, () => active);
+    }, 500);
+    onCleanup(() => {
+      active = false;
+      clearTimeout(timer);
+    });
+  });
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: handles in-message heading anchors, not app navigation
     // biome-ignore lint/a11y/useKeyWithClickEvents: native anchors already support keyboard activation
     <div
       class="markdown-body"
-      ref={(element) => props.onMount?.(element)}
+      ref={(element) => {
+        root = element;
+        props.onMount?.(element);
+      }}
+      // eslint-disable-next-line solid/no-innerhtml -- intentional: MarkdownIt has raw HTML disabled
+      innerHTML={html()}
       onClick={(event) => {
         if (
           event.defaultPrevented ||
@@ -38,8 +76,6 @@ export function MarkdownView(props: {
           // Ignore a malformed anchor rather than navigating away from the session.
         }
       }}
-      // eslint-disable-next-line solid/no-innerhtml -- intentional: MarkdownIt has raw HTML disabled
-      innerHTML={renderMarkdown(props.text, props.resolveLink)}
     />
   );
 }

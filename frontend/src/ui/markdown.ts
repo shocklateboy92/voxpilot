@@ -15,6 +15,10 @@ md.renderer.rules.fence = (tokens, idx, options, env, self) => {
   const inner = defaultFence
     ? defaultFence(tokens, idx, options, env, self)
     : self.renderToken(tokens, idx, options);
+  if (tokens[idx]?.info.trim().split(/\s+/)[0] === "mermaid") {
+    // Keep escaped source visible until the asynchronous renderer succeeds.
+    return `<div class="scroll-wrapper" data-mermaid>${inner}</div>`;
+  }
   return `<div class="scroll-wrapper">${inner}</div>`;
 };
 

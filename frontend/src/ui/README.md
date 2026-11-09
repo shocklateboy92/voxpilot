@@ -19,7 +19,7 @@ import stores, features, or API clients. ESLint enforces the import boundary.
 | `SegmentedControl` | Typed options, value/label accessors, selection callback, disabled state. |
 | `ChoiceOption` | Selected button with optional description and checkmark. |
 | `Overlay`, `OverlayHeader` | Named bottom/center/fullscreen dialog, keyboard focus handling, dismissal, and shared header. |
-| `MarkdownView` | Shared Markdown typography and heading anchors, with caller-supplied link URLs/attributes. |
+| `MarkdownView` | Shared Markdown typography, heading anchors, and lazy-loaded Mermaid diagrams, with caller-supplied link URLs/attributes. |
 | `ListRow` | Native full-width selection button for picker rows. |
 | `EmptyState` | Centered, muted empty-state content. |
 | `Spinner` | Centered loading indicator, optionally fullscreen. |

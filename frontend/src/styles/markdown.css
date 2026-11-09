@@ -67,6 +67,21 @@
   .scroll-wrapper {
     overflow-x: auto;
   }
+  .markdown-body .mermaid-diagram {
+    margin: 0.6em 0;
+  }
+  .markdown-body .mermaid-diagram > svg {
+    display: block;
+    max-width: none;
+    margin-inline: auto;
+  }
+  /* Render off-screen, but keep SVG geometry measurable. */
+  .mermaid-render-host {
+    position: fixed;
+    left: -100000px;
+    visibility: hidden;
+    pointer-events: none;
+  }
   .markdown-body blockquote {
     margin: 0.5em 0;
     padding: 0.25em 0.75em;
