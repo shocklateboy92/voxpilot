@@ -7,6 +7,7 @@
  *
  * Touches inside horizontally-scrollable children are excluded before
  * tracking starts, so native scrolling wins over swipe navigation.
+ * Text selection also takes priority, including selection started mid-gesture.
  */
 
 export interface SwipeCallbacks {
@@ -42,10 +43,16 @@ export function attachSwipeHandler(
   let committed = false; // axis locked to horizontal
   let rejected = false; // axis locked to vertical (ignore)
 
+  function hasTextSelection(): boolean {
+    const selection = element.ownerDocument.getSelection();
+    return selection !== null && !selection.isCollapsed;
+  }
+
   function onTouchStart(e: TouchEvent): void {
     tracking = false;
     committed = false;
     rejected = false;
+    if (hasTextSelection()) return;
     let target = e.target instanceof Element ? e.target : null;
     while (target && target !== element) {
       // Markdown wrappers remain gesture boundaries even when their content fits.
@@ -80,6 +87,10 @@ export function attachSwipeHandler(
 
   function onTouchMove(e: TouchEvent): void {
     if (!tracking || rejected) return;
+    if (hasTextSelection()) {
+      onTouchCancel();
+      return;
+    }
 
     const touch = e.touches[0];
     if (!touch) return;
@@ -109,6 +120,10 @@ export function attachSwipeHandler(
   }
 
   function onTouchEnd(e: TouchEvent): void {
+    if (tracking && hasTextSelection()) {
+      onTouchCancel();
+      return;
+    }
     if (!tracking || !committed) {
       tracking = false;
       return;
