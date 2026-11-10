@@ -34,7 +34,11 @@ export async function credentialSource() {
 }
 
 /** A foreground backend with disposable persistence; never attaches to a server. */
-export async function startTestBackend(url: string, password: string) {
+export async function startTestBackend(
+  url: string,
+  password: string,
+  parentDirectory = "/tmp/opencode",
+) {
   const target = new URL(url);
   if (
     target.protocol !== "http:" ||
@@ -47,7 +51,7 @@ export async function startTestBackend(url: string, password: string) {
   )
     throw new Error("VOXPILOT_E2E_API must be a local HTTP origin");
 
-  const root = await mkdtemp("/tmp/opencode/voxpilot-e2e-backend-");
+  const root = await mkdtemp(join(parentDirectory, "voxpilot-e2e-backend-"));
   const child = spawn(
     "bun",
     [fileURLToPath(new URL("./backend-process.ts", import.meta.url)), root],

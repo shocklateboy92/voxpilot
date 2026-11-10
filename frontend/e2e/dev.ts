@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { type ConfigEntry, type ModelRef, OpenCode } from "@opencode/client";
 import { expect } from "@playwright/test";
+import { apiURL, workerIndex } from "./endpoints";
 
 export const model = {
   providerID: "github-copilot",
@@ -12,19 +13,22 @@ export const model = {
 } satisfies ModelRef;
 export const modelKey = `${model.providerID}/${model.id}`;
 export const password = process.env.OPENCODE_PASSWORD ?? "";
-export const client = OpenCode.make({
-  baseUrl: process.env.VOXPILOT_E2E_API ?? "http://127.0.0.1:18001",
-  headers: password
-    ? {
-        authorization: `Basic ${Buffer.from(`opencode:${password}`).toString("base64")}`,
-      }
-    : {},
-});
+export function makeClient(baseUrl: string) {
+  return OpenCode.make({
+    baseUrl,
+    headers: password
+      ? {
+          authorization: `Basic ${Buffer.from(`opencode:${password}`).toString("base64")}`,
+        }
+      : {},
+  });
+}
+export const client = makeClient(apiURL);
 
 const exec = promisify(execFile);
 
 /** Test data on the real server; all repositories and worktrees belong to this run. */
-export async function createWorkspace() {
+export async function createWorkspace(parentDirectory: string) {
   // A freshly started server can answer /api/info before providers finish loading.
   await expect
     .poll(
@@ -44,7 +48,9 @@ export async function createWorkspace() {
     )
     .toBe(true);
 
-  const root = await mkdtemp("/tmp/opencode/voxpilot-e2e-");
+  const root = await mkdtemp(
+    join(parentDirectory, `voxpilot-e2e-worker-${workerIndex}-`),
+  );
   const directory = join(root, "repo");
   await mkdir(directory);
   const agents = await client.agent.list();
@@ -144,8 +150,7 @@ export async function createWorkspace() {
   };
 }
 
-export const markdownPrompt = `Return exactly the following Markdown, without wrapping it in another code fence. Do not use tools.
-# Baseline response
+export const markdownResponse = `# Baseline response
 
 Browser baseline passed.
 
@@ -155,6 +160,9 @@ Browser baseline passed.
 \`\`\`text
 baseline code
 \`\`\``;
+
+export const markdownPrompt = `Return exactly the following Markdown, without wrapping it in another code fence. Do not use tools.
+${markdownResponse}`;
 
 export const longPrompt =
   "Do not use tools. Output exactly 100 lines, numbered 1 through 100. Each line must be 'Streaming baseline chunk N.' with N replaced by its number. Do not omit any lines or add commentary.";

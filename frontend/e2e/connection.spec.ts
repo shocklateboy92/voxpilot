@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
 import { password } from "./dev";
+import { expect, test } from "./fixtures";
 
 test.use({
   launchOptions: {

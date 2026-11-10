@@ -497,7 +497,12 @@ async function reconcileConnection(): Promise<void> {
   const request = ++reconnectRequest;
   const before = new Map(revisions);
   const statusesBefore = new Map(statusRevisions);
-  const boot = await init();
+  const selectedSessionID = activeSessionId();
+  const boot = await init([
+    ...Object.keys(store.sessionPermissions),
+    ...Object.keys(store.sessionQuestions),
+    ...(selectedSessionID ? [selectedSessionID] : []),
+  ]);
   if (disposed || request !== reconnectRequest) return;
   const unchanged = (id: string) => before.get(id) === revisions.get(id);
   function crossSession<T>(
@@ -545,7 +550,10 @@ async function reconcileConnection(): Promise<void> {
       reconcile(crossSession(boot.sessionQuestions, store.sessionQuestions)),
     );
     for (const session of sessions) {
-      if (unchanged(session.id)) bump(metadataRequests, session.id);
+      if (unchanged(session.id)) {
+        bump(metadataRequests, session.id);
+        bump(pendingRequests, session.id);
+      }
       if (statusesBefore.get(session.id) === statusRevisions.get(session.id)) {
         bump(statusRevisions, session.id);
         setStore(
@@ -843,9 +851,8 @@ const dispose = createRoot((dispose) => {
       if (sessionID) {
         void refreshHistory(sessionID);
         void refreshStatus(sessionID);
-        if (store.sessionStatuses[sessionID]?.type !== undefined) {
-          void refreshPending(sessionID);
-        }
+        // Idle sessions can still have pending forms or permissions.
+        void refreshPending(sessionID);
       }
     }),
   );

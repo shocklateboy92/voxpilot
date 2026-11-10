@@ -1,13 +1,25 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { once } from "node:events";
-import { access, mkdir, readdir } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { createServer } from "node:net";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect, test } from "@playwright/test";
 import { credentialSource, startTestBackend } from "./backend";
 import { client, createWorkspace, model } from "./dev";
+import { test as base, expect } from "./fixtures";
+
+const test = base.extend<{ backendDirectory: string }>({
+  // biome-ignore lint/correctness/noEmptyPattern: Playwright requires fixture destructuring
+  backendDirectory: async ({}, use) => {
+    const root = await mkdtemp("/tmp/opencode/voxpilot-e2e-lifecycle-");
+    try {
+      await use(root);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+});
 
 async function unusedLocalUrl() {
   const server = createServer();
@@ -25,15 +37,17 @@ async function unusedLocalUrl() {
   return url;
 }
 
-async function backendDirectories() {
-  return (await readdir("/tmp/opencode"))
+async function backendDirectories(parent: string) {
+  return (await readdir(parent))
     .filter((directory) => directory.startsWith("voxpilot-e2e-backend-"))
     .sort();
 }
 
-test("test projects and sessions never reach the credential source", async () => {
+test("test projects and sessions never reach the credential source", async ({
+  servers,
+}) => {
   const source = await credentialSource();
-  const workspace = await createWorkspace();
+  const workspace = await createWorkspace(servers.root);
   try {
     const session = await client.session.create({
       location: { directory: workspace.directory },
@@ -62,10 +76,52 @@ test("test projects and sessions never reach the credential source", async () =>
   }
 });
 
-test("backend teardown deletes persistence and the next backend starts fresh", async () => {
+test("independent backends cannot see each other's sessions", async ({
+  backendDirectory,
+  servers,
+}) => {
+  const other = await startTestBackend(
+    await unusedLocalUrl(),
+    randomUUID(),
+    backendDirectory,
+  );
+  try {
+    const workspace = await createWorkspace(servers.root);
+    try {
+      const own = await client.session.create({
+        location: { directory: workspace.directory },
+        title: "Worker-owned session",
+      });
+      await expect(
+        other.client.session.get({ sessionID: own.id }),
+      ).rejects.toMatchObject({ _tag: "SessionNotFoundError" });
+      const foreign = await other.client.session.create({
+        location: { directory: other.root },
+        title: "Foreign backend session",
+      });
+      await expect(
+        client.session.get({ sessionID: foreign.id }),
+      ).rejects.toMatchObject({ _tag: "SessionNotFoundError" });
+      expect(
+        (await client.session.list()).data.map((session) => session.id),
+      ).toEqual([own.id]);
+      expect(
+        (await other.client.session.list()).data.map((session) => session.id),
+      ).toEqual([foreign.id]);
+    } finally {
+      await workspace.dispose();
+    }
+  } finally {
+    await other.stop();
+  }
+});
+
+test("backend teardown deletes persistence and the next backend starts fresh", async ({
+  backendDirectory,
+}) => {
   const url = await unusedLocalUrl();
   const password = randomUUID();
-  const first = await startTestBackend(url, password);
+  const first = await startTestBackend(url, password, backendDirectory);
   const directory = join(first.root, "workspace");
   try {
     await mkdir(directory);
@@ -80,17 +136,17 @@ test("backend teardown deletes persistence and the next backend starts fresh", a
       ),
     ).toBe(true);
     // Even matching authentication must not let the runner adopt another server.
-    const directories = await backendDirectories();
-    await expect(startTestBackend(url, password)).rejects.toThrow(
-      /refusing to reuse|exited during startup/,
-    );
-    expect(await backendDirectories()).toEqual(directories);
+    const directories = await backendDirectories(backendDirectory);
+    await expect(
+      startTestBackend(url, password, backendDirectory),
+    ).rejects.toThrow(/refusing to reuse|exited during startup/);
+    expect(await backendDirectories(backendDirectory)).toEqual(directories);
     expect((await first.client.session.list()).data).toHaveLength(1);
   } finally {
     await first.stop();
   }
   await expect(access(first.root)).rejects.toThrow();
-  const second = await startTestBackend(url, password);
+  const second = await startTestBackend(url, password, backendDirectory);
   try {
     expect(second.root).not.toBe(first.root);
     expect(

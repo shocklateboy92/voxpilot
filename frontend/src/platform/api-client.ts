@@ -60,6 +60,19 @@ export function removeEventListener(listener: EventListener): void {
   listeners.delete(listener);
 }
 
+function waitForOnline(signal: AbortSignal): Promise<void> {
+  if (navigator.onLine || signal.aborted) return Promise.resolve();
+  return new Promise((resolve) => {
+    function finish() {
+      window.removeEventListener("online", finish);
+      signal.removeEventListener("abort", finish);
+      resolve();
+    }
+    window.addEventListener("online", finish, { once: true });
+    signal.addEventListener("abort", finish, { once: true });
+  });
+}
+
 /** Call after bootstrap and listener registration, never during module import. */
 export function startEventStream(): void {
   if (streamStarted || sseAbort.signal.aborted) return;
@@ -68,9 +81,25 @@ export function startEventStream(): void {
     const signal = sseAbort.signal;
     let delay = 1_000;
     while (!signal.aborted) {
+      await waitForOnline(signal);
+      if (signal.aborted) return;
+      // Going offline does not necessarily close an existing streaming fetch
+      // (including in Chromium's offline emulation). Stop consuming events so
+      // they cannot trigger background API refreshes over a failed transport.
+      const connectionAbort = new AbortController();
+      const connectionSignal = AbortSignal.any([
+        signal,
+        connectionAbort.signal,
+      ]);
+      const pause = () => connectionAbort.abort();
+      window.addEventListener("offline", pause);
+      // The browser may have gone offline while waitForOnline yielded.
+      if (!navigator.onLine) pause();
       try {
-        for await (const event of client.event.subscribe({ signal })) {
-          if (signal.aborted) return;
+        for await (const event of client.event.subscribe({
+          signal: connectionSignal,
+        })) {
+          if (connectionSignal.aborted) break;
           delay = 1_000;
           // Forward server.connected on every connection so consumers can
           // reconcile snapshots, including events missed since bootstrap.
@@ -84,9 +113,14 @@ export function startEventStream(): void {
         }
       } catch (error) {
         if (signal.aborted) return;
-        console.error("OpenCode event stream failed:", error);
+        if (!connectionSignal.aborted)
+          console.error("OpenCode event stream failed:", error);
+      } finally {
+        window.removeEventListener("offline", pause);
       }
       if (signal.aborted) return;
+      // Resume immediately on online; server.connected reconciles missed events.
+      if (connectionAbort.signal.aborted) continue;
       // EOF also reconnects. HMR cancels both the transport and this delay.
       await new Promise<void>((resolve) => {
         const timer = setTimeout(finish, delay);

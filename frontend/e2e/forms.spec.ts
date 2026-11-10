@@ -2,6 +2,55 @@ import { expect, test } from "./browser";
 import { history, openSession } from "./data";
 import { client } from "./dev";
 
+test("idle forms survive project refreshes and reload without dropping pending questions", async ({
+  app,
+  workspace,
+}) => {
+  const session = await history(workspace.directory, "Idle form recovery");
+  await openSession(app, session.id);
+  const form = await client.session.form.create({
+    sessionID: session.id,
+    title: "Idle question",
+    fields: [
+      { key: "answer", title: "Answer", type: "string", required: true },
+    ],
+  });
+  expect((await client.session.active())[session.id]).toBeUndefined();
+  const answer = app.locator(".question-block").getByLabel("Answer", {
+    exact: true,
+  });
+  await answer.fill("Keep this draft");
+
+  await client.project.update({
+    projectID: workspace.projectID,
+    name: "Refreshed form project",
+  });
+  // The renamed badge proves the connection snapshot has reached the store.
+  await app.locator(".bottom-nav .session-title-btn").click();
+  const picker = app.getByRole("dialog", { name: "Sessions", exact: true });
+  await expect(
+    picker.getByText("Refreshed form project", { exact: true }),
+  ).toBeVisible();
+  await picker.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(answer).toHaveValue("Keep this draft");
+
+  await app.reload({ waitUntil: "domcontentloaded" });
+  await expect(answer).toBeVisible();
+  await answer.fill("Recovered after reload");
+  await app
+    .locator(".question-block")
+    .getByRole("button", { name: "Submit", exact: true })
+    .click();
+  await expect(app.locator(".question-block")).toHaveCount(0);
+  expect(
+    (await client.session.form.get({ sessionID: session.id, formID: form.id }))
+      .state,
+  ).toEqual({
+    status: "answered",
+    answer: { answer: "Recovered after reload" },
+  });
+});
+
 test("typed forms validate required and conditional fields and persist the exact answer", async ({
   app,
   workspace,

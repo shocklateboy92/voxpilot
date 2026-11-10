@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, frontendTest as test } from "./fixtures";
 
 test.use({
   launchOptions: {

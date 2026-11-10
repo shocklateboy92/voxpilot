@@ -1,5 +1,12 @@
 import { isShellNotFoundError } from "@opencode/client";
-import { type Accessor, createEffect, createSignal, onCleanup } from "solid-js";
+import {
+  type Accessor,
+  createEffect,
+  createMemo,
+  createSignal,
+  onCleanup,
+  untrack,
+} from "solid-js";
 import { activeSession } from "../../../app/navigation";
 import { client } from "../../../platform/api-client";
 
@@ -12,6 +19,12 @@ export function createLiveShellOutput(input: {
 }) {
   const [output, setOutput] = createSignal<string>();
   const [unavailable, setUnavailable] = createSignal(false);
+  // Session snapshots and tool metadata can change without changing the poll.
+  // Compare the actual inputs before aborting an in-flight output request.
+  const shellID = createMemo(input.shellID);
+  const directory = createMemo(() => activeSession()?.location.directory);
+  const open = createMemo(input.open);
+  const running = createMemo(input.running);
   let currentID: string | undefined;
   let currentDirectory: string | undefined;
   let missing = false;
@@ -43,7 +56,7 @@ export function createLiveShellOutput(input: {
 
   const poll = async (request: Poll): Promise<void> => {
     const { version, id, directory, signal } = request;
-    if (version !== generation || !input.open() || missing) return;
+    if (version !== generation || !untrack(open) || missing) return;
 
     await client.shell
       .output({ id, location: { directory }, cursor }, { signal })
@@ -53,12 +66,12 @@ export function createLiveShellOutput(input: {
           setOutput((current) => `${current ?? ""}${response.data.output}`);
         }
         cursor = response.data.cursor;
-        if (!input.open()) return;
+        if (!untrack(open)) return;
         if (cursor < response.data.size) {
           schedule(request, 0);
           return;
         }
-        if (input.running()) schedule(request, POLL_INTERVAL_MS);
+        if (untrack(running)) schedule(request, POLL_INTERVAL_MS);
       })
       .catch((error: unknown) => {
         if (version !== generation || currentID !== id) return;
@@ -68,34 +81,34 @@ export function createLiveShellOutput(input: {
           return;
         }
         console.error("Failed to read live shell output:", error);
-        if (input.open() && input.running()) {
+        if (untrack(open) && untrack(running)) {
           schedule(request, POLL_INTERVAL_MS);
         }
       });
   };
 
   createEffect(() => {
-    const id = input.shellID();
-    const directory = activeSession()?.location.directory;
-    const open = input.open();
-    input.running();
+    const id = shellID();
+    const location = directory();
+    const expanded = open();
+    running();
     generation += 1;
     clearTimer();
     controller?.abort();
-    if (id !== currentID || directory !== currentDirectory) {
+    if (id !== currentID || location !== currentDirectory) {
       currentID = id;
-      currentDirectory = directory;
+      currentDirectory = location;
       missing = false;
       cursor = 0;
       setOutput(undefined);
       setUnavailable(false);
     }
-    if (!id || !directory || !open || missing) return;
+    if (!id || !location || !expanded || missing) return;
     controller = new AbortController();
     void poll({
       version: generation,
       id,
-      directory,
+      directory: location,
       signal: controller.signal,
     });
   });

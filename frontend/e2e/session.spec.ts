@@ -33,11 +33,18 @@ test("renders markdown, persists on reload, forks, and deletes through the UI", 
     (await client.session.get({ sessionID: forkID })).fork?.sessionID,
   ).toBe(originalID);
   await app.locator(".bottom-nav .session-title-btn").click();
+  const deleted = app.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === `/api/session/${forkID}` &&
+      response.request().method() === "DELETE",
+  );
   await app
     .locator(".picker-item.active")
     .getByTitle("Delete", { exact: true })
     .click();
-  await expect(app.locator(".picker-item.child.active")).toHaveCount(0);
+  // A fork is not a subagent child row; row styling cannot prove deletion.
+  expect((await deleted).ok()).toBe(true);
+  await expect.poll(() => new URL(app.url()).hash).not.toBe(`#${forkID}`);
   await expect(client.session.get({ sessionID: forkID })).rejects.toMatchObject(
     { _tag: "SessionNotFoundError" },
   );

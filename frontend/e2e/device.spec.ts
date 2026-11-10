@@ -1,6 +1,35 @@
 import { expect, idle, send, test } from "./browser";
-import { history, openSession } from "./data";
+import { history, openSession, selectSession } from "./data";
 import { longPrompt } from "./dev";
+
+test("going offline closes the event stream and reconnect reconciles missed sessions", async ({
+  app,
+  workspace,
+}) => {
+  test.skip(
+    Boolean(process.env.VOXPILOT_E2E_CDP),
+    "Never take the shared browser offline",
+  );
+  const context = app.context();
+  const disconnected = app.waitForEvent("requestfailed", {
+    predicate: (request) => new URL(request.url()).pathname === "/api/event",
+  });
+  try {
+    await context.setOffline(true);
+    await disconnected;
+    const session = await history(workspace.directory, "Created while offline");
+    const reconnected = app.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/api/event" && response.ok(),
+    );
+    await context.setOffline(false);
+    await reconnected;
+    await selectSession(app, "Created while offline");
+    await expect.poll(() => new URL(app.url()).hash).toBe(`#${session.id}`);
+  } finally {
+    await context.setOffline(false);
+  }
+});
 
 test("offline overlay can be dismissed, returns for a new outage, and recovers automatically", async ({
   app,
@@ -89,11 +118,12 @@ test("screen wake lock follows generation and is released when execution stops",
 test("Wake Devbox sends only the configured wake request while the backend is unreachable", async ({
   app,
 }) => {
+  const wakeUrl = new URL("/e2e-wake", app.url()).href;
   await app.route("**/api/rpc/voxpilot/config", (route) =>
     route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
-        output: { protocol: 1, wakeUrl: "http://localhost:13000/e2e-wake" },
+        output: { protocol: 1, wakeUrl },
       }),
     }),
   );

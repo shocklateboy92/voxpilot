@@ -29,7 +29,9 @@ async function fetchAllSessions(): Promise<Session[]> {
   return sessions.sort((a, b) => b.time.updated - a.time.updated);
 }
 
-export async function init(): Promise<AppState> {
+export async function init(
+  additionalSessionIDs: readonly string[] = [],
+): Promise<AppState> {
   const [location, agents, sessions, active] = await Promise.all([
     client.location.get(),
     fetchAgents(),
@@ -38,10 +40,19 @@ export async function init(): Promise<AppState> {
   ]);
   // Resolve the default location first so its project is registered in the list.
   const projects = await fetchProjects();
-  const activeSessionIDs = Object.keys(active);
+  // Pending forms and permissions can outlive a session's running drain.
+  // Include known pending/selected sessions without querying every history row.
+  const pendingSessionIDs = [
+    ...new Set([
+      ...Object.keys(active),
+      ...additionalSessionIDs.filter((id) =>
+        sessions.some((session) => session.id === id),
+      ),
+    ]),
+  ];
   const [permissions, questions] = await Promise.all([
-    Promise.all(activeSessionIDs.map(fetchPendingPermissions)),
-    Promise.all(activeSessionIDs.map(fetchPendingQuestions)),
+    Promise.all(pendingSessionIDs.map(fetchPendingPermissions)),
+    Promise.all(pendingSessionIDs.map(fetchPendingQuestions)),
   ]);
 
   const sessionPermissions: Record<string, PermissionRequest> = {};

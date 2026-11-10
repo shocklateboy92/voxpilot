@@ -1,15 +1,15 @@
-import { test as base, chromium, expect, type Page } from "@playwright/test";
+import { chromium, type Page } from "@playwright/test";
 import { renderMarkdown } from "../src/ui/markdown";
 import { client, createWorkspace, model, modelKey, password } from "./dev";
+import { test as base, expect } from "./fixtures";
 
 export const test = base.extend<{
   app: Page;
   workspace: Awaited<ReturnType<typeof createWorkspace>>;
 }>({
   workspace: [
-    // biome-ignore lint/correctness/noEmptyPattern: Playwright requires fixture destructuring
-    async ({}, use) => {
-      const workspace = await createWorkspace();
+    async ({ servers }, use) => {
+      const workspace = await createWorkspace(servers.root);
       try {
         await use(workspace);
       } finally {
@@ -125,7 +125,6 @@ export const test = base.extend<{
         }
       }
       await page.close();
-      await workspace.cleanSessions();
       if (!cdp) await context.close();
       // Disconnect from CDP; never close the user's browser or other tabs.
       await browser.close();
@@ -139,12 +138,28 @@ export async function send(page: Page, prompt: string) {
   await expect(
     page.getByRole("combobox", { name: "Model", exact: true }),
   ).toHaveValue(modelKey);
+  const userMessages = page.locator(".message.user");
+  const previousCount = await userMessages.count();
+  const admitted = page.waitForResponse(
+    (response) =>
+      /^\/api\/session\/[^/]+\/prompt$/.test(
+        new URL(response.url()).pathname,
+      ) && response.request().method() === "POST",
+  );
   await page.getByPlaceholder("Send a message...").fill(prompt);
   await page.getByRole("button", { name: "Send", exact: true }).click();
-  await expect(page.locator(".message.user").last()).toHaveText(prompt);
+  expect((await admitted).ok(), "Prompt admission succeeded").toBe(true);
+  await expect(userMessages).toHaveCount(previousCount + 1);
+  await expect(userMessages.last()).toHaveText(prompt);
 }
 
 export async function idle(page: Page) {
+  const sessionID = new URL(page.url()).hash.slice(1);
+  if (!sessionID) throw new Error("Cannot wait for idle without a session");
+  await client.session.wait(
+    { sessionID },
+    { signal: AbortSignal.timeout(60_000) },
+  );
   await expect(
     page.getByRole("button", { name: "Stop generating", exact: true }),
   ).toHaveCount(0);

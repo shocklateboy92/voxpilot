@@ -263,6 +263,52 @@ test("real shell progress is visible before completion and a failing command exp
   }
 });
 
+test("session metadata updates do not restart an in-flight shell output request", async ({
+  app,
+  workspace,
+}) => {
+  const toolID = `sh_${randomUUID()}`;
+  let requests = 0;
+  let releaseOutput = () => {};
+  const outputReady = new Promise<void>((resolve) => {
+    releaseOutput = resolve;
+  });
+  await app.route(`**/api/shell/${toolID}/output**`, async (route) => {
+    requests += 1;
+    // Keep the real missing-shell response in flight while metadata changes.
+    await outputReady;
+    await route.continue();
+  });
+  const session = await history(workspace.directory, "Shell request identity", [
+    assistant([
+      tool("shell", {
+        status: "completed",
+        input: { command: "missing shell during metadata updates" },
+        metadata: { status: "running", shellID: toolID },
+        content: [{ type: "text", text: "Saved output" }],
+      }),
+    ]),
+  ]);
+  try {
+    await openSession(app, session.id);
+    await expect.poll(() => requests).toBe(1);
+    for (let index = 0; index < 3; index += 1) {
+      const title = `Updated shell metadata ${index}`;
+      await client.session.update({ sessionID: session.id, title });
+      await expect(app.locator(".bottom-nav .session-title-btn")).toHaveText(
+        title,
+      );
+    }
+    releaseOutput();
+    await expect(app.locator(".tool-block").getByRole("status")).toContainText(
+      "Live output is unavailable on this server.",
+    );
+    expect(requests).toBe(1);
+  } finally {
+    releaseOutput();
+  }
+});
+
 test("missing live shell tools stop polling and retain saved output", async ({
   app,
   workspace,

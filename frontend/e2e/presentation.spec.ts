@@ -1,6 +1,7 @@
 import { chromium } from "@playwright/test";
-import { expect, idle, send, test } from "./browser";
-import { markdownPrompt } from "./dev";
+import { expect, test } from "./browser";
+import { assistant, history, openSession, user } from "./data";
+import { markdownResponse } from "./dev";
 
 test("theme tokens, native controls, and reactive selection survive system-theme changes", async ({
   app,
@@ -45,6 +46,7 @@ test("theme tokens, native controls, and reactive selection survive system-theme
 
 test("narrow layouts keep controls reachable and review rows below floating chrome", async ({
   app,
+  workspace,
 }, info) => {
   for (const width of [280, 320, 390, 480]) {
     await app.setViewportSize({ width, height: 844 });
@@ -62,11 +64,14 @@ test("narrow layouts keep controls reachable and review rows below floating chro
     expect(bounds?.width).toBeGreaterThan(40);
   }
   await app.setViewportSize({ width: 390, height: 844 });
-  await send(app, markdownPrompt);
+  const session = await history(workspace.directory, "Narrow layout", [
+    user("Markdown layout fixture"),
+    assistant([{ type: "text", text: markdownResponse }]),
+  ]);
+  await openSession(app, session.id);
   await expect(app.locator(".markdown-body")).toContainText(
     "Browser baseline passed.",
   );
-  await idle(app);
   await expect(app.locator(".markdown-body ul")).toHaveCSS(
     "list-style-type",
     "disc",
@@ -114,11 +119,17 @@ test("bottom sheet contains keyboard focus, closes on Escape, and restores its t
 
 test("touch keyboard layout and safe-area variables remain coordinated", async ({
   app,
+  workspace,
 }) => {
   test.skip(
     Boolean(process.env.VOXPILOT_E2E_CDP),
     "Use an isolated browser for touch emulation",
   );
+  const session = await history(workspace.directory, "Touch keyboard layout", [
+    user("Markdown layout fixture"),
+    assistant([{ type: "text", text: markdownResponse }]),
+  ]);
+  await openSession(app, session.id);
   const cdp = await app.context().newCDPSession(app);
   try {
     await cdp.send("Emulation.setTouchEmulationEnabled", {
@@ -129,11 +140,9 @@ test("touch keyboard layout and safe-area variables remain coordinated", async (
       document.documentElement.style.setProperty("--safe-top", "24px");
       document.documentElement.style.setProperty("--safe-bottom", "20px");
     });
-    await send(app, markdownPrompt);
     await expect(app.locator(".markdown-body")).toContainText(
       "Browser baseline passed.",
     );
-    await idle(app);
     const input = app.getByRole("textbox", { name: "Message", exact: true });
     await input.focus();
     await expect(app.locator("[data-bottom-nav]")).toBeHidden();

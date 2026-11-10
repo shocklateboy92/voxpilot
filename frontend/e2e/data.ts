@@ -64,13 +64,16 @@ export async function history(
 }
 
 export async function openSession(page: Page, sessionID: string) {
-  // Changing only the hash does not reload; install the readiness wait first.
+  // A hash-only navigation can validate against the old page's session list and
+  // redirect before session.created arrives. Start a fresh document directly,
+  // retaining the context's origin-scoped storage but not the old router state.
+  const origin = new URL(page.url()).origin;
+  await page.goto("about:blank");
   const eventsReady = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname === "/api/event" && response.ok(),
   );
-  await page.goto(`${new URL(page.url()).origin}/#${sessionID}`);
-  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.goto(`${origin}/#${sessionID}`, { waitUntil: "domcontentloaded" });
   await expect.poll(() => new URL(page.url()).hash).toBe(`#${sessionID}`);
   await expect(
     page.getByRole("textbox", { name: "Message", exact: true }),
