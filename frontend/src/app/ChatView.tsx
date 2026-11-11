@@ -11,6 +11,7 @@ import Check from "lucide-solid/icons/check";
 import GitBranch from "lucide-solid/icons/git-branch";
 import { createMemo, Show } from "solid-js";
 import { AgentPicker } from "../features/chat/AgentPicker";
+import { createAttachmentDrop } from "../features/chat/attachments/attachment-input";
 import {
   anchor,
   ChatMain,
@@ -18,6 +19,7 @@ import {
   chatPaneMount,
 } from "../features/chat/ChatMain";
 import { ContextUsageBar } from "../features/chat/ContextUsageBar";
+import { composerDraft } from "../features/chat/create-composer-draft";
 import { ModelPicker } from "../features/chat/ModelPicker";
 import { NewSessionPage } from "../features/chat/NewSessionPage";
 import { MarkdownViewer } from "../features/files/MarkdownViewer";
@@ -25,6 +27,7 @@ import { ReviewOverlay } from "../features/review/ReviewOverlay";
 import { BottomNav } from "./BottomNav";
 import { ContentShell } from "./ContentShell";
 import {
+  activeSessionId,
   canNavigateNext,
   canNavigatePrev,
   isNewSessionPage,
@@ -34,6 +37,7 @@ import {
 import { store } from "./store";
 
 export function ChatView() {
+  const drop = createAttachmentDrop(() => composerDraft(activeSessionId()));
   const changeCounts = createMemo(() => {
     const files = store.changedFiles;
     let added = 0;
@@ -48,7 +52,22 @@ export function ChatView() {
   });
 
   return (
-    <main class="app relative flex size-full flex-col overflow-hidden bg-surface px-3 pb-[calc(var(--bottom-nav-height)+var(--safe-bottom))] text-center">
+    <main
+      class="app relative flex size-full flex-col overflow-hidden bg-surface px-3 pb-[calc(var(--bottom-nav-height)+var(--safe-bottom))] text-center"
+      onDragEnter={drop.onDragEnter}
+      onDragLeave={drop.onDragLeave}
+      onDragOver={drop.onDragOver}
+      onDrop={drop.onDrop}
+      onDragEnd={drop.onDragEnd}
+    >
+      <Show when={drop.dragging()}>
+        <div
+          class="pointer-events-none absolute inset-2 z-50 flex items-center justify-center rounded-xl border-2 border-dashed border-accent bg-glass text-accent backdrop-blur-sm"
+          role="status"
+        >
+          Drop images to attach
+        </div>
+      </Show>
       <Show when={!isNewSessionPage()} fallback={<NewSessionPage />}>
         <ContentShell
           statusBarLeft={

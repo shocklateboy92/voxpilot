@@ -9,16 +9,8 @@
  * Supports swipe-left to navigate to the most recent existing session.
  */
 
-import ArrowUp from "lucide-solid/icons/arrow-up";
 import Plus from "lucide-solid/icons/plus";
-import {
-  createMemo,
-  createResource,
-  createSignal,
-  For,
-  onMount,
-  Show,
-} from "solid-js";
+import { createMemo, createResource, createSignal, For, Show } from "solid-js";
 import {
   createSessionAndSend,
   navigateNext,
@@ -26,23 +18,21 @@ import {
 } from "../../app/navigation";
 import { store } from "../../app/store";
 import { createWorktree, fetchWorktrees } from "../../platform/api-client";
+import { type PromptDraft, preparePrompt } from "../../platform/prompt-files";
 import { Button } from "../../ui/Button";
-import { IconButton } from "../../ui/IconButton";
 import { Select } from "../../ui/Select";
 import { SwipeablePane } from "../../ui/SwipeablePane";
-import { Textarea } from "../../ui/Textarea";
 import { TextInput } from "../../ui/TextInput";
 import { AgentPicker } from "./AgentPicker";
 import { effectiveAgent } from "./agent-selection";
-import { ComposerForm } from "./ComposerForm";
+import { moveNewComposerDraft } from "./create-composer-draft";
+import { MessageComposer } from "./MessageComposer";
 import { ModelPicker } from "./ModelPicker";
 import { selectedModel, selectedVariant } from "./preferences";
 
 const ALWAYS_FALSE = () => false;
 
 export function NewSessionPage() {
-  let inputEl: HTMLTextAreaElement | undefined;
-
   const [sending, setSending] = createSignal(false);
   const [creatingWorktree, setCreatingWorktree] = createSignal(false);
   const [worktreeName, setWorktreeName] = createSignal("");
@@ -86,32 +76,25 @@ export function NewSessionPage() {
     return parts[parts.length - 1] ?? dir;
   }
 
-  onMount(() => {
-    inputEl?.focus();
-  });
-
-  async function handleSubmit(e: SubmitEvent): Promise<void> {
-    e.preventDefault();
-    const value = inputEl?.value.trim();
-    if (!value || sending()) return;
-
-    if (inputEl) {
-      inputEl.value = "";
-      inputEl.style.height = "auto";
-    }
-
+  async function handleSubmit(draft: PromptDraft): Promise<boolean> {
     // Use the selected worktree directory, falling back to the project root
     const directory = selectedWorktreeDir() ?? selectedProjectDir();
+    const agent = effectiveAgent();
+    const model = selectedModel();
+    const variant = selectedVariant();
 
     setSending(true);
     try {
+      const content = await preparePrompt(draft.text, draft.files);
       await createSessionAndSend(
-        value,
-        effectiveAgent(),
+        content,
+        agent,
         directory,
-        selectedModel(),
-        selectedVariant(),
+        model,
+        variant,
+        moveNewComposerDraft,
       );
+      return true;
     } finally {
       setSending(false);
     }
@@ -131,22 +114,6 @@ export function NewSessionPage() {
     } finally {
       setCreatingWorktree(false);
     }
-  }
-
-  function handleKeyDown(e: KeyboardEvent): void {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      const target = e.currentTarget;
-      if (target instanceof HTMLTextAreaElement) {
-        target.form?.requestSubmit();
-      }
-    }
-  }
-
-  function handleAutoResize(): void {
-    if (!inputEl) return;
-    inputEl.style.height = "auto";
-    inputEl.style.height = `${inputEl.scrollHeight}px`;
   }
 
   const canSwipeLeft = () => rootSessions().length > 0;
@@ -235,31 +202,7 @@ export function NewSessionPage() {
           <AgentPicker />
           <ModelPicker fullWidth />
 
-          <ComposerForm onSubmit={(e) => void handleSubmit(e)}>
-            <Textarea
-              ref={inputEl}
-              class="chat-input"
-              variant="composer"
-              data-composer-input
-              aria-label="Message"
-              placeholder="Send a message..."
-              autocomplete="off"
-              disabled={busy()}
-              rows={1}
-              onKeyDown={handleKeyDown}
-              onInput={handleAutoResize}
-            />
-            <IconButton
-              type="submit"
-              variant="primary"
-              disabled={busy()}
-              aria-label="Send"
-              // Keep focus in the composer so keyboard/nav changes cannot move the button mid-click.
-              onPointerDown={(event) => event.preventDefault()}
-            >
-              <ArrowUp size={18} />
-            </IconButton>
-          </ComposerForm>
+          <MessageComposer disabled={busy()} onSend={handleSubmit} />
         </div>
       </SwipeablePane>
     </div>

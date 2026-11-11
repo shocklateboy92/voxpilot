@@ -7,7 +7,7 @@ export function ComposerForm(
   return (
     <form
       {...props}
-      class="chat-form flex w-full max-w-[66rem] items-end rounded-[1.25rem] border border-border bg-glass py-1.5 pr-1.5 pl-3.5 backdrop-blur-md focus-within:border-accent"
+      class="chat-form flex w-full min-w-0 max-w-[66rem] flex-col rounded-[1.25rem] border border-border bg-glass p-1.5 backdrop-blur-md focus-within:border-accent"
     />
   );
 }

@@ -16,6 +16,7 @@ import { Badge } from "../../ui/Badge";
 import { MarkdownView } from "../../ui/MarkdownView";
 import { backgroundCompletion } from "../tools/background-tools";
 import { ToolCallRenderer } from "../tools/ToolCallRenderer";
+import { MessageAttachments } from "./attachments/MessageAttachments";
 import { formatVariantLabel, resolveModelName } from "./model-utils";
 import { ShellMessage } from "./ShellMessage";
 
@@ -63,6 +64,8 @@ export function MessageBubble(props: Props) {
       : [];
 
   const role = () => props.msg.type;
+  const files = () =>
+    props.msg.type === "user" ? (props.msg.files ?? []) : [];
 
   /** The agent name that produced this assistant message, if available. */
   const agentName = () => {
@@ -118,7 +121,10 @@ export function MessageBubble(props: Props) {
     <Show
       when={
         !backgroundCompletion(props.msg) &&
-        (textContent() || role() === "assistant" || role() === "shell")
+        (textContent() ||
+          files().length > 0 ||
+          role() === "assistant" ||
+          role() === "shell")
       }
     >
       <div
@@ -173,6 +179,11 @@ export function MessageBubble(props: Props) {
         </Show>
         <Show when={role() === "user" && textContent()}>
           <p>{textContent()}</p>
+        </Show>
+        <Show when={files().length > 0}>
+          <div classList={{ "mt-2": Boolean(textContent()) }}>
+            <MessageAttachments files={files()} />
+          </div>
         </Show>
         <Show when={props.msg.type === "shell" && props.msg}>
           {(shell) => <ShellMessage message={shell()} />}

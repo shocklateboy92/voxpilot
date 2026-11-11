@@ -6,6 +6,7 @@
 
 import { batch, createEffect, on } from "solid-js";
 import { produce } from "solid-js/store";
+import { discardComposerDraft } from "../features/chat/create-composer-draft";
 import {
   setSelectedModelKey,
   setSelectedModelVariant,
@@ -17,6 +18,7 @@ import {
   type ModelRef,
   sendPromptAsync,
 } from "../platform/api-client";
+import type { PromptContent } from "../platform/prompt-files";
 import { appLocation, appUrl, navigateApp } from "./routing";
 import { setStore, store } from "./store";
 
@@ -233,11 +235,12 @@ export function navigateToNewSession(): void {
  * Optimistically inserts the session into the store.
  */
 export async function createSessionAndSend(
-  content: string,
+  content: PromptContent,
   agent: string,
   directory?: string,
   model?: ModelRef,
   variant?: string,
+  onCreated?: (sessionID: string) => void,
 ): Promise<void> {
   const selected = model
     ? { ...model, variant: variant ?? model.variant }
@@ -254,6 +257,7 @@ export async function createSessionAndSend(
     }),
   );
 
+  onCreated?.(session.id);
   navigateSession(session.id);
   setStore("sessionStatuses", session.id, { type: "busy" });
   try {
@@ -267,6 +271,7 @@ export async function createSessionAndSend(
 /** Delete a session and adjust navigation. */
 export async function handleDeleteSession(sessionId: string): Promise<void> {
   await deleteSession(sessionId);
+  discardComposerDraft(sessionId);
 
   // Remove from store synchronously
   setStore("sessions", (prev) => prev.filter((s) => s.id !== sessionId));

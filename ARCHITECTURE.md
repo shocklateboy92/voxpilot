@@ -55,6 +55,14 @@ history remain in `streaming.ts` and `api-client.ts`.
 Solid Router owns session/file URL state, native file-link interception, and browser
 history; backend changes still reload the app to recreate its authenticated client.
 
+## Message attachments
+
+Both new chats and existing sessions use `features/chat/MessageComposer.tsx`.
+Drafts are session-scoped, survive failed sends and navigation, and stay in memory
+only. `platform/prompt-files.ts` encodes attachments as data URIs for native
+`session.prompt`; OpenCode owns durable storage, and history renders its saved
+user-message `files`. There is no separate upload endpoint or attachment database.
+
 ## Markdown files
 
 The file viewer reads current contents through the authenticated native file API

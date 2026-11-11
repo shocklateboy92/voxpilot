@@ -127,6 +127,10 @@ ${"wide code ".repeat(60)}
   ).toBeVisible();
   await viewer.getByRole("button", { name: "Close viewer" }).focus();
   await app.keyboard.press("Tab");
+  await expect(
+    viewer.getByRole("button", { name: "Attach files" }),
+  ).toBeFocused();
+  await app.keyboard.press("Tab");
   await expect(viewer.getByRole("textbox", { name: "Message" })).toBeFocused();
   await app.keyboard.press("Escape");
   await expect(viewer).toHaveCount(0);

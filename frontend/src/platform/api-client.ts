@@ -19,6 +19,7 @@ import type {
 export { client } from "./connection";
 
 import { client } from "./connection";
+import type { PromptContent } from "./prompt-files";
 
 export type {
   SessionMessageAssistantTool as ToolPart,
@@ -173,7 +174,7 @@ export async function fetchMessages(sessionID: string): Promise<Message[]> {
 
 export async function sendPromptAsync(
   sessionID: string,
-  text: string,
+  content: PromptContent,
   agent?: string,
   model?: ModelRef,
 ): Promise<void> {
@@ -183,7 +184,7 @@ export async function sendPromptAsync(
   if (model !== undefined) {
     await client.session.switchModel({ sessionID, model });
   }
-  await client.session.prompt({ sessionID, text });
+  await client.session.prompt({ sessionID, ...content });
 }
 
 export async function abortSession(sessionID: string): Promise<void> {

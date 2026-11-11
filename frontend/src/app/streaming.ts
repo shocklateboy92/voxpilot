@@ -2,6 +2,7 @@
 import { batch, createEffect, createRoot, on } from "solid-js";
 import { produce, reconcile } from "solid-js/store";
 import { effectiveAgent } from "../features/chat/agent-selection";
+import { discardComposerDraft } from "../features/chat/create-composer-draft";
 import { selectedModel } from "../features/chat/preferences";
 import type {
   AssistantMessage,
@@ -22,6 +23,7 @@ import {
   sendPromptAsync,
   startEventStream,
 } from "../platform/api-client";
+import { type PromptDraft, preparePrompt } from "../platform/prompt-files";
 import { init } from "./init";
 import { activeSession, activeSessionId } from "./navigation";
 import { replaceMessages, setStore, store } from "./store";
@@ -743,6 +745,7 @@ function handleEvent(event: Event): void {
     case "session.deleted": {
       const sessionID = event.data.sessionID;
       deletedSessions.add(sessionID);
+      discardComposerDraft(sessionID);
       batch(() => {
         setStore("sessions", (sessions) =>
           sessions.filter((session) => session.id !== sessionID),
@@ -880,9 +883,17 @@ if (import.meta.hot) {
   });
 }
 
-export async function sendUserMessage(content: string): Promise<boolean> {
-  const sessionID = activeSessionId();
+export async function sendUserMessage(
+  draft: PromptDraft,
+  sessionID = activeSessionId(),
+): Promise<boolean> {
   if (!sessionID) return false;
+  // Capture the entire destination before asynchronous file reads. Navigating
+  // during preparation must not apply another session's agent/model selection.
+  const agent = effectiveAgent();
+  const model = selectedModel();
+  const content = await preparePrompt(draft.text, draft.files);
+  if (deletedSessions.has(sessionID)) return false;
   const previous: SessionStatus = {
     ...(store.sessionStatuses[sessionID] ?? { type: "idle" }),
   };
@@ -892,12 +903,7 @@ export async function sendUserMessage(content: string): Promise<boolean> {
   try {
     // Inbox delivery supplies the canonical user message; avoid a duplicate
     // optimistic entry while the input is being admitted.
-    await sendPromptAsync(
-      sessionID,
-      content,
-      effectiveAgent(),
-      selectedModel(),
-    );
+    await sendPromptAsync(sessionID, content, agent, model);
     void refreshHistory(sessionID);
     return true;
   } catch (error: unknown) {
