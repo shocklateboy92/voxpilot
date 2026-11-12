@@ -138,7 +138,9 @@ export function MessageComposer(props: {
             if (
               event.key === "Enter" &&
               !event.shiftKey &&
-              !event.isComposing
+              !event.isComposing &&
+              // Touch-first devices need Enter for newlines; use Send instead.
+              !window.matchMedia("(pointer: coarse)").matches
             ) {
               event.preventDefault();
               event.currentTarget.form?.requestSubmit();
