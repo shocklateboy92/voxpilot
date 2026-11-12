@@ -232,10 +232,9 @@ test("tables and other overflow containers scroll horizontally without session s
   }
 });
 
-test("keyboard sending, multiline input, and agent/thinking selections reach the native session", async ({
+test("keyboard sending, multiline input, and thinking selections reach the native session", async ({
   app,
 }) => {
-  await app.getByRole("button", { name: "Plan", exact: true }).click();
   await app
     .getByRole("combobox", { name: "Thinking level", exact: true })
     .selectOption("low");
@@ -251,13 +250,12 @@ test("keyboard sending, multiline input, and agent/thinking selections reach the
   const session = await client.session.get({
     sessionID: new URL(app.url()).hash.slice(1),
   });
-  expect(session.agent).toBe("plan");
+  expect(session.agent).toBe("build");
   expect(session.model).toMatchObject({
     providerID: "github-copilot",
     id: "gpt-6-luna",
     variant: "low",
   });
-  await app.getByRole("button", { name: "Build", exact: true }).click();
   await app
     .getByRole("combobox", { name: "Thinking level", exact: true })
     .selectOption("none");

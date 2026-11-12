@@ -20,7 +20,7 @@ other modules. Prefer direct imports over broad barrel exports.
 UI primitives take data and callbacks through props. They must not import app
 state, feature modules, or API clients. Generic browser interaction helpers are
 fine. Feature components may compose UI primitives and call application logic.
-Use domain names for feature components (`AgentPicker`) and generic names for
+Use domain names for feature components (`ServerPicker`) and generic names for
 primitives (`SegmentedControl`). Reuse across features alone does not change
 ownership.
 

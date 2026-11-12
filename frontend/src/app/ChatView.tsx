@@ -10,7 +10,6 @@
 import Check from "lucide-solid/icons/check";
 import GitBranch from "lucide-solid/icons/git-branch";
 import { createMemo, Show } from "solid-js";
-import { AgentPicker } from "../features/chat/AgentPicker";
 import { createAttachmentDrop } from "../features/chat/attachments/attachment-input";
 import {
   anchor,
@@ -22,6 +21,7 @@ import { ContextUsageBar } from "../features/chat/ContextUsageBar";
 import { composerDraft } from "../features/chat/create-composer-draft";
 import { ModelPicker } from "../features/chat/ModelPicker";
 import { NewSessionPage } from "../features/chat/NewSessionPage";
+import { ServerPicker } from "../features/connection/ServerPicker";
 import { MarkdownViewer } from "../features/files/MarkdownViewer";
 import { ReviewOverlay } from "../features/review/ReviewOverlay";
 import { BottomNav } from "./BottomNav";
@@ -116,7 +116,7 @@ export function ChatView() {
           composerOverlay={<ChatScrollButton />}
           aboveInput={
             <div class="flex w-full max-w-[66rem] flex-wrap items-end gap-2">
-              <AgentPicker />
+              <ServerPicker />
               <ModelPicker />
             </div>
           }

@@ -1,11 +1,24 @@
 import { chromium } from "@playwright/test";
 import { expect, test } from "./browser";
 import { assistant, history, openSession, user } from "./data";
-import { markdownResponse } from "./dev";
+import { markdownResponse, password } from "./dev";
 
 test("theme tokens, native controls, and reactive selection survive system-theme changes", async ({
   app,
 }, info) => {
+  const serverUrl = new URL(app.url()).origin;
+  await app.route("**/config.json", (route) =>
+    route.fulfill({
+      json: {
+        servers: [
+          { id: "dev2", name: "Dev2", url: serverUrl, password },
+          { id: "win3", name: "win3", url: serverUrl, password },
+        ],
+      },
+    }),
+  );
+  await app.evaluate(() => localStorage.setItem("voxpilot:serverId", "dev2"));
+  await app.reload();
   const schemes: Array<"dark" | "light"> = ["dark", "light", "dark"];
   for (const scheme of schemes) {
     await app.emulateMedia({ colorScheme: scheme });
@@ -23,20 +36,17 @@ test("theme tokens, native controls, and reactive selection survive system-theme
       )
       .toBe(scheme === "dark" ? "#1a1d27" : "#ffffff");
 
-    const agents = app.getByRole("group", { name: "Agent", exact: true });
-    const plan = agents.getByRole("button", {
-      name: "Plan",
-      exact: true,
-    });
-    const build = agents.getByRole("button", { name: "Build", exact: true });
-    await plan.click();
-    await expect(plan).toHaveAttribute("aria-pressed", "true");
-    await expect(build).toHaveAttribute("aria-pressed", "false");
+    const servers = app.getByRole("group", { name: "Server", exact: true });
+    const dev2 = servers.getByRole("button", { name: "Dev2", exact: true });
+    const win3 = servers.getByRole("button", { name: "win3", exact: true });
+    await win3.click();
+    await expect(win3).toHaveAttribute("aria-pressed", "true");
+    await expect(dev2).toHaveAttribute("aria-pressed", "false");
     await app.mouse.move(0, 0);
-    await expect(plan).toHaveCSS("background-color", accent);
-    await build.click();
-    await expect(build).toHaveAttribute("aria-pressed", "true");
-    await expect(plan).toHaveAttribute("aria-pressed", "false");
+    await expect(win3).toHaveCSS("background-color", accent);
+    await dev2.click();
+    await expect(dev2).toHaveAttribute("aria-pressed", "true");
+    await expect(win3).toHaveAttribute("aria-pressed", "false");
     await info.attach(`new-chat-${scheme}`, {
       body: await app.screenshot(),
       contentType: "image/png",

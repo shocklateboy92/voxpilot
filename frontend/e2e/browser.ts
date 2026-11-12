@@ -96,7 +96,6 @@ export const test = base.extend<{
       await page
         .getByRole("combobox", { name: "Project", exact: true })
         .selectOption(workspace.directory);
-      await page.getByRole("button", { name: "Build", exact: true }).click();
       await page
         .getByRole("combobox", { name: "Model", exact: true })
         .selectOption(modelKey);

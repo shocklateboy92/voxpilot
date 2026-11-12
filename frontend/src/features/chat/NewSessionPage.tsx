@@ -2,7 +2,7 @@
  * New session page — shown when no session is active.
  *
  * Displays a centered heading with a project selector, worktree picker
- * (with inline creation), agent picker, and a chat input.
+ * (with inline creation), server picker, and a chat input.
  * When the user sends their first message, a session is created and
  * the view transitions instantly to the chat.
  *
@@ -23,7 +23,7 @@ import { Button } from "../../ui/Button";
 import { Select } from "../../ui/Select";
 import { SwipeablePane } from "../../ui/SwipeablePane";
 import { TextInput } from "../../ui/TextInput";
-import { AgentPicker } from "./AgentPicker";
+import { ServerPicker } from "../connection/ServerPicker";
 import { effectiveAgent } from "./agent-selection";
 import { moveNewComposerDraft } from "./create-composer-draft";
 import { MessageComposer } from "./MessageComposer";
@@ -202,7 +202,7 @@ export function NewSessionPage() {
             </div>
           </Show>
 
-          <AgentPicker />
+          <ServerPicker />
           <ModelPicker fullWidth />
 
           <MessageComposer disabled={busy()} onSend={handleSubmit} />

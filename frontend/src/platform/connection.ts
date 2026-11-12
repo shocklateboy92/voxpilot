@@ -1,5 +1,6 @@
 import { OpenCode } from "@opencode/client";
 import { VoxPilotRpc } from "@plugin/rpc";
+import { clearFileRoute } from "../features/files/file-links";
 import {
   configuredServer,
   connectionConfig,
@@ -71,4 +72,29 @@ export function changeServer() {
   const url = new URL(window.location.href);
   url.searchParams.set("connect", "1");
   window.location.href = url.href;
+}
+
+/** Validate the destination before replacing this document's single client. */
+export async function switchConfiguredServer(id: string) {
+  const server = connectionConfig.servers.find((entry) => entry.id === id);
+  if (!server) throw new Error("Unknown configured server");
+  if (server.id === configuredServer?.id) return;
+
+  const remote = makeClient(server.url, server.password);
+  await remote.server.info({ signal: AbortSignal.timeout(10_000) });
+  await waitForPlugin(remote);
+
+  localStorage.setItem("voxpilot:serverId", server.id);
+  localStorage.removeItem("voxpilot:server");
+  for (const key of Object.keys(sessionStorage)) {
+    if (key.startsWith("voxpilot:password:")) sessionStorage.removeItem(key);
+  }
+
+  const url = new URL(window.location.href);
+  clearFileRoute(url);
+  url.searchParams.delete("connect");
+  url.searchParams.set("server", server.url);
+  url.searchParams.set("serverId", server.id);
+  url.hash = "";
+  window.location.replace(url.href);
 }

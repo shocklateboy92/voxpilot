@@ -39,7 +39,7 @@ export interface ContentShellProps {
    */
   overlay?: JSX.Element;
 
-  /** Optional slot rendered between the content and the chat input (e.g. AgentPicker). */
+  /** Optional slot rendered between the content and the chat input (e.g. ServerPicker). */
   aboveInput?: JSX.Element;
   /** Optional element rendered at the top of the composer stack (e.g. scroll button). */
   composerOverlay?: JSX.Element;

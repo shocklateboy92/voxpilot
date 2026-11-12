@@ -35,6 +35,13 @@ test("configured servers connect without credential entry and survive reload and
   await expect(
     page.getByRole("heading", { name: "New Chat", exact: true }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("group", { name: "Agent", exact: true }),
+  ).toHaveCount(0);
+  const servers = page.getByRole("group", { name: "Server", exact: true });
+  await expect(
+    servers.getByRole("button", { name: "Dev2", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
   const stored = await page.evaluate(() => ({
     local: { ...localStorage },
     session: { ...sessionStorage },

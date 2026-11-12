@@ -8,7 +8,7 @@ The existing semantic palette is retained. There is no external component librar
 - `src/ui/`: reusable, domain-independent controls. Consult its README before
   introducing a new primitive.
 - `src/features/<feature>/`: feature components and local composition. For
-  example, `AgentPicker` supplies data and callbacks to `SegmentedControl`.
+  example, `ServerPicker` supplies data and callbacks to `SegmentedControl`.
 - `src/app/`: the application shell and cross-feature composition.
 - `src/styles/`: Tailwind entry point, tokens, generated-content styles, and
   exceptional cross-component browser behavior.

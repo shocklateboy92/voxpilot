@@ -486,7 +486,6 @@ test("switching chats during image preparation preserves the destination and its
     .poll(() => app.evaluate(() => Reflect.get(window, "pendingImageReads")))
     .toBe(1);
   await selectSession(app, "Other conversation");
-  await app.getByRole("button", { name: "Plan", exact: true }).click();
   await app
     .getByRole("combobox", { name: "Thinking level", exact: true })
     .selectOption("low");
