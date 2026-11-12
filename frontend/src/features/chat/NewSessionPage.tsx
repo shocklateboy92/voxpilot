@@ -29,6 +29,7 @@ import { moveNewComposerDraft } from "./create-composer-draft";
 import { MessageComposer } from "./MessageComposer";
 import { ModelPicker } from "./ModelPicker";
 import { selectedModel, selectedVariant } from "./preferences";
+import { isSelectableProject } from "./project-selection";
 
 const ALWAYS_FALSE = () => false;
 
@@ -37,8 +38,9 @@ export function NewSessionPage() {
   const [creatingWorktree, setCreatingWorktree] = createSignal(false);
   const [worktreeName, setWorktreeName] = createSignal("");
 
-  // Component-local project/worktree selection, initialized from the current project
-  const [selectedProjectDir, setSelectedProjectDir] = createSignal<
+  const projects = createMemo(() => store.projects.filter(isSelectableProject));
+  // Keep the service's installation directory out of both the options and default.
+  const [requestedProjectDir, setSelectedProjectDir] = createSignal<
     string | undefined
   >(store.currentProject?.canonical);
   const [selectedWorktreeDir, setSelectedWorktreeDir] = createSignal<
@@ -47,10 +49,10 @@ export function NewSessionPage() {
 
   // Derived: the full Project object for the selected directory
   const selectedProject = createMemo(() => {
-    const dir = selectedProjectDir();
-    if (!dir) return undefined;
-    return store.projects.find((p) => p.canonical === dir);
+    const dir = requestedProjectDir();
+    return projects().find((p) => p.canonical === dir) ?? projects()[0];
   });
+  const selectedProjectDir = () => selectedProject()?.canonical;
 
   // Fetch worktrees on demand — refetches when the selected git project changes
   const worktreeSource = () => {
@@ -79,6 +81,7 @@ export function NewSessionPage() {
   async function handleSubmit(draft: PromptDraft): Promise<boolean> {
     // Use the selected worktree directory, falling back to the project root
     const directory = selectedWorktreeDir() ?? selectedProjectDir();
+    if (!directory) return false;
     const agent = effectiveAgent();
     const model = selectedModel();
     const variant = selectedVariant();
@@ -130,7 +133,7 @@ export function NewSessionPage() {
         <div class="flex w-full max-w-lg flex-col items-center gap-5">
           <h1 class="m-0 text-2xl font-semibold text-text">New Chat</h1>
 
-          <Show when={store.projects.length > 1}>
+          <Show when={projects().length > 1}>
             <Select
               class="w-full"
               density="compact"
@@ -143,7 +146,7 @@ export function NewSessionPage() {
               }}
               disabled={busy()}
             >
-              <For each={store.projects}>
+              <For each={projects()}>
                 {(project) => (
                   <option value={project.canonical}>
                     {projectLabel(project.canonical, project.name)}
