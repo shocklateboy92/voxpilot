@@ -6,6 +6,7 @@ import {
   connectionConfig,
   requestedServerUrl,
 } from "./connection-config";
+import { abortSpeechJobs } from "./speech-lifecycle";
 
 export const serverUrl =
   configuredServer?.url ??
@@ -69,6 +70,7 @@ export async function waitForPlugin(remote = client) {
 }
 
 export function changeServer() {
+  abortSpeechJobs();
   const url = new URL(window.location.href);
   url.searchParams.set("connect", "1");
   window.location.href = url.href;
@@ -83,6 +85,8 @@ export async function switchConfiguredServer(id: string) {
   const remote = makeClient(server.url, server.password);
   await remote.server.info({ signal: AbortSignal.timeout(10_000) });
   await waitForPlugin(remote);
+
+  abortSpeechJobs();
 
   localStorage.setItem("voxpilot:serverId", server.id);
   localStorage.removeItem("voxpilot:server");

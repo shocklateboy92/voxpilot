@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { OpenCode } from "@opencode/client";
 import { VoxPilotRpc } from "../src/rpc";
@@ -84,6 +84,12 @@ beforeAll(async () => {
         OPENCODE_CONFIG_PROJECT_DISABLE: "true",
         OPENCODE_DISABLE_MODELS_FETCH: "true",
         VOXPILOT_PLUGIN_DIR: installed,
+        VOXPILOT_USER_VOCABULARY_FILE: resolve(
+          root,
+          "config",
+          "voxpilot",
+          "vocabulary.json",
+        ),
         OPENCODE_CONFIG_CONTENT:
           '{"plugins":["{env:VOXPILOT_PLUGIN_DIR}"],"update":"disable","warming":false}',
       },
@@ -131,6 +137,79 @@ afterAll(async () => {
   if (server) await server.exited;
   await rm(root, { recursive: true, force: true });
 });
+
+test("plugin exposes production config and rejects the retired collector endpoint", async () => {
+  const config = await remote().rpc(VoxPilotRpc).config({});
+  expect(config.protocol).toBe(1);
+  expect(Object.keys(config).sort()).toEqual(["protocol", "wakeUrl"]);
+  const response = await fetch(`${url}/api/rpc/voxpilot/saveSpeechSample`, {
+    method: "POST",
+    headers: { authorization, "content-type": "application/json" },
+    body: JSON.stringify({ input: {} }),
+  });
+  expect(response.ok).toBe(false);
+});
+
+test("vocabulary RPC resolves active and canonical checkouts, even from nested directories, and sees file edits", async () => {
+  const current = resolve(root, "vocabulary-worktree");
+  const userFile = resolve(root, "config", "voxpilot", "vocabulary.json");
+  const canonicalShared = resolve(workdir, ".voxpilot", "vocabulary.json");
+  const privateFile = resolve(workdir, ".voxpilot", "vocabulary.local.json");
+  const rpc = remote().rpc(VoxPilotRpc);
+  await mkdir(resolve(root, "config", "voxpilot"), { recursive: true });
+  await mkdir(resolve(workdir, ".voxpilot"));
+  await writeFile(userFile, '["UserWord","Name"]');
+  await writeFile(canonicalShared, '["CanonicalWord"]');
+  await writeFile(privateFile, '["PrivateWord","NAME"]');
+  await git(["worktree", "add", "--detach", current]);
+  try {
+    await mkdir(resolve(current, ".voxpilot"));
+    await mkdir(resolve(current, "nested"));
+    await writeFile(
+      resolve(current, ".voxpilot", "vocabulary.json"),
+      '["BranchWord","name"]',
+    );
+    const options = { location: { directory: resolve(current, "nested") } };
+    const result = await rpc.vocabulary({}, options);
+    expect(result.terms).toEqual([
+      "UserWord",
+      "NAME",
+      "BranchWord",
+      "PrivateWord",
+    ]);
+    expect(result.sources.shared.path).toBe(
+      resolve(current, ".voxpilot", "vocabulary.json"),
+    );
+    expect(result.sources.local.path).toBe(privateFile);
+    expect(result.sources.user.path).toBe(userFile);
+    expect(result.terms).not.toContain("CanonicalWord");
+    await writeFile(`${privateFile}.new`, '["Changed"]');
+    await rename(`${privateFile}.new`, privateFile);
+    expect((await rpc.vocabulary({}, options)).terms).toEqual([
+      "UserWord",
+      "name",
+      "BranchWord",
+      "Changed",
+    ]);
+    await rm(privateFile);
+    expect((await rpc.vocabulary({}, options)).sources.local.exists).toBe(
+      false,
+    );
+    const other = resolve(root, "other-vocabulary-project");
+    await mkdir(other);
+    expect(
+      (await rpc.vocabulary({}, { location: { directory: other } })).terms,
+    ).toEqual(["UserWord", "Name"]);
+  } finally {
+    await remote().debug.location.evict({
+      location: { directory: resolve(current, "nested") },
+    });
+    await remote().debug.location.evict({ location: { directory: current } });
+    await git(["worktree", "remove", "--force", current]);
+    await rm(resolve(workdir, ".voxpilot"), { recursive: true });
+    await rm(userFile);
+  }
+}, 20_000);
 
 test("branch review uses the merge-base and committed mode excludes working files", async () => {
   await git(["checkout", "-b", "feature"]);

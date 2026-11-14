@@ -1,3 +1,5 @@
+import { SpeechConnection } from "@plugin/speech-contract";
+
 export function normalizeServerUrl(value: string) {
   const target = new URL(value);
   if (
@@ -53,6 +55,8 @@ function parseConfig(data: unknown) {
 function configError(detail: string) {
   return {
     servers: [],
+    speech: undefined,
+    speechError: undefined,
     error: `Could not load the server configuration. ${detail}`,
   };
 }
@@ -65,13 +69,42 @@ async function loadConfig() {
       redirect: "error",
       signal: AbortSignal.timeout(10_000),
     });
-    if (response.status === 404) return { servers: [], error: undefined };
+    if (response.status === 404)
+      return {
+        servers: [],
+        speech: undefined,
+        speechError: undefined,
+        error: undefined,
+      };
     if (!response.ok)
       return configError(
         `config.json returned HTTP ${response.status}. Check site access, then reload.`,
       );
     const data: unknown = JSON.parse(await response.text());
-    return { servers: parseConfig(data), error: undefined };
+    const servers = parseConfig(data);
+    let speech: ReturnType<typeof SpeechConnection.parse> | undefined;
+    let speechError: string | undefined;
+    if (typeof data === "object" && data !== null && "speech" in data) {
+      try {
+        const parsed = SpeechConnection.parse(data.speech);
+        if (parsed.url.includes("?") || parsed.url.includes("#"))
+          throw new Error("Unsafe speech URL");
+        const url = new URL(normalizeServerUrl(parsed.url));
+        if (
+          url.protocol !== "https:" &&
+          !(
+            url.protocol === "http:" &&
+            ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
+          )
+        )
+          throw new Error("Unsafe speech URL");
+        speech = { ...parsed, url: url.href.replace(/\/$/, "") };
+      } catch {
+        speechError =
+          "Speech configuration is invalid. Use HTTPS (or loopback HTTP for development) and a speech-service token. Type and local recording remain available.";
+      }
+    }
+    return { servers, speech, speechError, error: undefined };
   } catch {
     return configError(
       "Check config.json's format, network connectivity and site access, then reload.",

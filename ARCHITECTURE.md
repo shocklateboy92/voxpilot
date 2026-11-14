@@ -6,7 +6,8 @@
 Central Caddy static site → browser SolidJS application
                                    │
                                    ├─ OpenCode HTTP API + SSE
-                                   └─ OpenCode plugin RPC
+                                   ├─ OpenCode plugin RPC
+                                   └─ Standalone speech HTTP service → OpenAI
                                           │
 systemd → exec opencode serve → VoxPilot plugin
                                  ├─ compare / snapshot / formatComparison
@@ -55,6 +56,53 @@ history remain in `streaming.ts` and `api-client.ts`.
 Solid Router owns session/file URL state, native file-link interception, and browser
 history; backend changes still reload the app to recreate its authenticated client.
 
+## Recorded speech
+
+`speech/` is a separate always-on process, not another coding API and not part
+of static hosting. The browser calls it directly through HTTPS after fetching
+the original session/project's vocabulary from its authenticated OpenCode client.
+`plugin/src/speech-contract.ts` is the shared browser-safe Zod contract; service
+and frontend infer their request/response types from it. The service receives
+binary audio and a request-specific vocabulary snapshot, never project paths,
+conversations, clipboard contents, code or benchmark reference transcripts.
+
+Optional runtime `config.json.speech` supplies the service URL and a speech-only
+bearer token. That token stays in browser memory; it is not an OpenAI credential.
+Exact-origin CORS and bearer authentication protect service requests. The OpenAI
+key is held only by the speech service, read from a private development file or
+its encrypted homelab systemd credential. Neither static assets, Caddy's runtime
+config generator nor OpenCode backends receive the key.
+
+Normal voice Finish is a transcription-and-chat action, not clip collection.
+The user has selected OpenAI dictation for this deployment; no per-recording
+permission checkbox or local-only playback/download step is shown. The complete
+utterance is transcribed with OpenAI
+`gpt-transcribe` and `keywords[]`, without a separate LLM cleanup pass or live
+transcript. ffmpeg pipe-only decoding checks actual duration; WebRTC VAD rejects
+silence/quiet noise before cloud calls. The guard is not a guarantee against
+background speech or all transcription inventions.
+
+The service bounds bytes, duration, concurrency, request rates and runtime.
+Normal audio is never written to storage. A bounded, single-instance 15-minute
+memory cache deduplicates IDs/bodies and remembers failed/cancelled outcomes;
+it is lost on service restart. Explicit cancellation aborts codec/provider work,
+but cannot guarantee refunds after provider processing begins. No automatic paid
+retries occur. A deliberately new paid attempt has a new ID and explicit user
+confirmation. See `speech/CONTRACT.md` for protocol details.
+
+Transcription and chat admission remain separate. The composer captures original
+draft/session/backend ownership before async work, retains correction/retry and
+Type paths, and consumes only an accepted send snapshot. Pasted references keep
+their stable numbers and images use the existing native prompt file flow.
+There is no sample collector or audio-storage RPC in the coding plugin.
+The microphone-capture widget sends its result to a callback captured before
+microphone permission awaits. Backgrounding cancels capture. Normal recordings
+allocate no audio preview object URL, and recovery never requires audio playback.
+
+Homelab activation is currently chapel-only, with a supervised non-root Quadlet,
+read-only credential mount and resource limits. Production activation requires
+a separate operator decision. See `packaging/SPEECH.md`.
+
 ## Message attachments
 
 Both new chats and existing sessions use `features/chat/MessageComposer.tsx`.
@@ -97,6 +145,8 @@ backend are intentionally unsupported.
 - `plugin/tests`: formatter and real OpenCode HTTP integration tests.
 - `frontend/src`: connection screen, chat, review UI and native API wrappers.
 - `frontend/e2e`: browser tests against the authenticated dev OpenCode service using GPT-6 Luna and disposable test repositories.
+- `speech`: standalone transcription runtime, acoustic guard and isolated
+  service/provider tests.
 - `packaging`: exec launcher, systemd unit, Caddy example, installation docs.
 
 The plugin bundle includes JS dependencies and needs no install-time npm commands.

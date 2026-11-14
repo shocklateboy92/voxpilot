@@ -10,7 +10,6 @@ import {
   connectionConfig,
   requestedServerUrl,
 } from "./platform/connection-config";
-import { rpc } from "./platform/rpc";
 import { Spinner } from "./ui/Spinner";
 import "./styles/app.css";
 import { extractErrorMessage, showToast } from "./app/toast";
@@ -46,19 +45,13 @@ const [connecting, setConnecting] = createSignal(initiallyConnecting);
 
 if (!initiallyConnecting)
   waitForPlugin()
-    .then(() => import("./app/App"))
+    .then((data) => {
+      if (data.wakeUrl) localStorage.setItem(wakeStorageKey, data.wakeUrl);
+      return import("./app/App");
+    })
     .then(
       (m) => {
         setAppComponent(() => m.default);
-        // Persist wake URL for offline fallback
-        rpc
-          .config({})
-          .then((data) => {
-            if (data.wakeUrl) {
-              localStorage.setItem(wakeStorageKey, data.wakeUrl);
-            }
-          })
-          .catch(() => {});
       },
       (err) => {
         showToast(extractErrorMessage(err));

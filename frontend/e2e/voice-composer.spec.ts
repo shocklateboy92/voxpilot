@@ -1,4 +1,11 @@
 import type { Page } from "@playwright/test";
+import { SpeechVocabulary } from "../../plugin/src/rpc";
+import {
+  SPEECH_MAX_BYTES,
+  SPEECH_MAX_SECONDS,
+  SPEECH_MAX_TERMS,
+  SPEECH_MAX_VOCABULARY_CHARACTERS,
+} from "../../plugin/src/speech-contract";
 import { expect, frontendTest as test } from "./fixtures";
 
 test.use({
@@ -13,6 +20,68 @@ test.use({
 });
 
 async function mountComposer(page: Page) {
+  await page.route("**/api/provider", (route) =>
+    route.fulfill({ json: { data: [] } }),
+  );
+  await page.route("**/api/model", (route) =>
+    route.fulfill({ json: { data: [] } }),
+  );
+  await page.route("**/api/model/default", (route) =>
+    route.fulfill({ json: {} }),
+  );
+  await page.route("**/config.json", (route) =>
+    route.fulfill({
+      json: {
+        servers: [
+          {
+            id: "fixture",
+            name: "Fixture",
+            url: "http://localhost:18001",
+            password: "fixture-password",
+          },
+        ],
+        speech: {
+          url: "https://speech.example.invalid",
+          token: "test-speech-token-not-real-provider-credential",
+        },
+      },
+    }),
+  );
+  await page.route("https://speech.example.invalid/v1/capabilities", (route) =>
+    route.fulfill({
+      json: {
+        protocol: 1,
+        provider: "openai",
+        model: "gpt-transcribe",
+        ready: true,
+        maxBytes: SPEECH_MAX_BYTES,
+        maxSeconds: SPEECH_MAX_SECONDS,
+        maxTerms: SPEECH_MAX_TERMS,
+        maxVocabularyCharacters: SPEECH_MAX_VOCABULARY_CHARACTERS,
+        persistsAudio: false,
+      },
+    }),
+  );
+  const source = {
+    path: "fixture-vocabulary",
+    exists: true,
+    terms: ["VoxPilot"],
+  };
+  await page.route("**/api/rpc/voxpilot/vocabulary**", (route) =>
+    route.fulfill({
+      json: {
+        output: SpeechVocabulary.parse({
+          terms: source.terms,
+          sources: { user: source, shared: source, local: source },
+        }),
+      },
+    }),
+  );
+  // Fail closed if a microphone-only regression unexpectedly finishes a take.
+  await page.route(
+    "https://speech.example.invalid/v1/transcriptions**",
+    (route) => route.abort("connectionreset"),
+  );
   await page.route("**/voice-fixture", (route) =>
     route.fulfill({
       contentType: "text/html",
@@ -22,6 +91,7 @@ async function mountComposer(page: Page) {
   await page.goto("/voice-fixture");
   await page.evaluate(async () => {
     localStorage.removeItem("voxpilot-composer-mode");
+    localStorage.setItem("voxpilot:serverId", "fixture");
     const style = document.createElement("link");
     style.rel = "stylesheet";
     style.href = "/src/styles/app.css";
@@ -46,13 +116,49 @@ async function clipboard(page: Page, text: string) {
   await page.getByRole("button", { name: "Paste", exact: true }).click();
 }
 
+async function trackMicrophone(page: Page, pending = false) {
+  await page.evaluate((wait) => {
+    const acquire = navigator.mediaDevices.getUserMedia.bind(
+      navigator.mediaDevices,
+    );
+    navigator.mediaDevices.getUserMedia = async (constraints) => {
+      const stream = await acquire(constraints);
+      for (const track of stream.getTracks()) {
+        const stop = track.stop.bind(track);
+        track.stop = () => {
+          stop();
+          document
+            .querySelector("output")
+            ?.setAttribute("data-track", track.readyState);
+        };
+      }
+      document
+        .querySelector("output")
+        ?.setAttribute("data-permission", "waiting");
+      if (wait)
+        await new Promise<void>((resolve) =>
+          document.addEventListener("release-permission", () => resolve(), {
+            once: true,
+          }),
+        );
+      return stream;
+    };
+  }, pending);
+}
+
 test("voice is the keyboard-free default, typing preserves its draft and remembers the mode", async ({
   page,
 }) => {
   await mountComposer(page);
   await expect(
     page.getByRole("button", { name: "Record a message", exact: true }),
-  ).toBeVisible();
+  ).toBeEnabled();
+  for (const name of ["Record sample", "Upload test sample"]) {
+    await expect(page.getByRole("button", { name, exact: true })).toHaveCount(
+      0,
+    );
+  }
+  await expect(page.getByRole("checkbox")).toHaveCount(0);
   await expect(
     page.getByRole("textbox", { name: "Message", exact: true }),
   ).toHaveCount(0);
@@ -165,98 +271,48 @@ test("clipboard permission denial offers a native paste fallback", async ({
   ).toBeVisible();
 });
 
-test("recording finishes into local playable audio without sending, survives mode and session switches", async ({
+test("live analyser updates microphone levels during production capture", async ({
   page,
-}, info) => {
+}) => {
   await mountComposer(page);
-  let promptRequests = 0;
-  page.on("request", (request) => {
-    if (request.url().includes("/prompt")) promptRequests += 1;
+  await page.evaluate(() => {
+    const read = AnalyserNode.prototype.getByteFrequencyData;
+    let loud = false;
+    document.addEventListener("raise-microphone-level", () => {
+      loud = true;
+    });
+    AnalyserNode.prototype.getByteFrequencyData = function (data) {
+      read.call(this, data);
+      data.fill(loud ? 255 : 0);
+    };
   });
   await page
     .getByRole("button", { name: "Record a message", exact: true })
     .click();
-  const finish = page.getByRole("button", {
-    name: "Finish recording",
-    exact: true,
-  });
-  await expect(finish).toBeEnabled();
   await expect(
-    page.getByRole("button", { name: "Type", exact: true }),
-  ).toBeDisabled();
-  // Prove actual audio was captured, not just an empty preview shell.
-  await expect
-    .poll(() => page.getByRole("timer").textContent())
-    .not.toBe("0:00");
-  await clipboard(page, "https://example.com/while-recording");
-  await info.attach("voice-recording", {
-    body: await page.screenshot(),
-    contentType: "image/png",
-  });
-  await finish.click();
-  const audio = page.locator('audio[aria-label="Recorded audio"]');
-  await expect(audio).toBeVisible();
-  await expect
-    .poll(() =>
-      audio.evaluate(
-        (element) =>
-          element instanceof HTMLAudioElement && element.readyState >= 2,
-      ),
-    )
-    .toBe(true);
-  await expect(
-    page.getByRole("link", { name: "Save audio", exact: true }),
-  ).toHaveAttribute("download", /voxpilot-recording\.(webm|m4a)/);
-  await expect(page.getByLabel("Sent message")).toBeEmpty();
-  await info.attach("voice-audio-preview", {
-    body: await page.screenshot(),
-    contentType: "image/png",
-  });
-  expect(promptRequests).toBe(0);
-  await page.getByRole("button", { name: "Type", exact: true }).click();
-  await expect(
-    page.getByRole("button", { name: "Send", exact: true }),
-  ).toBeDisabled();
-  await page.getByRole("button", { name: "Voice", exact: true }).click();
-  await expect(audio).toBeVisible();
-  await page.evaluate(() =>
-    document.dispatchEvent(new Event("switch-session")),
-  );
-  await expect(audio).toHaveCount(0);
-  await page.evaluate(() =>
-    document.dispatchEvent(new Event("switch-session")),
-  );
-  await expect(audio).toBeVisible();
-  await page
-    .getByRole("button", { name: "Discard recording", exact: true })
-    .click();
-  await expect(audio).toHaveCount(0);
-  await expect(
-    page.getByRole("button", { name: "Record a message", exact: true }),
+    page.getByRole("button", { name: "Finish recording", exact: true }),
   ).toBeEnabled();
+  const bars = page
+    .getByRole("img", { name: "Microphone audio level", exact: true })
+    .locator("span");
+  await expect(bars).toHaveCount(25);
+  await expect(bars.first()).toHaveCSS("height", "3px");
+  await page.evaluate(() =>
+    document.dispatchEvent(new Event("raise-microphone-level")),
+  );
+  await expect(bars.first()).toHaveCSS("height", "35px");
+  await page
+    .getByRole("button", { name: "Cancel recording", exact: true })
+    .click();
+  await expect(bars).toHaveCount(0);
+  await expect(page.getByLabel("Sent message")).toBeEmpty();
 });
 
 test("cancel stops microphone tracks and produces no recording", async ({
   page,
 }) => {
   await mountComposer(page);
-  await page.evaluate(() => {
-    const getUserMedia = navigator.mediaDevices.getUserMedia.bind(
-      navigator.mediaDevices,
-    );
-    navigator.mediaDevices.getUserMedia = async (constraints) => {
-      const stream = await getUserMedia(constraints);
-      const output = document.querySelector("output");
-      for (const track of stream.getTracks()) {
-        const stop = track.stop.bind(track);
-        track.stop = () => {
-          stop();
-          output?.setAttribute("data-track", track.readyState);
-        };
-      }
-      return stream;
-    };
-  });
+  await trackMicrophone(page);
   await page
     .getByRole("button", { name: "Record a message", exact: true })
     .click();
@@ -272,35 +328,17 @@ test("cancel stops microphone tracks and produces no recording", async ({
   );
   await expect(page.locator("audio")).toHaveCount(0);
   await expect(
+    page.getByRole("button", { name: "Discard recording", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByLabel("Sent message")).toBeEmpty();
+  await expect(
     page.getByRole("button", { name: "Record a message", exact: true }),
   ).toBeEnabled();
 });
 
 test("late permission cannot start a cancelled recording", async ({ page }) => {
   await mountComposer(page);
-  await page.evaluate(() => {
-    const getUserMedia = navigator.mediaDevices.getUserMedia.bind(
-      navigator.mediaDevices,
-    );
-    navigator.mediaDevices.getUserMedia = async (constraints) => {
-      const stream = await getUserMedia(constraints);
-      const output = document.querySelector("output");
-      for (const track of stream.getTracks()) {
-        const stop = track.stop.bind(track);
-        track.stop = () => {
-          stop();
-          output?.setAttribute("data-track", track.readyState);
-        };
-      }
-      output?.setAttribute("data-permission", "waiting");
-      await new Promise<void>((resolve) =>
-        document.addEventListener("release-permission", () => resolve(), {
-          once: true,
-        }),
-      );
-      return stream;
-    };
-  });
+  await trackMicrophone(page, true);
   await page
     .getByRole("button", { name: "Record a message", exact: true })
     .click();
@@ -320,6 +358,9 @@ test("late permission cannot start a cancelled recording", async ({ page }) => {
   );
   await expect(page.locator("audio")).toHaveCount(0);
   await expect(
+    page.getByRole("button", { name: "Discard recording", exact: true }),
+  ).toHaveCount(0);
+  await expect(
     page.getByRole("button", { name: "Record a message", exact: true }),
   ).toBeEnabled();
 });
@@ -329,24 +370,7 @@ for (const action of ["switch-session", "dispose-composer"]) {
     page,
   }) => {
     await mountComposer(page);
-    await page.evaluate(() => {
-      const getUserMedia = navigator.mediaDevices.getUserMedia.bind(
-        navigator.mediaDevices,
-      );
-      navigator.mediaDevices.getUserMedia = async (constraints) => {
-        const stream = await getUserMedia(constraints);
-        for (const track of stream.getTracks()) {
-          const stop = track.stop.bind(track);
-          track.stop = () => {
-            stop();
-            document
-              .querySelector("output")
-              ?.setAttribute("data-track", track.readyState);
-          };
-        }
-        return stream;
-      };
-    });
+    await trackMicrophone(page);
     await page
       .getByRole("button", { name: "Record a message", exact: true })
       .click();
@@ -362,6 +386,7 @@ for (const action of ["switch-session", "dispose-composer"]) {
       "ended",
     );
     await expect(page.locator("audio")).toHaveCount(0);
+    await expect(page.getByLabel("Sent message")).toBeEmpty();
     if (action === "switch-session") {
       await expect(
         page.getByRole("button", { name: "Record a message", exact: true }),
@@ -369,7 +394,9 @@ for (const action of ["switch-session", "dispose-composer"]) {
       await page.evaluate(() =>
         document.dispatchEvent(new Event("switch-session")),
       );
-      await expect(page.locator("audio")).toHaveCount(0);
+      await expect(
+        page.getByRole("button", { name: "Discard recording", exact: true }),
+      ).toHaveCount(0);
     }
   });
 }
@@ -430,7 +457,7 @@ test("unsupported recording leaves typing and pasting available", async ({
   ).toBeDisabled();
   await expect(
     page.getByRole("status", { name: "Recording status", exact: true }),
-  ).toContainText("Recording needs HTTPS");
+  ).toContainText("Recording unavailable");
   await clipboard(page, "https://example.com/fallback");
   await page.getByRole("button", { name: "Type", exact: true }).click();
   await expect(

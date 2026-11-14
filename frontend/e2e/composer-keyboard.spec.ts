@@ -13,6 +13,18 @@ for (const touch of [false, true]) {
     test("Enter preserves mobile newlines and desktop submission", async ({
       page,
     }) => {
+      await page.route("**/config.json", (route) =>
+        route.fulfill({ status: 404 }),
+      );
+      await page.route("**/api/provider", (route) =>
+        route.fulfill({ json: { data: [] } }),
+      );
+      await page.route("**/api/model", (route) =>
+        route.fulfill({ json: { data: [] } }),
+      );
+      await page.route("**/api/model/default", (route) =>
+        route.fulfill({ json: {} }),
+      );
       await page.route("**/composer-fixture", (route) =>
         route.fulfill({
           contentType: "text/html",

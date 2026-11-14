@@ -8,6 +8,24 @@ cd frontend
 npm run test:e2e
 ```
 
+Ordinary voice tests mock speech responses and make no OpenAI requests. An
+additional chapel-only integration smoke is explicitly opt-in:
+
+```sh
+VOXPILOT_STAGING_SPEECH_SMOKE=1 VOXPILOT_E2E_AUTH_SERVER=http://127.0.0.1:8001 \
+  npm run test:e2e -- e2e/voice-staging.spec.ts --workers=1 --retries=0
+```
+
+It synthesizes speech with `espeak-ng`, captures it through the real browser
+MediaRecorder, checks the preview-free Record/Finish flow, calls the deployed chapel speech
+service, and admits the result through the existing native chat UI into an
+isolated test backend. It creates vocabulary only in that test's disposable
+project and uses no personal recordings or real user project files. Trace/video
+capture is disabled so the browser-readable speech token never enters artifacts.
+The isolated HTTP test origin is bridged to the real HTTPS service in the test
+harness; exact HTTPS origin/authentication behavior is verified separately on
+the deployed endpoint. This is a paid test, never an automatic regression retry.
+
 Playwright builds the plugin once. Each worker that needs the native API starts
 its own `packaging/voxpilot-opencode`, disposable database, and Vite frontend.
 Backend ports start at **127.0.0.1:18001** and frontend ports at
@@ -146,12 +164,28 @@ The GitHub release build does not run this credential-dependent suite. Run
 ## Voice composer
 
 `voice-composer.spec.ts` uses the browser-only fixture and Chromium's synthetic
-microphone, without a backend, provider account, or transcription service. It
-covers voice-first input, playable recording previews, microphone cleanup,
+microphone, with mocked speech configuration and vocabulary, without a backend,
+provider account, or real transcription service. It mounts `MessageComposer`
+directly and covers voice-first input, live analyser levels, microphone cleanup,
 permission races and failures, unsupported browsers, stable pasted-item numbers,
 draft isolation, typing fallback, and narrow dark/light layouts. Run it with
-`npm run test:e2e -- e2e/voice-composer.spec.ts e2e/composer-keyboard.spec.ts`.
+`npm run test:e2e -- e2e/voice-composer.spec.ts e2e/voice-transcription.spec.ts e2e/composer-keyboard.spec.ts`.
 Existing app scenarios explicitly select the remembered typing preference.
+
+`voice-transcription.spec.ts` mocks the speech service, backend vocabulary and
+prompt admission. Normal **Record a message → Finish recording** automatically
+transcribes with `cloudAllowed: true` and sends through the native composer
+callback, without a consent checkbox, preview, download or sample controls. Tests
+assert that real captured recordings contain only blob, duration and the production
+voice take, create no audio preview object URLs, and leave image preview URLs intact.
+Additional tests
+cover same-ID retries, explicit new paid attempts, no speech, prompt correction,
+stale/session/project/backend work, accepted draft snapshots, vocabulary budgets,
+capture cancellation/limits and narrow idle/recording/busy layouts. These browser-only
+tests read no provider credentials and make no paid cloud calls. The separate
+`vocabulary.spec.ts` agent scenarios use the native credential-backed fixture;
+do not include them in mocked-only validation.
+Native test servers keep user vocabulary paths beneath their disposable worker roots.
 
 ## Overrides
 

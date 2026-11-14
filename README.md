@@ -50,19 +50,23 @@ The release includes a host-install tarball and a separate architecture-independ
 dev-setup installer can continue extracting the host tarball and restarting its
 systemd unit. Runtime installation requires neither Bun nor npm.
 
-## Voice composer prototype
+## Voice composer
 
-The composer starts in Voice mode without opening the keyboard. Record a message,
-then use the arrow to finish into a local audio preview. Play it back, save the
-audio, or discard it to record again. Recordings are limited to five minutes;
-backgrounding the page finishes a recording. Cancelling or leaving the composer
-releases the microphone. Microphone capture requires HTTPS or localhost and a
-browser with MediaRecorder and Web Audio support.
+The composer starts in Voice mode without opening the keyboard. **Record →
+Finish → transcribe → send** is the normal flow: finishing a message uses OpenAI
+`gpt-transcribe` and submits through the existing chat prompt flow. There is no
+per-recording checkbox, playback/download preview, test-sample control or mandatory
+review step in the normal composer. No separate cleanup LLM is used.
 
-**This is capture-only: audio is not transcribed, uploaded, or submitted.** Audio
-and draft content stay in browser memory and are lost on reload; save audio to
-keep test recordings. A saved recording is isolated to its chat and blocks typed
-submission until discarded, so it cannot be silently omitted from a message.
+Cancellation, explicit retry and Type/correction remain available. Audio is kept
+only in memory for pending transcription/recovery and released when the draft is
+sent, discarded or replaced. Silence is not submitted as chat text. Recordings
+are limited to five minutes; reaching that limit finishes/sends. Backgrounding
+the page cancels active capture rather than preserving a local-only clip.
+Microphone capture needs HTTPS or localhost and MediaRecorder/Web Audio support.
+Without a configured speech service, use Type. The standalone speech service
+owns the OpenAI key; frontend and coding backends never receive it. See
+[speech deployment](packaging/SPEECH.md) and [service contract](speech/CONTRACT.md).
 
 Paste captures clipboard text or links as numbered pills. Tap a pill to inspect
 the exact contents, or refer to its number while speaking. Removing one does not
@@ -70,6 +74,63 @@ renumber the others. If clipboard access is unavailable, Paste opens a native
 paste field instead. Type opens the existing text composer; switching modes
 preserves the draft, pasted items and image attachments. The selected mode is
 remembered. Typed sends include pasted items labelled with their numbers.
+
+### Speech vocabulary
+
+Vocabulary is project-owned data, not a mutable file on the static frontend host.
+Each file is a plain JSON array of canonical spellings. Missing files mean empty
+lists; no timestamps, counts, provider settings or per-term metadata are stored.
+
+| List | Location |
+| --- | --- |
+| User, on this machine | `$XDG_CONFIG_HOME/voxpilot/vocabulary.json`, default `~/.config/voxpilot/vocabulary.json` |
+| Shared project | Active checkout's `.voxpilot/vocabulary.json` (committable) |
+| Private project | Canonical checkout's `.voxpilot/vocabulary.local.json` (ignored) |
+
+```json
+["VoxPilot", "OpenCode", "SolidJS", "Zod"]
+```
+
+The plugin uses OpenCode's existing `project.directory` and `project.canonical`
+metadata, so nested locations and worktrees need no Git subprocess lookup.
+Lists merge user → shared → private, deduplicating case-insensitively while
+preserving the most-specific spelling. Shared lists follow their checkout's
+Git version; private lists are reused across that project's worktrees on the
+same machine. Neither private nor user lists automatically sync across hosts.
+
+The authenticated `vocabulary` RPC returns merged terms and their sources.
+Parsed files are cached; filesystem identity, size and modification/change times
+are checked per read so normal edits, atomic replacements and deletion take
+effect without a restart. Invalid files fail clearly instead of silently using
+stale words. Aim for 20–30 relevant terms total. Files are bounded to 100 terms,
+120 characters per term, and 64 KiB; symlink files/directories and control
+characters or angle brackets are rejected.
+
+The plugin injects a short agent-loop instruction explaining how to manage
+these files with normal file-editing tools—no vocabulary MCP tools or global
+`AGENTS.md` changes. For project requests, an existing shared list is used unless
+private changes are requested; without a shared list, the default is private.
+User-wide changes require an explicit request such as "on this machine, across
+all projects". The list contents are data, never injected as agent instructions.
+Git visibility is separate from permission to send vocabulary to a cloud model.
+
+Install the private-file pattern in each host user's global Git ignore file:
+
+```sh
+python3 scripts/install-vocabulary-ignore.py --dry-run
+python3 scripts/install-vocabulary-ignore.py
+```
+
+The helper appends only `/.voxpilot/vocabulary.local.json`, preserving existing
+patterns, symlinks and `core.excludesFile` configuration. It does not ignore
+the shared file or remove other existing patterns. `VOXPILOT_USER_VOCABULARY_FILE`
+can override the user list with an absolute path; test servers use this to keep
+test agents away from real user vocabulary.
+
+Transcription snapshots the original project's effective vocabulary. Context is
+bounded to 30 terms / 2000 characters; an over-budget list requires an explicit
+subset rather than silently losing terms. Invalid vocabulary edits block upload
+clearly instead of using stale context.
 
 ## Personal frontend deployment
 

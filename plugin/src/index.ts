@@ -3,10 +3,27 @@ import { ComparisonInput, Snapshot, VoxPilotRpc } from "./rpc";
 import { captureComparison } from "./services/comparison";
 import { formatAndDiff } from "./services/format-diff";
 import { shouldInhibitIdle } from "./services/idle";
+import {
+  createVocabularyReader,
+  vocabularyInstructions,
+  vocabularyPaths,
+} from "./services/vocabulary";
 
 export default Plugin.define({
   id: "voxpilot",
   async setup(ctx) {
+    const vocabulary = createVocabularyReader(
+      vocabularyPaths({
+        checkout: ctx.location.project.directory,
+        canonical: ctx.location.project.canonical,
+        configHome: process.env.XDG_CONFIG_HOME,
+        userFile: process.env.VOXPILOT_USER_VOCABULARY_FILE,
+      }),
+    );
+    const instructions = vocabularyInstructions(vocabulary.paths);
+    await ctx.session.hook("context", (event) => {
+      event.system.push({ type: "text", text: instructions });
+    });
     async function snapshot(id: string) {
       const stored = await ctx.storage.get(`snapshot/${id}`);
       return stored === undefined ? null : Snapshot.parse(stored);
@@ -24,6 +41,7 @@ export default Plugin.define({
         wakeUrl: process.env.VOXPILOT_WAKE_URL ?? null,
         protocol: 1 as const,
       }),
+      vocabulary: (_, context) => vocabulary.read(context.signal),
       compare: (input, context) => compare(input, context.signal),
       snapshot: ({ id }) => snapshot(id),
       formatComparison: async ({ cacheId, filePath, printWidth }, context) => {

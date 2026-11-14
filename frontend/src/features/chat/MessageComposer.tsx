@@ -10,9 +10,12 @@ import {
   createSignal,
   createUniqueId,
   For,
+  onCleanup,
   Show,
 } from "solid-js";
 import type { PromptDraft } from "../../platform/prompt-files";
+import { speechConnection } from "../../platform/speech";
+import type { fetchVocabulary } from "../../platform/vocabulary";
 import { Button } from "../../ui/Button";
 import { IconButton } from "../../ui/IconButton";
 import { Textarea } from "../../ui/Textarea";
@@ -21,10 +24,12 @@ import { clipboardFiles } from "./attachments/attachment-input";
 import { ATTACHMENT_ACCEPT } from "./attachments/attachment-policy";
 import { ComposerForm } from "./ComposerForm";
 import { composerDraft } from "./create-composer-draft";
+import { createVoiceTake } from "./create-voice-take";
 import { defaultModelData, modelData } from "./model-utils";
 import { PastedReferences, PasteReferenceButton } from "./PastedReferences";
 import { composerMode, selectedModel, setComposerMode } from "./preferences";
-import { VoiceRecorder } from "./VoiceRecorder";
+import { type RecordedAudio, VoiceRecorder } from "./VoiceRecorder";
+import { VoiceTranscription } from "./VoiceTranscription";
 
 export function MessageComposer(props: {
   sessionID?: string;
@@ -35,12 +40,51 @@ export function MessageComposer(props: {
     sessionID: string | undefined,
   ) => Promise<boolean>;
   onStop?: () => void;
+  voiceDirectory?: string;
+  readVoiceVocabulary?: (
+    directory: string,
+    signal: AbortSignal,
+  ) => ReturnType<typeof fetchVocabulary>;
 }) {
   let input: HTMLTextAreaElement | undefined;
   let picker: HTMLInputElement | undefined;
   const hintID = createUniqueId();
   const draft = createMemo(() => composerDraft(props.sessionID));
   const [recordingActive, setRecordingActive] = createSignal(false);
+  let mounted = true;
+  onCleanup(() => {
+    mounted = false;
+  });
+  function captureRecording() {
+    const current = draft();
+    current.setRecording(undefined);
+    const sessionID = props.sessionID;
+    const directory = props.voiceDirectory;
+    const read = props.readVoiceVocabulary;
+    const send = props.onSend;
+    const take = createVoiceTake(current, {
+      owned: () =>
+        mounted &&
+        props.sessionID === sessionID &&
+        props.voiceDirectory === directory,
+      vocabulary: (signal) => {
+        if (!directory || !read)
+          throw new Error("The original project's vocabulary is unavailable.");
+        return read(directory, signal);
+      },
+      send: (content) => send(content, sessionID),
+    });
+    return (audio: RecordedAudio) => {
+      const recording = current.setRecording({ ...audio, voice: take });
+      if (!recording) return;
+      take.attach(recording);
+      void take.transcribe();
+    };
+  }
+  const pendingRecording = () => {
+    const recording = draft().recording();
+    return recording && recording.voice.phase() !== "ready";
+  };
   const busy = () => Boolean(props.disabled) || draft().sending();
   const modelWarning = createMemo(() => {
     if (!draft().attachments().length) return undefined;
@@ -74,9 +118,10 @@ export function MessageComposer(props: {
   async function submit(event: SubmitEvent) {
     event.preventDefault();
     const current = draft();
-    if (busy() || props.streaming || recordingActive() || current.recording())
+    if (busy() || props.streaming || recordingActive() || pendingRecording())
       return;
     const submitted = current.snapshot();
+    const recording = current.recording();
     if (
       !submitted.text.trim() &&
       submitted.attachments.length === 0 &&
@@ -101,7 +146,11 @@ export function MessageComposer(props: {
         },
         sessionID,
       );
-      if (accepted !== false) current.consume(submitted);
+      if (accepted !== false) {
+        current.consume(submitted);
+        if (recording && current.recording() === recording)
+          current.setRecording(undefined);
+      }
     } finally {
       current.setSending(false);
     }
@@ -130,18 +179,35 @@ export function MessageComposer(props: {
       <Show when={composerMode() === "voice"}>
         <Show when={draft()} keyed>
           {(current) => (
-            <VoiceRecorder
-              draft={current}
-              disabled={busy() || Boolean(props.streaming)}
-              onActiveChange={setRecordingActive}
-            />
+            <Show when={!current.recording()?.voice.busy()}>
+              <VoiceRecorder
+                disabled={
+                  busy() || Boolean(props.streaming) || !speechConnection()
+                }
+                onActiveChange={setRecordingActive}
+                captureRecording={captureRecording}
+              />
+            </Show>
           )}
         </Show>
+        <Show when={!speechConnection()}>
+          <p class="m-0 px-2 text-xs text-muted">
+            Transcription unavailable. Use Type.
+          </p>
+        </Show>
       </Show>
-      <Show when={composerMode() === "text" && draft().recording()}>
+      <Show when={draft().recording()?.voice}>
+        {(take) => (
+          <VoiceTranscription
+            take={take()}
+            disabled={busy() || Boolean(props.streaming)}
+            onDiscard={() => draft().setRecording(undefined)}
+          />
+        )}
+      </Show>
+      <Show when={composerMode() === "text" && pendingRecording()}>
         <p class="m-0 px-2 py-1 text-xs text-warning">
-          Your recording is saved in Voice. Discard it there before sending a
-          typed message; transcription is not connected yet.
+          Retry or discard the pending recording before sending.
         </p>
       </Show>
       <div class="flex w-full min-w-0 items-end gap-1">
@@ -261,7 +327,7 @@ export function MessageComposer(props: {
                 aria-label="Send"
                 aria-busy={draft().sending()}
                 disabled={
-                  busy() || recordingActive() || Boolean(draft().recording())
+                  busy() || recordingActive() || Boolean(pendingRecording())
                 }
                 onPointerDown={(event) => event.preventDefault()}
               >

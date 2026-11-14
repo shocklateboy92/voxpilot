@@ -67,6 +67,12 @@ export async function startTestBackend(
         VOXPILOT_PLUGIN_DIR: join(repo, "plugin"),
         VOXPILOT_HOSTNAME: target.hostname.replace(/^\[|\]$/g, ""),
         VOXPILOT_PORT: target.port || "80",
+        VOXPILOT_USER_VOCABULARY_FILE: join(
+          root,
+          "config",
+          "voxpilot",
+          "vocabulary.json",
+        ),
       },
     },
   );

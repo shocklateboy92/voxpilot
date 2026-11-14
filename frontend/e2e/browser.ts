@@ -38,6 +38,15 @@ export const test = base.extend<{
       (response) =>
         new URL(response.url()).pathname === "/api/event" && response.ok(),
     );
+    const composerReady = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        url.pathname === "/api/worktree" &&
+        url.searchParams.get("projectID") === workspace.projectID &&
+        response.request().method() === "GET" &&
+        response.ok()
+      );
+    });
     // Guard before sending a prompt, including tests that click Send directly.
     await page.route("**/api/session/*/prompt", async (route) => {
       const sessionID = new URL(route.request().url()).pathname
@@ -60,9 +69,11 @@ export const test = base.extend<{
     try {
       // Existing chat scenarios explicitly exercise the remembered typing mode.
       // Voice-first defaults and recording are covered by voice-composer.spec.ts.
-      await page.addInitScript(() =>
-        localStorage.setItem("voxpilot-composer-mode", "text"),
-      );
+      await page.addInitScript((origin) => {
+        // Navigation helpers also visit opaque about:blank documents.
+        if (window.location.origin === origin)
+          localStorage.setItem("voxpilot-composer-mode", "text");
+      }, new URL(baseURL).origin);
       // Keep existing scenarios on the manual flow regardless of local config.
       await page.route("**/config.json", (route) =>
         route.fulfill({ status: 404 }),
@@ -109,6 +120,8 @@ export const test = base.extend<{
         .selectOption(model.variant);
       // Native events are live-only: mutations must wait for the subscription.
       await eventsReady;
+      // Offline tests start from a loaded composer, not an in-flight worktree resource.
+      await (await composerReady).finished();
       await use(page);
       expect(errors, "Unhandled application errors").toEqual([]);
     } finally {

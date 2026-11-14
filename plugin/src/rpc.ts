@@ -1,6 +1,9 @@
 /** Shared, browser-safe contract. All UI response types derive from this schema. */
 import { Rpc } from "@opencode/plugin/rpc";
 import { z } from "zod";
+import { VocabularyTerm } from "./speech-contract";
+
+export { VocabularyTerm } from "./speech-contract";
 
 export const ComparisonInput = z.object({
   from: z.string().default("HEAD"),
@@ -29,6 +32,23 @@ export const Snapshot = z.object({
   ),
 });
 
+export const VOCABULARY_MAX_TERMS = 100;
+export const VocabularyFile = z.array(VocabularyTerm).max(VOCABULARY_MAX_TERMS);
+
+export const VocabularySource = z.object({
+  path: z.string(),
+  exists: z.boolean(),
+  terms: VocabularyFile,
+});
+export const SpeechVocabulary = z.object({
+  terms: z.array(VocabularyTerm).max(VOCABULARY_MAX_TERMS * 3),
+  sources: z.object({
+    user: VocabularySource,
+    shared: VocabularySource,
+    local: VocabularySource,
+  }),
+});
+
 export const VoxPilotRpc = Rpc.define({
   id: "voxpilot",
   events: {},
@@ -40,6 +60,7 @@ export const VoxPilotRpc = Rpc.define({
         protocol: z.literal(1),
       }),
     },
+    vocabulary: { input: z.object({}).strict(), output: SpeechVocabulary },
     compare: { input: ComparisonInput, output: Snapshot },
     snapshot: {
       input: z.object({ id: z.string() }),

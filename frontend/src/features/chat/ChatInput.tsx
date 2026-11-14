@@ -1,6 +1,12 @@
-import { activeSessionId, isStreaming } from "../../app/navigation";
+import {
+  activeSession,
+  activeSessionId,
+  isStreaming,
+} from "../../app/navigation";
 import { abortCurrentSession, sendUserMessage } from "../../app/streaming";
+import { client } from "../../platform/connection";
 import type { PromptDraft } from "../../platform/prompt-files";
+import { fetchVocabulary } from "../../platform/vocabulary";
 import { MessageComposer } from "./MessageComposer";
 
 export interface ChatInputProps {
@@ -19,6 +25,10 @@ export function ChatInput(props: ChatInputProps) {
       streaming={isStreaming()}
       onStop={() => void abortCurrentSession()}
       onSend={send}
+      voiceDirectory={activeSession()?.location.directory}
+      readVoiceVocabulary={(directory, signal) =>
+        fetchVocabulary(directory, client, signal)
+      }
     />
   );
 }

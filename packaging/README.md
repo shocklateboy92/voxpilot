@@ -3,6 +3,9 @@
 One static frontend can connect to multiple OpenCode hosts. Each host runs only
 OpenCode, with the bundled VoxPilot plugin loaded by the service.
 
+Voice transcription additionally uses the independent service described in
+[SPEECH.md](SPEECH.md). Do not provision its OpenAI key on coding API hosts.
+
 ## API host prerequisites
 
 - Native `opencode` 2.0.22 on the systemd user's PATH.

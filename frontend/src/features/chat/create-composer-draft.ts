@@ -1,5 +1,6 @@
 import { batch, createSignal } from "solid-js";
 import { attachmentError } from "./attachments/attachment-policy";
+import type { VoiceTake } from "./create-voice-take";
 
 export interface DraftAttachment {
   id: string;
@@ -14,8 +15,8 @@ export interface DraftReference {
 
 export interface DraftRecording {
   blob: Blob;
-  url: string;
   duration: number;
+  voice: VoiceTake;
 }
 
 function createComposerDraft() {
@@ -82,12 +83,11 @@ function createComposerDraft() {
     );
   }
 
-  function setRecording(value: { blob: Blob; duration: number } | undefined) {
+  function setRecording(value: DraftRecording | undefined) {
     const previous = recording();
-    if (previous) URL.revokeObjectURL(previous.url);
-    updateRecording(
-      value ? { ...value, url: URL.createObjectURL(value.blob) } : undefined,
-    );
+    previous?.voice.cancel();
+    updateRecording(value);
+    return recording();
   }
 
   function snapshot() {

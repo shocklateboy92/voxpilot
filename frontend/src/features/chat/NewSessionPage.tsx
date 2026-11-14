@@ -18,7 +18,9 @@ import {
 } from "../../app/navigation";
 import { store } from "../../app/store";
 import { createWorktree, fetchWorktrees } from "../../platform/api-client";
+import { client } from "../../platform/connection";
 import { type PromptDraft, preparePrompt } from "../../platform/prompt-files";
+import { fetchVocabulary } from "../../platform/vocabulary";
 import { Button } from "../../ui/Button";
 import { Select } from "../../ui/Select";
 import { SwipeablePane } from "../../ui/SwipeablePane";
@@ -205,7 +207,14 @@ export function NewSessionPage() {
           <ServerPicker />
           <ModelPicker fullWidth />
 
-          <MessageComposer disabled={busy()} onSend={handleSubmit} />
+          <MessageComposer
+            disabled={busy()}
+            onSend={handleSubmit}
+            voiceDirectory={selectedWorktreeDir() ?? selectedProjectDir()}
+            readVoiceVocabulary={(directory, signal) =>
+              fetchVocabulary(directory, client, signal)
+            }
+          />
         </div>
       </SwipeablePane>
     </div>
