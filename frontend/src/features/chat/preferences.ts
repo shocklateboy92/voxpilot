@@ -12,6 +12,11 @@ import { createEffect, createRoot, createSignal } from "solid-js";
 
 const MODEL_STORAGE_KEY = "voxpilot-selected-model";
 const MODEL_VARIANT_STORAGE_KEY = "voxpilot-selected-model-variant";
+const COMPOSER_MODE_STORAGE_KEY = "voxpilot-composer-mode";
+
+export const [composerMode, setComposerMode] = createSignal<"voice" | "text">(
+  localStorage.getItem(COMPOSER_MODE_STORAGE_KEY) === "text" ? "text" : "voice",
+);
 
 /**
  * Selected model as "providerID/modelID" (persisted to localStorage).
@@ -28,6 +33,9 @@ export const [selectedModelVariant, setSelectedModelVariant] =
 // Persistence effects need an owning root so Solid doesn't warn about
 // disposal-less computations. The root lives for the document lifetime.
 createRoot(() => {
+  createEffect(() => {
+    localStorage.setItem(COMPOSER_MODE_STORAGE_KEY, composerMode());
+  });
   createEffect(() => {
     localStorage.setItem(MODEL_STORAGE_KEY, selectedModelKey());
   });

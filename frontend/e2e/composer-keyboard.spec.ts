@@ -48,6 +48,7 @@ for (const touch of [false, true]) {
         await page.evaluate(() => matchMedia("(pointer: coarse)").matches),
       ).toBe(touch);
       const input = page.getByRole("textbox", { name: "Message", exact: true });
+      await page.getByRole("button", { name: "Type", exact: true }).click();
       const sent = page.getByLabel("Sent message");
       await input.fill("First line");
       await input.press("End");

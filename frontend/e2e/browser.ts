@@ -58,6 +58,11 @@ export const test = base.extend<{
       await route.continue();
     });
     try {
+      // Existing chat scenarios explicitly exercise the remembered typing mode.
+      // Voice-first defaults and recording are covered by voice-composer.spec.ts.
+      await page.addInitScript(() =>
+        localStorage.setItem("voxpilot-composer-mode", "text"),
+      );
       // Keep existing scenarios on the manual flow regardless of local config.
       await page.route("**/config.json", (route) =>
         route.fulfill({ status: 404 }),

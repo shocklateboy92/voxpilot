@@ -7,11 +7,25 @@ export interface DraftAttachment {
   previewUrl: string;
 }
 
+export interface DraftReference {
+  number: number;
+  text: string;
+}
+
+export interface DraftRecording {
+  blob: Blob;
+  url: string;
+  duration: number;
+}
+
 function createComposerDraft() {
   const [text, updateText] = createSignal("");
   const [attachments, setAttachments] = createSignal<DraftAttachment[]>([]);
   const [errors, setErrors] = createSignal<string[]>([]);
   const [sending, setSending] = createSignal(false);
+  const [references, setReferences] = createSignal<DraftReference[]>([]);
+  const [recording, updateRecording] = createSignal<DraftRecording>();
+  let nextReferenceNumber = 1;
   let textRevision = 0;
   // IDs are draft-local and never sent to the server. Avoid secure-context-only
   // APIs such as crypto.randomUUID(), since LAN development also uses HTTP.
@@ -54,20 +68,51 @@ function createComposerDraft() {
     setErrors([]);
   }
 
+  function addReference(text: string) {
+    if (sending() || !text.trim()) return;
+    setReferences((entries) => [
+      ...entries,
+      { number: nextReferenceNumber++, text },
+    ]);
+  }
+
+  function removeReference(number: number) {
+    setReferences((entries) =>
+      entries.filter((entry) => entry.number !== number),
+    );
+  }
+
+  function setRecording(value: { blob: Blob; duration: number } | undefined) {
+    const previous = recording();
+    if (previous) URL.revokeObjectURL(previous.url);
+    updateRecording(
+      value ? { ...value, url: URL.createObjectURL(value.blob) } : undefined,
+    );
+  }
+
   function snapshot() {
-    return { text: text(), textRevision, attachments: [...attachments()] };
+    return {
+      text: text(),
+      textRevision,
+      attachments: [...attachments()],
+      references: [...references()],
+    };
   }
 
   function consume(submitted: ReturnType<typeof snapshot>) {
     batch(() => {
       if (submitted.textRevision === textRevision) setText("");
       for (const entry of submitted.attachments) removeAttachment(entry.id);
+      for (const entry of submitted.references) removeReference(entry.number);
+      if (references().length === 0) nextReferenceNumber = 1;
     });
   }
 
   function dispose() {
     for (const entry of attachments()) URL.revokeObjectURL(entry.previewUrl);
     setAttachments([]);
+    setReferences([]);
+    setRecording(undefined);
   }
 
   return {
@@ -79,6 +124,11 @@ function createComposerDraft() {
     setSending,
     addFiles,
     removeAttachment,
+    references,
+    addReference,
+    removeReference,
+    recording,
+    setRecording,
     snapshot,
     consume,
     dispose,

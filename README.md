@@ -50,6 +50,27 @@ The release includes a host-install tarball and a separate architecture-independ
 dev-setup installer can continue extracting the host tarball and restarting its
 systemd unit. Runtime installation requires neither Bun nor npm.
 
+## Voice composer prototype
+
+The composer starts in Voice mode without opening the keyboard. Record a message,
+then use the arrow to finish into a local audio preview. Play it back, save the
+audio, or discard it to record again. Recordings are limited to five minutes;
+backgrounding the page finishes a recording. Cancelling or leaving the composer
+releases the microphone. Microphone capture requires HTTPS or localhost and a
+browser with MediaRecorder and Web Audio support.
+
+**This is capture-only: audio is not transcribed, uploaded, or submitted.** Audio
+and draft content stay in browser memory and are lost on reload; save audio to
+keep test recordings. A saved recording is isolated to its chat and blocks typed
+submission until discarded, so it cannot be silently omitted from a message.
+
+Paste captures clipboard text or links as numbered pills. Tap a pill to inspect
+the exact contents, or refer to its number while speaking. Removing one does not
+renumber the others. If clipboard access is unavailable, Paste opens a native
+paste field instead. Type opens the existing text composer; switching modes
+preserves the draft, pasted items and image attachments. The selected mode is
+remembered. Typed sends include pasted items labelled with their numbers.
+
 ## Personal frontend deployment
 
 The frontend is deployed independently of the homelab tenant image. From a

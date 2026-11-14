@@ -143,6 +143,16 @@ for occasional verification on a physical phone.
 The GitHub release build does not run this credential-dependent suite. Run
 `just check` locally before releasing; no provider credentials are copied into CI.
 
+## Voice composer
+
+`voice-composer.spec.ts` uses the browser-only fixture and Chromium's synthetic
+microphone, without a backend, provider account, or transcription service. It
+covers voice-first input, playable recording previews, microphone cleanup,
+permission races and failures, unsupported browsers, stable pasted-item numbers,
+draft isolation, typing fallback, and narrow dark/light layouts. Run it with
+`npm run test:e2e -- e2e/voice-composer.spec.ts e2e/composer-keyboard.spec.ts`.
+Existing app scenarios explicitly select the remembered typing preference.
+
 ## Overrides
 
 - `VOXPILOT_E2E_URL`: frontend base origin (default `http://localhost:13000`).

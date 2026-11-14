@@ -1,9 +1,19 @@
 import ArrowUp from "lucide-solid/icons/arrow-up";
+import Keyboard from "lucide-solid/icons/keyboard";
 import LoaderCircle from "lucide-solid/icons/loader-circle";
+import Mic from "lucide-solid/icons/mic";
 import Paperclip from "lucide-solid/icons/paperclip";
 import Square from "lucide-solid/icons/square";
-import { createEffect, createMemo, createUniqueId, For, Show } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  createUniqueId,
+  For,
+  Show,
+} from "solid-js";
 import type { PromptDraft } from "../../platform/prompt-files";
+import { Button } from "../../ui/Button";
 import { IconButton } from "../../ui/IconButton";
 import { Textarea } from "../../ui/Textarea";
 import { AttachmentStrip } from "./attachments/AttachmentStrip";
@@ -12,7 +22,9 @@ import { ATTACHMENT_ACCEPT } from "./attachments/attachment-policy";
 import { ComposerForm } from "./ComposerForm";
 import { composerDraft } from "./create-composer-draft";
 import { defaultModelData, modelData } from "./model-utils";
-import { selectedModel } from "./preferences";
+import { PastedReferences, PasteReferenceButton } from "./PastedReferences";
+import { composerMode, selectedModel, setComposerMode } from "./preferences";
+import { VoiceRecorder } from "./VoiceRecorder";
 
 export function MessageComposer(props: {
   sessionID?: string;
@@ -28,6 +40,7 @@ export function MessageComposer(props: {
   let picker: HTMLInputElement | undefined;
   const hintID = createUniqueId();
   const draft = createMemo(() => composerDraft(props.sessionID));
+  const [recordingActive, setRecordingActive] = createSignal(false);
   const busy = () => Boolean(props.disabled) || draft().sending();
   const modelWarning = createMemo(() => {
     if (!draft().attachments().length) return undefined;
@@ -51,6 +64,7 @@ export function MessageComposer(props: {
 
   createEffect(() => {
     const value = draft().text();
+    if (composerMode() !== "text") return;
     if (!input) return;
     input.value = value;
     input.style.height = "auto";
@@ -60,16 +74,29 @@ export function MessageComposer(props: {
   async function submit(event: SubmitEvent) {
     event.preventDefault();
     const current = draft();
-    if (busy() || props.streaming) return;
+    if (busy() || props.streaming || recordingActive() || current.recording())
+      return;
     const submitted = current.snapshot();
-    if (!submitted.text.trim() && submitted.attachments.length === 0) return;
+    if (
+      !submitted.text.trim() &&
+      submitted.attachments.length === 0 &&
+      submitted.references.length === 0
+    )
+      return;
     const sessionID = props.sessionID;
     const send = props.onSend;
     current.setSending(true);
     try {
       const accepted = await send(
         {
-          text: submitted.text,
+          text: [
+            submitted.text,
+            ...submitted.references.map(
+              (entry) => `Pasted item ${entry.number}:\n${entry.text}`,
+            ),
+          ]
+            .filter(Boolean)
+            .join("\n\n"),
           files: submitted.attachments.map((entry) => entry.file),
         },
         sessionID,
@@ -82,6 +109,9 @@ export function MessageComposer(props: {
 
   return (
     <ComposerForm onSubmit={(event) => void submit(event)}>
+      <Show when={draft()} keyed>
+        {(current) => <PastedReferences draft={current} disabled={busy()} />}
+      </Show>
       <Show when={draft().attachments().length}>
         <AttachmentStrip
           attachments={draft().attachments()}
@@ -97,6 +127,23 @@ export function MessageComposer(props: {
           {(warning) => <p class="px-1 py-1 text-warning">{warning()}</p>}
         </Show>
       </div>
+      <Show when={composerMode() === "voice"}>
+        <Show when={draft()} keyed>
+          {(current) => (
+            <VoiceRecorder
+              draft={current}
+              disabled={busy() || Boolean(props.streaming)}
+              onActiveChange={setRecordingActive}
+            />
+          )}
+        </Show>
+      </Show>
+      <Show when={composerMode() === "text" && draft().recording()}>
+        <p class="m-0 px-2 py-1 text-xs text-warning">
+          Your recording is saved in Voice. Discard it there before sending a
+          typed message; transcription is not connected yet.
+        </p>
+      </Show>
       <div class="flex w-full min-w-0 items-end gap-1">
         <input
           ref={picker}
@@ -121,76 +168,118 @@ export function MessageComposer(props: {
         >
           <Paperclip size={18} />
         </IconButton>
-        <Textarea
-          ref={input}
-          name="message"
-          class="chat-input"
-          variant="composer"
-          data-composer-input
-          aria-label="Message"
-          aria-describedby={hintID}
-          placeholder="Send a message..."
-          autocomplete="off"
-          autofocus
-          rows={1}
-          disabled={props.disabled}
-          onKeyDown={(event) => {
-            if (
-              event.key === "Enter" &&
-              !event.shiftKey &&
-              !event.isComposing &&
-              // Touch-first devices need Enter for newlines; use Send instead.
-              !window.matchMedia("(pointer: coarse)").matches
-            ) {
+        <Show when={composerMode() === "text"}>
+          <Textarea
+            ref={input}
+            name="message"
+            class="chat-input"
+            variant="composer"
+            data-composer-input
+            aria-label="Message"
+            aria-describedby={hintID}
+            placeholder="Send a message..."
+            value={draft().text()}
+            autocomplete="off"
+            autofocus
+            rows={1}
+            disabled={props.disabled}
+            onKeyDown={(event) => {
+              if (
+                event.key === "Enter" &&
+                !event.shiftKey &&
+                !event.isComposing &&
+                // Touch-first devices need Enter for newlines; use Send instead.
+                !window.matchMedia("(pointer: coarse)").matches
+              ) {
+                event.preventDefault();
+                event.currentTarget.form?.requestSubmit();
+              }
+            }}
+            onInput={(event) => draft().setText(event.currentTarget.value)}
+            onPaste={(event) => {
+              const files = clipboardFiles(event);
+              if (!files.length) return;
               event.preventDefault();
-              event.currentTarget.form?.requestSubmit();
-            }
-          }}
-          onInput={(event) => draft().setText(event.currentTarget.value)}
-          onPaste={(event) => {
-            const files = clipboardFiles(event);
-            if (!files.length) return;
-            event.preventDefault();
-            draft().addFiles(files);
-            // Some clipboards contain both an image and a useful text caption.
-            const text = event.clipboardData?.getData("text/plain");
-            if (text) {
-              const element = event.currentTarget;
-              element.setRangeText(
-                text,
-                element.selectionStart,
-                element.selectionEnd,
-                "end",
-              );
-              draft().setText(element.value);
-            }
-          }}
-        />
-        <Show
-          when={props.streaming}
-          fallback={
-            <IconButton
-              type="submit"
-              variant="primary"
-              aria-label="Send"
-              aria-busy={draft().sending()}
+              draft().addFiles(files);
+              // Some clipboards contain both an image and a useful text caption.
+              const text = event.clipboardData?.getData("text/plain");
+              if (text) {
+                const element = event.currentTarget;
+                element.setRangeText(
+                  text,
+                  element.selectionStart,
+                  element.selectionEnd,
+                  "end",
+                );
+                draft().setText(element.value);
+              }
+            }}
+          />
+        </Show>
+        <Show when={draft()} keyed>
+          {(current) => (
+            <PasteReferenceButton
+              draft={current}
               disabled={busy()}
-              onPointerDown={(event) => event.preventDefault()}
-            >
-              <Show when={draft().sending()} fallback={<ArrowUp size={18} />}>
-                <LoaderCircle size={18} class="animate-spin" />
-              </Show>
-            </IconButton>
-          }
+              compact={composerMode() === "text"}
+            />
+          )}
+        </Show>
+        <Show when={composerMode() === "voice"}>
+          <div class="flex-1" />
+        </Show>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={recordingActive()}
+          onPointerDown={(event) => event.preventDefault()}
+          onClick={() => {
+            setComposerMode(composerMode() === "voice" ? "text" : "voice");
+            if (composerMode() === "text") queueMicrotask(() => input?.focus());
+          }}
         >
-          <IconButton
-            variant="stop"
-            aria-label="Stop generating"
-            onPointerDown={(event) => event.preventDefault()}
-            onClick={() => props.onStop?.()}
+          <Show
+            when={composerMode() === "voice"}
+            fallback={
+              <>
+                <Mic size={18} />
+                Voice
+              </>
+            }
           >
-            <Square size={12} />
-          </IconButton>
+            <Keyboard size={18} />
+            Type
+          </Show>
+        </Button>
+        <Show when={composerMode() === "text" || props.streaming}>
+          <Show
+            when={props.streaming}
+            fallback={
+              <IconButton
+                type="submit"
+                variant="primary"
+                aria-label="Send"
+                aria-busy={draft().sending()}
+                disabled={
+                  busy() || recordingActive() || Boolean(draft().recording())
+                }
+                onPointerDown={(event) => event.preventDefault()}
+              >
+                <Show when={draft().sending()} fallback={<ArrowUp size={18} />}>
+                  <LoaderCircle size={18} class="animate-spin" />
+                </Show>
+              </IconButton>
+            }
+          >
+            <IconButton
+              variant="stop"
+              aria-label="Stop generating"
+              onPointerDown={(event) => event.preventDefault()}
+              onClick={() => props.onStop?.()}
+            >
+              <Square size={12} />
+            </IconButton>
+          </Show>
         </Show>
       </div>
     </ComposerForm>
