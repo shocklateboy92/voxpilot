@@ -114,7 +114,8 @@ network latency, and keep evaluation references out of recognition context.
 
 Historical notes, reports, public benchmark outputs, scratch scripts and the
 continuation handoff are preserved on **`archive/asr-research-2026-11`**, commit
-**`8391869`**. Start with its `ARCHIVE.md`:
+**`f4a1744`** (initial snapshot `8391869`; later handoff edits also preserved).
+Start with its `ARCHIVE.md`:
 
 ```sh
 git show archive/asr-research-2026-11:ARCHIVE.md
