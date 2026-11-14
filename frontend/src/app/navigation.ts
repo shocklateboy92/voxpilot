@@ -34,6 +34,21 @@ function navigateSession(sessionID: string | undefined, replace = false): void {
   navigateApp(url.href, { replace });
 }
 
+/** Resolve a server-switch landing hint before mounting the chat route. */
+export function useSessionLanding() {
+  const pending = () => appUrl().searchParams.get("open") === "latest";
+  createEffect(() => {
+    if (!pending()) return;
+    const url = appUrl();
+    url.searchParams.delete("open");
+    if (!url.hash && !url.searchParams.has("file")) {
+      url.hash = rootSessions()[0]?.id ?? "";
+    }
+    navigateApp(url.href, { replace: true });
+  });
+  return () => !pending();
+}
+
 /** Mount session lifecycle effects under the router, before rendering pickers. */
 export function useSessionNavigation(): void {
   // ── Session validation ────────────────────────────────────────

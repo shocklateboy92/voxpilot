@@ -95,6 +95,7 @@ export async function switchConfiguredServer(id: string) {
   url.searchParams.delete("connect");
   url.searchParams.set("server", server.url);
   url.searchParams.set("serverId", server.id);
+  url.searchParams.set("open", "latest");
   url.hash = "";
   window.location.replace(url.href);
 }

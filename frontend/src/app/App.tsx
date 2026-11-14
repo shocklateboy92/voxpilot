@@ -9,11 +9,12 @@
 
 import { MetaProvider, Title } from "@solidjs/meta";
 import { Route, Router, type RouteSectionProps } from "@solidjs/router";
-import { ErrorBoundary } from "solid-js";
+import { ErrorBoundary, Show } from "solid-js";
 import { serverUrl } from "../platform/connection";
 import { Button } from "../ui/Button";
+import { Spinner } from "../ui/Spinner";
 import { ChatView } from "./ChatView";
-import { useSessionNavigation } from "./navigation";
+import { useSessionLanding, useSessionNavigation } from "./navigation";
 import { useAppRouting } from "./routing";
 import { ToastContainer } from "./ToastContainer";
 import "./wake-lock"; // Keep screen awake while AI sessions are busy
@@ -46,7 +47,12 @@ export default function App() {
 function AppRoutes(props: RouteSectionProps) {
   useAppRouting();
   useSessionNavigation();
-  return <>{props.children}</>;
+  const landingReady = useSessionLanding();
+  return (
+    <Show when={landingReady()} fallback={<Spinner fullscreen />}>
+      {props.children}
+    </Show>
+  );
 }
 
 function AppError(props: { error: unknown }) {
