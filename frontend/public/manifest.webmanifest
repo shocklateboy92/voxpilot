@@ -1,6 +1,7 @@
 {
   "name": "VoxPilot",
   "short_name": "VoxPilot",
+  "categories": ["productivity", "utilities"],
   "start_url": "/",
   "theme_color": "#1a1d27",
   "background_color": "#1a1d27",
