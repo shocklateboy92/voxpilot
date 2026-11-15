@@ -4,6 +4,7 @@ import Mic from "lucide-solid/icons/mic";
 import X from "lucide-solid/icons/x";
 import { createSignal, For, onCleanup, Show } from "solid-js";
 import { registerSpeechJob } from "../../platform/speech-lifecycle";
+import { requestScreenWakeLock } from "../../platform/wake-lock";
 import { Button } from "../../ui/Button";
 import { IconButton } from "../../ui/IconButton";
 import type { DraftRecording } from "./create-composer-draft";
@@ -38,8 +39,11 @@ export function VoiceRecorder(props: {
   let timer: ReturnType<typeof setInterval> | undefined;
   let generation = 0;
   let unregisterMicrophone: (() => void) | undefined;
+  let releaseWakeLock: (() => void) | undefined;
 
   function release() {
+    releaseWakeLock?.();
+    releaseWakeLock = undefined;
     if (frame !== undefined) cancelAnimationFrame(frame);
     if (timer !== undefined) clearInterval(timer);
     frame = undefined;
@@ -155,6 +159,7 @@ export function VoiceRecorder(props: {
       active.start(1000);
       setSeconds(0);
       setState("recording");
+      releaseWakeLock = requestScreenWakeLock();
       started = true;
       draw();
       timer = setInterval(() => {
