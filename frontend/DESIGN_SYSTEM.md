@@ -121,6 +121,8 @@ try/catch blocks just to display error toasts.
   styles preserve bullets/numbering after Tailwind Preflight.
 - `diff.css`: the class contract with the plugin's generated diff HTML.
 - `behaviors.css`: keyboard-aware navigation and light-theme status-bar shadow.
+  Navigation uses the shell's explicit composer focus state, not `:has(:focus)`,
+  to avoid stale WebKit focus styles when switching modes or backends.
   These contextual rules share the utilities layer so they can override layout
   utilities such as `flex`.
 

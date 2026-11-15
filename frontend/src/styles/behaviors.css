@@ -3,12 +3,11 @@
 /* Same layer as utilities so these contextual selectors can override `flex`. */
 @layer utilities {
   @media (pointer: coarse) {
-    .app:has([data-composer-mode="text"] [data-composer-input]:focus) {
+    .app.composer-keyboard-active {
       --bottom-nav-height: 0px;
       --safe-bottom: 0px;
     }
-    .app:has([data-composer-mode="text"] [data-composer-input]:focus)
-      [data-bottom-nav] {
+    .app.composer-keyboard-active [data-bottom-nav] {
       display: none;
     }
   }

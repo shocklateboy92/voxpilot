@@ -1,8 +1,15 @@
 import { expect, frontendTest as test } from "./fixtures";
 
 test.use({
-  launchOptions: {
-    executablePath: process.env.VOXPILOT_E2E_CHROMIUM ?? "/usr/bin/chromium",
+  launchOptions: async ({ browserName }, use) => {
+    await use(
+      browserName === "chromium"
+        ? {
+            executablePath:
+              process.env.VOXPILOT_E2E_CHROMIUM ?? "/usr/bin/chromium",
+          }
+        : {},
+    );
   },
 });
 
@@ -28,7 +35,7 @@ for (const touch of [false, true]) {
       await page.route("**/composer-fixture", (route) =>
         route.fulfill({
           contentType: "text/html",
-           body: '<div class="app pb-[calc(var(--bottom-nav-height)+var(--safe-bottom))]"><main></main><nav data-bottom-nav class="flex">Bottom navigation</nav></div><output aria-label="Sent message"></output>',
+          body: '<main></main><output aria-label="Sent message"></output>',
         }),
       );
       await page.goto("/composer-fixture");
@@ -36,27 +43,10 @@ for (const touch of [false, true]) {
         const stylesURL = "/src/styles/app.css";
         await import(stylesURL);
         document.documentElement.style.setProperty("--safe-bottom", "20px");
-        const webURL = "/node_modules/solid-js/web/dist/web.js";
-        const { render }: typeof import("solid-js/web") = await import(webURL);
-        const composerURL = "/src/features/chat/MessageComposer.tsx";
-        const {
-          MessageComposer,
-        }: typeof import("../src/features/chat/MessageComposer") = await import(
-          composerURL
-        );
-        const main = document.querySelector("main");
-        const output = document.querySelector("output");
-        if (!main || !output) throw new Error("Missing fixture elements");
-        render(
-          () =>
-            MessageComposer({
-              onSend: async (draft) => {
-                output.textContent = draft.text;
-                return false;
-              },
-            }),
-          main,
-        );
+        const fixtureURL = "/e2e/composer-keyboard-fixture.tsx";
+        const { mount }: typeof import("./composer-keyboard-fixture") =
+          await import(fixtureURL);
+        mount();
       });
 
       expect(
@@ -96,8 +86,22 @@ for (const touch of [false, true]) {
         } else {
           await expect(nav).toBeVisible();
         }
+        if (attempt === 0) {
+          // Model a browser removing the focused textarea without bubbling blur.
+          await page.evaluate(() => {
+            document.addEventListener(
+              "focusout",
+              (event) => event.stopPropagation(),
+              {
+                capture: true,
+                once: true,
+              },
+            );
+          });
+        }
         await page.getByRole("button", { name: "Voice", exact: true }).click();
         await expect(input).toHaveCount(0);
+        await expect(shell).not.toHaveClass(/composer-keyboard-active/);
         await expect(nav).toBeVisible();
         await expect(shell).toHaveCSS("padding-bottom", "68px");
         await page.getByRole("button", { name: "Type", exact: true }).click();

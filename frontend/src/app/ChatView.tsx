@@ -26,6 +26,7 @@ import { MarkdownViewer } from "../features/files/MarkdownViewer";
 import { ReviewOverlay } from "../features/review/ReviewOverlay";
 import { BottomNav } from "./BottomNav";
 import { ContentShell } from "./ContentShell";
+import { createComposerKeyboard } from "./create-composer-keyboard";
 import {
   activeSessionId,
   canNavigateNext,
@@ -37,6 +38,7 @@ import {
 import { store } from "./store";
 
 export function ChatView() {
+  const keyboard = createComposerKeyboard();
   const drop = createAttachmentDrop(() => composerDraft(activeSessionId()));
   const changeCounts = createMemo(() => {
     const files = store.changedFiles;
@@ -54,6 +56,9 @@ export function ChatView() {
   return (
     <main
       class="app relative flex size-full flex-col overflow-hidden bg-surface px-3 pb-[calc(var(--bottom-nav-height)+var(--safe-bottom))] text-center"
+      classList={{ "composer-keyboard-active": keyboard.active() }}
+      onFocusIn={keyboard.onFocusIn}
+      onFocusOut={keyboard.onFocusOut}
       onDragEnter={drop.onDragEnter}
       onDragLeave={drop.onDragLeave}
       onDragOver={drop.onDragOver}

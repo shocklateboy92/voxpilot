@@ -7,6 +7,57 @@ test.use({
   },
 });
 
+test.describe("Touch backend switching", () => {
+  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+
+  test("voice navigation stays visible through backend round trips and reload", async ({
+    page,
+    baseURL,
+  }) => {
+    if (!baseURL) throw new Error("Missing baseURL");
+    await page.route("**/config.json", (route) =>
+      route.fulfill({
+        json: {
+          servers: [
+            { id: "first", name: "First", url: baseURL, password },
+            { id: "second", name: "Second", url: baseURL, password },
+          ],
+        },
+      }),
+    );
+    await page.goto("/");
+    await page.getByRole("button", { name: "Connect", exact: true }).click();
+    const nav = page.locator("[data-bottom-nav]");
+    const input = page.getByRole("textbox", { name: "Message", exact: true });
+    await expect(nav).toBeInViewport();
+    await page.getByRole("button", { name: "Type", exact: true }).click();
+    await input.focus();
+    await expect(nav).toBeHidden();
+    await page.getByRole("button", { name: "Voice", exact: true }).click();
+
+    for (const name of ["Second", "First", "Second", "First"]) {
+      await expect(nav).toBeInViewport();
+      await expect(page.locator(".app")).toHaveCSS("padding-bottom", "48px");
+      await page
+        .getByRole("group", { name: "Server", exact: true })
+        .getByRole("button", { name, exact: true })
+        .click();
+      await expect(page).toHaveURL(
+        new RegExp(`serverId=${name.toLowerCase()}`),
+      );
+      await expect(
+        page.getByRole("button", { name: "Type", exact: true }),
+      ).toBeVisible();
+      await expect(input).toHaveCount(0);
+      await expect(nav).toBeInViewport();
+      await expect(page.locator(".app")).toHaveCSS("padding-bottom", "48px");
+    }
+    await page.reload();
+    await expect(nav).toBeInViewport();
+    await expect(page.locator(".app")).toHaveCSS("padding-bottom", "48px");
+  });
+});
+
 test("configured servers connect without credential entry and survive reload and a fresh device", async ({
   page,
   browser,
