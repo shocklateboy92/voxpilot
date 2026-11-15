@@ -33,7 +33,7 @@ voice dictation to use it without a per-recording checkbox. Record/Finish is a
 transcription-and-chat action, not a local-only recording workflow. The frontend
 attests that choice with `provider: "openai", cloudAllowed: true`; the service
 still rejects absent/false cloud permission in its protocol.
-Only audio and its selected vocabulary snapshot are sent; no cleanup LLM pass.
+Only audio and its vocabulary snapshot are sent; no cleanup LLM pass.
 Audio is processed in bounded memory/runtime tmpfs and is not retained. Completed
 transcripts and request fingerprints may be cached in memory for 15 minutes
 solely to deduplicate retries. Pending IDs never expire while work is active.
@@ -41,6 +41,15 @@ Same ID/body replays the cached outcome without another paid call; a different
 body with the same ID conflicts. Failures are cached too. Explicitly starting a
 new paid attempt uses a new ID and explicit confirmation in the recovery controls.
 No service or browser automatic paid retries.
+
+Recovery controls follow the returned error classification. Temporary refusals
+(`busy`, `rate_limited`, `unavailable`) allow an explicit same-ID retry. An
+unconfirmed upload or cancellation offers **Recover transcription** using the
+original ID/body. Cached terminal failures and confirmed cancellations do not
+offer a futile same-ID retry; another attempt requires a new ID and confirmation.
+Warnings use `providerMayHaveProcessed` to explain possible previous charges.
+Invalid audio or authorization requires fixing the input/configuration instead.
+Once the browser's replay window expires, it also requires a new attempt.
 
 Bounds: 10 MiB, 300 decoded seconds, at most two active jobs, bounded request
 rate and replay cache. Actual decoded duration is checked, not trusted from the

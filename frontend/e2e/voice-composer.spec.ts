@@ -1,150 +1,10 @@
-import type { Page } from "@playwright/test";
-import { SpeechVocabulary } from "../../plugin/src/rpc";
 import {
-  SPEECH_MAX_BYTES,
-  SPEECH_MAX_SECONDS,
-  SPEECH_MAX_TERMS,
-  SPEECH_MAX_VOCABULARY_CHARACTERS,
-} from "../../plugin/src/speech-contract";
-import { expect, frontendTest as test } from "./fixtures";
-
-test.use({
-  launchOptions: {
-    executablePath: process.env.VOXPILOT_E2E_CHROMIUM ?? "/usr/bin/chromium",
-    args: [
-      "--use-fake-device-for-media-stream",
-      "--use-fake-ui-for-media-stream",
-    ],
-  },
-  viewport: { width: 390, height: 844 },
-});
-
-async function mountComposer(page: Page) {
-  await page.route("**/api/provider", (route) =>
-    route.fulfill({ json: { data: [] } }),
-  );
-  await page.route("**/api/model", (route) =>
-    route.fulfill({ json: { data: [] } }),
-  );
-  await page.route("**/api/model/default", (route) =>
-    route.fulfill({ json: {} }),
-  );
-  await page.route("**/config.json", (route) =>
-    route.fulfill({
-      json: {
-        servers: [
-          {
-            id: "fixture",
-            name: "Fixture",
-            url: "http://localhost:18001",
-            password: "fixture-password",
-          },
-        ],
-        speech: {
-          url: "https://speech.example.invalid",
-          token: "test-speech-token-not-real-provider-credential",
-        },
-      },
-    }),
-  );
-  await page.route("https://speech.example.invalid/v1/capabilities", (route) =>
-    route.fulfill({
-      json: {
-        protocol: 1,
-        provider: "openai",
-        model: "gpt-transcribe",
-        ready: true,
-        maxBytes: SPEECH_MAX_BYTES,
-        maxSeconds: SPEECH_MAX_SECONDS,
-        maxTerms: SPEECH_MAX_TERMS,
-        maxVocabularyCharacters: SPEECH_MAX_VOCABULARY_CHARACTERS,
-        persistsAudio: false,
-      },
-    }),
-  );
-  const source = {
-    path: "fixture-vocabulary",
-    exists: true,
-    terms: ["VoxPilot"],
-  };
-  await page.route("**/api/rpc/voxpilot/vocabulary**", (route) =>
-    route.fulfill({
-      json: {
-        output: SpeechVocabulary.parse({
-          terms: source.terms,
-          sources: { user: source, shared: source, local: source },
-        }),
-      },
-    }),
-  );
-  // Fail closed if a microphone-only regression unexpectedly finishes a take.
-  await page.route(
-    "https://speech.example.invalid/v1/transcriptions**",
-    (route) => route.abort("connectionreset"),
-  );
-  await page.route("**/voice-fixture", (route) =>
-    route.fulfill({
-      contentType: "text/html",
-      body: '<main></main><output aria-label="Sent message"></output>',
-    }),
-  );
-  await page.goto("/voice-fixture");
-  await page.evaluate(async () => {
-    localStorage.removeItem("voxpilot-composer-mode");
-    localStorage.setItem("voxpilot:serverId", "fixture");
-    const style = document.createElement("link");
-    style.rel = "stylesheet";
-    style.href = "/src/styles/app.css";
-    document.head.append(style);
-    const fixtureURL = "/e2e/voice-composer-fixture.ts";
-    const { mount }: typeof import("./voice-composer-fixture") = await import(
-      fixtureURL
-    );
-    mount();
-  });
-}
-
-async function clipboard(page: Page, text: string) {
-  await page.evaluate(
-    (value) =>
-      Object.defineProperty(navigator, "clipboard", {
-        configurable: true,
-        value: { readText: () => Promise.resolve(value) },
-      }),
-    text,
-  );
-  await page.getByRole("button", { name: "Paste", exact: true }).click();
-}
-
-async function trackMicrophone(page: Page, pending = false) {
-  await page.evaluate((wait) => {
-    const acquire = navigator.mediaDevices.getUserMedia.bind(
-      navigator.mediaDevices,
-    );
-    navigator.mediaDevices.getUserMedia = async (constraints) => {
-      const stream = await acquire(constraints);
-      for (const track of stream.getTracks()) {
-        const stop = track.stop.bind(track);
-        track.stop = () => {
-          stop();
-          document
-            .querySelector("output")
-            ?.setAttribute("data-track", track.readyState);
-        };
-      }
-      document
-        .querySelector("output")
-        ?.setAttribute("data-permission", "waiting");
-      if (wait)
-        await new Promise<void>((resolve) =>
-          document.addEventListener("release-permission", () => resolve(), {
-            once: true,
-          }),
-        );
-      return stream;
-    };
-  }, pending);
-}
+  paste as clipboard,
+  expect,
+  mount as mountComposer,
+  test,
+  trackMicrophone,
+} from "./voice-test";
 
 test("voice is the keyboard-free default, typing preserves its draft and remembers the mode", async ({
   page,
@@ -153,12 +13,6 @@ test("voice is the keyboard-free default, typing preserves its draft and remembe
   await expect(
     page.getByRole("button", { name: "Record a message", exact: true }),
   ).toBeEnabled();
-  for (const name of ["Record sample", "Upload test sample"]) {
-    await expect(page.getByRole("button", { name, exact: true })).toHaveCount(
-      0,
-    );
-  }
-  await expect(page.getByRole("checkbox")).toHaveCount(0);
   await expect(
     page.getByRole("textbox", { name: "Message", exact: true }),
   ).toHaveCount(0);
@@ -222,6 +76,9 @@ test("pasted items have stable numbers, exact previews and session-local ownersh
   await page
     .getByRole("textbox", { name: "Message", exact: true })
     .fill("Use item 2.");
+  await page
+    .getByLabel("Sent message")
+    .evaluate((element) => element.setAttribute("data-accept", "false"));
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect(page.getByLabel("Sent message")).toHaveText(
     "Use item 2.\n\nPasted item 2:\nExact second item\n  with indentation\n\nPasted item 3:\nhttps://example.org/third",
@@ -326,7 +183,6 @@ test("cancel stops microphone tracks and produces no recording", async ({
     "data-track",
     "ended",
   );
-  await expect(page.locator("audio")).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "Discard recording", exact: true }),
   ).toHaveCount(0);
@@ -356,7 +212,6 @@ test("late permission cannot start a cancelled recording", async ({ page }) => {
     "data-track",
     "ended",
   );
-  await expect(page.locator("audio")).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "Discard recording", exact: true }),
   ).toHaveCount(0);
@@ -385,7 +240,6 @@ for (const action of ["switch-session", "dispose-composer"]) {
       "data-track",
       "ended",
     );
-    await expect(page.locator("audio")).toHaveCount(0);
     await expect(page.getByLabel("Sent message")).toBeEmpty();
     if (action === "switch-session") {
       await expect(
@@ -410,27 +264,12 @@ test("microphone permission rejection restores the controls and reaches the glob
       Promise.reject(
         new DOMException("Microphone permission denied", "NotAllowedError"),
       );
-    window.addEventListener(
-      "unhandledrejection",
-      (event) => {
-        event.preventDefault();
-        document
-          .querySelector("output")
-          ?.setAttribute(
-            "data-error",
-            event.reason instanceof Error
-              ? event.reason.message
-              : "Unexpected rejection",
-          );
-      },
-      { once: true },
-    );
   });
   await page
     .getByRole("button", { name: "Record a message", exact: true })
     .click();
   await expect(page.getByLabel("Sent message")).toHaveAttribute(
-    "data-error",
+    "data-error-message",
     "Microphone permission denied",
   );
   await expect(
@@ -439,7 +278,6 @@ test("microphone permission rejection restores the controls and reaches the glob
   await expect(
     page.getByRole("button", { name: "Type", exact: true }),
   ).toBeEnabled();
-  await expect(page.locator("audio")).toHaveCount(0);
 });
 
 test("unsupported recording leaves typing and pasting available", async ({

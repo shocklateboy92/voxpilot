@@ -27,7 +27,7 @@ import { AttachmentStrip } from "./attachments/AttachmentStrip";
 import { clipboardFiles } from "./attachments/attachment-input";
 import { ATTACHMENT_ACCEPT } from "./attachments/attachment-policy";
 import { ComposerForm } from "./ComposerForm";
-import { composerDraft } from "./create-composer-draft";
+import { composerDraft, composerPrompt } from "./create-composer-draft";
 import { createVoiceTake } from "./create-voice-take";
 import { defaultModelData, modelData } from "./model-utils";
 import { PastedReferences, PasteReferenceButton } from "./PastedReferences";
@@ -162,20 +162,7 @@ export function MessageComposer(props: {
     const send = props.onSend;
     current.setSending(true);
     try {
-      const accepted = await send(
-        {
-          text: [
-            submitted.text,
-            ...submitted.references.map(
-              (entry) => `Pasted item ${entry.number}:\n${entry.text}`,
-            ),
-          ]
-            .filter(Boolean)
-            .join("\n\n"),
-          files: submitted.attachments.map((entry) => entry.file),
-        },
-        sessionID,
-      );
+      const accepted = await send(composerPrompt(submitted), sessionID);
       if (accepted !== false) {
         current.consume(submitted);
         if (recording && current.recording() === recording)

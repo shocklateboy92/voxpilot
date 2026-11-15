@@ -163,6 +163,10 @@ The GitHub release build does not run this credential-dependent suite. Run
 
 ## Voice composer
 
+`voice-test.ts` supplies the shared browser setup, mount, clipboard, recording
+and microphone helpers for both mocked voice suites. Error mocks use the real
+service's error envelope so retryability and status codes cannot drift.
+
 `voice-composer.spec.ts` uses the browser-only fixture and Chromium's synthetic
 microphone, with mocked speech configuration and vocabulary, without a backend,
 provider account, or real transcription service. It mounts `MessageComposer`

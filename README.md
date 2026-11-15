@@ -58,8 +58,11 @@ Finish → transcribe → send** is the normal flow: finishing a message uses Op
 per-recording checkbox, playback/download preview, test-sample control or mandatory
 review step in the normal composer. No separate cleanup LLM is used.
 
-Cancellation, explicit retry and Type/correction remain available. Audio is kept
-only in memory for pending transcription/recovery and released when the draft is
+Cancellation, explicit retry and Type/correction remain available. Temporary
+service refusals can be retried with the same ID. Uncertain uploads/cancellations
+offer **Recover transcription**; cached terminal failures and confirmed
+cancellations require a confirmed new attempt, with a possible-charge warning.
+Audio is kept only in memory for pending transcription/recovery and released when the draft is
 sent, discarded or replaced. Silence is not submitted as chat text. Recordings
 are limited to five minutes; reaching that limit finishes/sends. Backgrounding
 the page cancels active capture rather than preserving a local-only clip.

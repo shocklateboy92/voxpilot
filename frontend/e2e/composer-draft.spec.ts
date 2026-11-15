@@ -26,6 +26,7 @@ test("HTTP non-localhost origins can create image previews without secure-contex
     const moduleURL = "/src/features/chat/create-composer-draft.ts";
     const {
       composerDraft,
+      composerPrompt,
     }: typeof import("../src/features/chat/create-composer-draft") =
       await import(moduleURL);
     const png =
@@ -42,7 +43,14 @@ test("HTTP non-localhost origins can create image previews without secure-contex
     const image = new Image();
     image.src = first.previewUrl;
     await image.decode();
+    draft.setText("Typed context");
+    draft.addReference("Removed item");
+    draft.addReference("Exact reference\n  indentation");
+    draft.removeReference(1);
     const snapshot = draft.snapshot();
+    const typed = composerPrompt(snapshot);
+    const voice = composerPrompt(snapshot, "Typed context\n\nVoice context");
+    const imageOnly = composerPrompt({ ...snapshot, text: "", references: [] });
     draft.removeAttachment(first.id);
     const remaining = draft.attachments().length;
     const result = {
@@ -53,6 +61,12 @@ test("HTTP non-localhost origins can create image previews without secure-contex
       remaining,
       width: image.naturalWidth,
       errors: draft.errors(),
+      promptTexts: [typed.text, voice.text, imageOnly.text],
+      filesUnchanged:
+        typed.files[0] === file &&
+        voice.files[0] === file &&
+        imageOnly.files[0] === file,
+      snapshotText: snapshot.text,
     };
     draft.consume(snapshot);
     return result;
@@ -65,6 +79,13 @@ test("HTTP non-localhost origins can create image previews without secure-contex
     remaining: 1,
     width: 1,
     errors: [],
+    promptTexts: [
+      "Typed context\n\nPasted item 2:\nExact reference\n  indentation",
+      "Typed context\n\nVoice context\n\nPasted item 2:\nExact reference\n  indentation",
+      "",
+    ],
+    filesUnchanged: true,
+    snapshotText: "Typed context",
   });
 });
 

@@ -15,7 +15,11 @@ import {
   type fetchVocabulary,
   vocabularyBudgetError,
 } from "../../platform/vocabulary";
-import type { ComposerDraft, DraftRecording } from "./create-composer-draft";
+import {
+  type ComposerDraft,
+  composerPrompt,
+  type DraftRecording,
+} from "./create-composer-draft";
 
 type DraftSnapshot = ReturnType<ComposerDraft["snapshot"]>;
 type RecordedAudio = Pick<DraftRecording, "blob" | "duration">;
@@ -35,6 +39,9 @@ type PreparedAttempt = Extract<Attempt, { kind: "prepared" }>;
 type SendSource =
   | { kind: "captured"; snapshot: DraftSnapshot; transcript: string }
   | { kind: "draft" };
+type Recovery =
+  | { kind: "retry" | "fix" }
+  | { kind: "recover" | "new"; providerMayHaveProcessed: boolean };
 type VoiceState = { message: string } & (
   | { phase: "idle" }
   | { phase: "preparing"; attempt: Attempt; controller: AbortController }
@@ -43,10 +50,37 @@ type VoiceState = { message: string } & (
       attempt: PreparedAttempt;
       controller: AbortController;
     }
-  | { phase: "failed" | "cancelled"; attempt: Attempt }
+  | { phase: "failed" | "cancelled"; attempt: Attempt; recovery: Recovery }
   | { phase: "ready" | "sending"; source: SendSource }
   | { phase: "no_speech"; attempt: PreparedAttempt }
 );
+
+function recoveryFor(
+  error: unknown,
+  uploaded: boolean,
+  previous?: Recovery,
+): Recovery {
+  if (error instanceof SpeechRequestError) {
+    const { code, retryable, providerMayHaveProcessed } = error.failure;
+    // A refusal of this retry says nothing about an earlier uncertain upload.
+    if (retryable)
+      return previous?.kind === "recover" ? previous : { kind: "retry" };
+    if (
+      [
+        "provider_failed",
+        "timeout",
+        "cancelled",
+        "internal_error",
+        "id_conflict",
+      ].includes(code)
+    )
+      return { kind: "new", providerMayHaveProcessed };
+    return { kind: "fix" };
+  }
+  return uploaded
+    ? { kind: "recover", providerMayHaveProcessed: true }
+    : { kind: "retry" };
+}
 
 /** Capture draft/destination before microphone awaits; freeze prompt before cloud work. */
 export function createVoiceTake(
@@ -71,6 +105,12 @@ export function createVoiceTake(
   const setMessage = (message: string) =>
     setState((current) => ({ ...current, message }));
   const owned = () => backend === speechBackendGeneration() && capture.owned();
+  const recovery = () => {
+    const current = state();
+    return current.phase === "failed" || current.phase === "cancelled"
+      ? current.recovery
+      : undefined;
+  };
   const busy = () => {
     const current = state();
     return (
@@ -112,17 +152,7 @@ export function createVoiceTake(
         source.kind === "draft"
           ? submitted.text
           : [submitted.text, source.transcript].filter(Boolean).join("\n\n");
-      const accepted = await capture.send({
-        text: [
-          text,
-          ...submitted.references.map(
-            (entry) => `Pasted item ${entry.number}:\n${entry.text}`,
-          ),
-        ]
-          .filter(Boolean)
-          .join("\n\n"),
-        files: submitted.attachments.map((entry) => entry.file),
-      });
+      const accepted = await capture.send(composerPrompt(submitted, text));
       if (accepted) {
         draft.consume(submitted);
         if (draft.recording()?.voice === take) draft.setRecording(undefined);
@@ -141,24 +171,39 @@ export function createVoiceTake(
       return;
     current.controller.abort();
     const cancelledRun = ++run;
+    setState({
+      phase: "cancelled",
+      attempt: current.attempt,
+      recovery:
+        current.attempt.kind === "prepared"
+          ? { kind: "new", providerMayHaveProcessed: true }
+          : { kind: "retry" },
+      message: "Transcription cancelled.",
+    });
     if (current.attempt.kind === "prepared") {
       // Cancellation failures are state, never a hidden retry or a toast catch.
       void cancelTranscription(current.attempt.metadata.id).catch(() => {
         if (run !== cancelledRun) return;
-        setMessage("Cancellation could not be confirmed.");
+        setState({
+          phase: "cancelled",
+          attempt: current.attempt,
+          recovery: { kind: "recover", providerMayHaveProcessed: true },
+          message: "Cancellation could not be confirmed.",
+        });
       });
     }
-    setState({
-      phase: "cancelled",
-      attempt: current.attempt,
-      message: "Transcription cancelled.",
-    });
   }
   async function transcribe() {
     if (busy() || !audio) return;
     const current = state();
     // A completed transcript is sent/corrected, never transcribed again.
-    if (current.phase === "ready") return;
+    if (current.phase === "ready" || current.phase === "no_speech") return;
+    if (
+      (current.phase === "failed" || current.phase === "cancelled") &&
+      current.recovery.kind !== "retry" &&
+      current.recovery.kind !== "recover"
+    )
+      return;
     if (backend !== speechBackendGeneration()) {
       setMessage("Backend changed. Start a new recording or use Type.");
       return;
@@ -176,7 +221,19 @@ export function createVoiceTake(
       attempt.kind === "prepared" &&
       Date.now() - attempt.created >= 15 * 60_000
     ) {
-      setMessage("Retry expired. Start a new paid attempt.");
+      const previous = recovery();
+      setState({
+        phase: "failed",
+        attempt,
+        recovery: {
+          kind: "new",
+          providerMayHaveProcessed:
+            previous?.kind === "recover" || previous?.kind === "new"
+              ? previous.providerMayHaveProcessed
+              : false,
+        },
+        message: "Retry expired. Start a new paid attempt.",
+      });
       return;
     }
     const controller = new AbortController();
@@ -200,7 +257,12 @@ export function createVoiceTake(
         const terms = vocabulary?.terms ?? [];
         const error = vocabularyBudgetError(terms);
         if (error) {
-          setState({ phase: "failed", attempt, message: error });
+          setState({
+            phase: "failed",
+            attempt,
+            recovery: { kind: "retry" },
+            message: error,
+          });
           return;
         }
         attempt = {
@@ -264,7 +326,16 @@ export function createVoiceTake(
           : state().phase === "transcribing"
             ? "Transcription could not be confirmed."
             : "Could not prepare transcription. Check the service and vocabulary.";
-      setState({ phase: "failed", attempt, message });
+      setState({
+        phase: "failed",
+        attempt,
+        recovery: recoveryFor(
+          error,
+          state().phase === "transcribing",
+          "recovery" in current ? current.recovery : undefined,
+        ),
+        message,
+      });
       // Sanitized local error only; validation/provider payloads must not leak.
       throw new Error(message);
     } finally {
@@ -277,6 +348,10 @@ export function createVoiceTake(
         setState({
           phase: "cancelled",
           attempt: current.attempt,
+          recovery:
+            current.attempt.kind === "prepared"
+              ? { kind: "recover", providerMayHaveProcessed: true }
+              : { kind: "retry" },
           message: current.message,
         });
     }
@@ -286,12 +361,15 @@ export function createVoiceTake(
   }
   async function newAttempt() {
     if (busy()) return;
+    const current = recovery();
+    if (current?.kind !== "new" && current?.kind !== "recover") return;
     setState({ phase: "idle", message: "" });
     await transcribe();
   }
   const take = {
     phase,
     busy,
+    recovery,
     message,
     attach,
     transcribe,

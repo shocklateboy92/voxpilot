@@ -13,6 +13,12 @@ export function VoiceTranscription(props: {
 }) {
   const [confirmNew, setConfirmNew] = createSignal(false);
   const available = () => Boolean(speechConnection());
+  const newAttempt = () => {
+    const recovery = props.take.recovery();
+    return recovery?.kind === "new" || recovery?.kind === "recover"
+      ? recovery
+      : undefined;
+  };
   return (
     <div class="flex min-w-0 flex-col gap-2 px-2 py-2">
       <Show
@@ -41,17 +47,22 @@ export function VoiceTranscription(props: {
           </Match>
           <Match
             when={
-              props.take.phase() === "failed" ||
-              props.take.phase() === "cancelled"
+              props.take.recovery()?.kind === "retry" ||
+              props.take.recovery()?.kind === "recover"
             }
           >
             <Button
               variant="primary"
               size="sm"
               disabled={props.disabled}
-              onClick={() => void props.take.transcribe()}
+              onClick={() => {
+                setConfirmNew(false);
+                void props.take.transcribe();
+              }}
             >
-              Retry same transcription
+              {props.take.recovery()?.kind === "recover"
+                ? "Recover transcription"
+                : "Retry same transcription"}
             </Button>
           </Match>
           <Match when={props.take.busy()}>
@@ -65,35 +76,39 @@ export function VoiceTranscription(props: {
             </Button>
           </Match>
         </Switch>
-        <Show
-          when={
-            props.take.phase() === "failed" ||
-            props.take.phase() === "cancelled"
-          }
-        >
-          <Show
-            when={confirmNew()}
-            fallback={
-              <Button
-                size="sm"
-                disabled={props.disabled}
-                onClick={() => setConfirmNew(true)}
+        <Show when={newAttempt()}>
+          {(recovery) => (
+            <>
+              <p class="m-0 text-xs text-warning">
+                {recovery().providerMayHaveProcessed
+                  ? "The previous attempt may already have been charged. A new attempt may incur another charge."
+                  : "A new transcription attempt may incur a charge."}
+              </p>
+              <Show
+                when={confirmNew()}
+                fallback={
+                  <Button
+                    size="sm"
+                    disabled={props.disabled}
+                    onClick={() => setConfirmNew(true)}
+                  >
+                    Start a new paid attempt…
+                  </Button>
+                }
               >
-                Start a new paid attempt…
-              </Button>
-            }
-          >
-            <Button
-              size="sm"
-              disabled={props.disabled}
-              onClick={() => {
-                void props.take.newAttempt();
-                setConfirmNew(false);
-              }}
-            >
-              Confirm new paid attempt
-            </Button>
-          </Show>
+                <Button
+                  size="sm"
+                  disabled={props.disabled}
+                  onClick={() => {
+                    void props.take.newAttempt();
+                    setConfirmNew(false);
+                  }}
+                >
+                  Confirm new paid attempt
+                </Button>
+              </Show>
+            </>
+          )}
         </Show>
       </Show>
       <Show when={!props.take.busy()}>

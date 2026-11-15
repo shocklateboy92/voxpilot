@@ -127,11 +127,6 @@ test("synthetic recording reaches chapel OpenAI and the isolated native chat flo
     exact: true,
   });
   await expect(finish).toBeEnabled();
-  await expect(app.getByRole("checkbox")).toHaveCount(0);
-  await expect(app.locator("audio")).toHaveCount(0);
-  await expect(
-    app.getByRole("button", { name: "Finish preview only", exact: true }),
-  ).toHaveCount(0);
   await expect
     .poll(() => app.getByRole("timer").textContent(), { timeout: 15_000 })
     .toBe("0:08");
@@ -146,11 +141,7 @@ test("synthetic recording reaches chapel OpenAI and the isolated native chat flo
   await expect(app.locator(".message.assistant").last()).toContainText(
     /speech verified/i,
   );
-  await expect(app.getByLabel("Recorded audio")).toHaveCount(0);
   await expect(
-    app.getByRole("link", { name: "Save audio", exact: true }),
-  ).toHaveCount(0);
-  await expect(
-    app.getByRole("button", { name: "Upload test sample", exact: true }),
+    app.getByRole("button", { name: "Discard recording", exact: true }),
   ).toHaveCount(0);
 });

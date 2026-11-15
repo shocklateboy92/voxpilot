@@ -1,4 +1,5 @@
 import { batch, createSignal } from "solid-js";
+import type { PromptDraft } from "../../platform/prompt-files";
 import { attachmentError } from "./attachments/attachment-policy";
 import type { VoiceTake } from "./create-voice-take";
 
@@ -136,6 +137,23 @@ function createComposerDraft() {
 }
 
 export type ComposerDraft = ReturnType<typeof createComposerDraft>;
+
+export function composerPrompt(
+  snapshot: ReturnType<ComposerDraft["snapshot"]>,
+  text = snapshot.text,
+): PromptDraft {
+  return {
+    text: [
+      text,
+      ...snapshot.references.map(
+        (entry) => `Pasted item ${entry.number}:\n${entry.text}`,
+      ),
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+    files: snapshot.attachments.map((entry) => entry.file),
+  };
+}
 
 // Drafts outlive composer mounts and are isolated by session. Browser Files stay
 // in memory only; never serialize them or their object URLs into localStorage.
