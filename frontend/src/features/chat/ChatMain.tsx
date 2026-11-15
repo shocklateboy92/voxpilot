@@ -145,11 +145,14 @@ export function ChatMain() {
         // to this position on every content growth until the DOM is tall
         // enough to reach it.
         anchor.setRestoreTarget(saved.scrollTop);
+      } else {
+        anchor.scrollToBottomInstant();
       }
-      // If saved.atBottom: no action needed — isAtBottom starts true,
-      // so the ResizeObserver will keep it pinned as content renders.
+    } else {
+      anchor.scrollToBottomInstant();
     }
-    // No saved position → default is at bottom (isAtBottom starts true).
+    // The anchor is shared across sessions: explicitly resume following for
+    // a new session or one saved at the bottom, even if the old one wasn't.
   });
 
   // Wire up the content element for the ResizeObserver once mounted.

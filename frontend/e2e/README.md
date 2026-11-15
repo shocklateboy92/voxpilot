@@ -135,6 +135,13 @@ and wake-lock lifecycle. No fake AI provider is used. Failed-request and device
 tests isolate their fault injection to the test page; wake tests never send a
 request to the real host's wake endpoint.
 
+`scroll-anchor.spec.ts` exercises layout/scroll event ordering, rapid tool
+disclosure changes, pane/composer resizing, concurrent user scrolling, and
+incremental position restoration in Chromium without a provider. `scrolling.spec.ts`
+adds real Luna tool turns and streaming, recording per-frame scroll gaps and tool
+disclosure states in a `scroll-layout` report attachment. Both verify that following
+survives layout changes without pulling a reader away from history.
+
 Offline coverage also verifies that going offline aborts the event stream and
 that reconnecting reconciles sessions created while it was disconnected. This
 prevents events from other clients from triggering failed background refreshes

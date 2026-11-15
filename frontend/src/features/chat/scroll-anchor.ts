@@ -11,7 +11,7 @@
  *   // pass anchor.onScroll to ContentShell's onScroll
  *   // read anchor.isAtBottom() for UI (scroll button visibility)
  *   // call anchor.scrollToBottom() to programmatically scroll
- *   // call anchor.suppress(true/false) to pause auto-scroll during restore
+ *   // call anchor.setRestoreTarget(scrollTop) to restore a reading position
  */
 
 import { type Accessor, createEffect, createSignal, onCleanup } from "solid-js";
@@ -19,7 +19,7 @@ import { type Accessor, createEffect, createSignal, onCleanup } from "solid-js";
 const AT_BOTTOM_THRESHOLD = 50;
 
 export interface ScrollAnchor {
-  /** Whether the scroll container is currently at (or near) the bottom. */
+  /** Whether the pane is following the bottom (including a smooth jump there). */
   isAtBottom: Accessor<boolean>;
 
   /** Smoothly scroll the container to the bottom. */
@@ -30,7 +30,7 @@ export interface ScrollAnchor {
 
   /**
    * Handle scroll events from the pane. Pass as ContentShell's `onScroll`.
-   * Updates `isAtBottom` on every scroll.
+   * Distinguishes scrolling away from layout changes and our own scrolling.
    */
   onScroll: (e: Event) => void;
 
@@ -64,10 +64,19 @@ export interface ScrollAnchor {
 
 export function useScrollAnchor(): ScrollAnchor {
   const [paneEl, setPaneEl] = createSignal<HTMLDivElement | undefined>();
+  const [contentEl, setContentEl] = createSignal<HTMLElement | undefined>();
   const [isAtBottom, setIsAtBottom] = createSignal(true);
 
-  let contentEl: HTMLElement | undefined;
   let restoreTarget: number | null = null;
+  let lastScrollTop = 0;
+
+  function scrollRange(el: HTMLElement): number {
+    return Math.max(0, el.scrollHeight - el.clientHeight);
+  }
+
+  function rememberPosition(el: HTMLElement): void {
+    lastScrollTop = el.scrollTop;
+  }
 
   function checkAtBottom(el: HTMLElement): boolean {
     return (
@@ -78,69 +87,84 @@ export function useScrollAnchor(): ScrollAnchor {
   function onScroll(e: Event): void {
     const el = e.currentTarget;
     if (el instanceof HTMLElement) {
-      setIsAtBottom(checkAtBottom(el));
+      // Scroll events can arrive BEFORE ResizeObserver. Compare positions, not
+      // just today's distance from the bottom: growth isn't user intent, and
+      // collapse can clamp scrollTop to the new range. Any further upward
+      // movement is scrolling away, even if content grew in this frame.
+      // Downward smooth-scroll frames must
+      // not cancel a deliberate jump before it gets to the bottom.
+      const layoutTop = Math.min(lastScrollTop, scrollRange(el));
+      if (el.scrollTop < layoutTop - 1) {
+        setIsAtBottom(checkAtBottom(el));
+      } else if (el.scrollTop > lastScrollTop + 1 && checkAtBottom(el)) {
+        setIsAtBottom(true);
+      }
+      rememberPosition(el);
     }
   }
 
   function onPaneMount(el: HTMLDivElement): void {
+    rememberPosition(el);
     setPaneEl(el);
   }
 
   function observeContent(el: HTMLElement): void {
-    contentEl = el;
+    setContentEl(el);
   }
 
   function scrollToBottom(): void {
+    restoreTarget = null;
+    setIsAtBottom(true);
     const el = paneEl();
     el?.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }
 
   function scrollToBottomInstant(): void {
+    restoreTarget = null;
+    setIsAtBottom(true);
     const el = paneEl();
     el?.scrollTo({ top: el.scrollHeight, behavior: "instant" });
+    if (el) rememberPosition(el);
   }
 
   function setRestoreTarget(scrollTop: number): void {
     restoreTarget = scrollTop;
+    setIsAtBottom(false);
+    const el = paneEl();
+    if (el) reconcileLayout(el);
   }
 
   function clearRestoreTarget(): void {
     restoreTarget = null;
   }
 
-  // Auto-scroll when content height grows while pinned to bottom,
-  // OR scroll to a restore target if one is pending.
+  function reconcileLayout(el: HTMLDivElement): void {
+    if (restoreTarget !== null) {
+      el.scrollTo({ top: restoreTarget, behavior: "instant" });
+      if (scrollRange(el) >= restoreTarget) {
+        restoreTarget = null;
+        setIsAtBottom(checkAtBottom(el));
+      }
+    } else if (isAtBottom()) {
+      el.scrollTo({ top: el.scrollHeight, behavior: "instant" });
+    }
+    rememberPosition(el);
+  }
+
+  // Follow intent survives growth AND shrinkage. Observe the pane too: the
+  // keyboard, viewport, and composer clearance can change the scroll range
+  // without changing the message wrapper's height.
   createEffect(() => {
     const el = paneEl();
-    if (!el || !contentEl) return;
+    const content = contentEl();
+    if (!el || !content) return;
 
-    let lastScrollHeight = el.scrollHeight;
-    const observer = new ResizeObserver(() => {
-      const grew = el.scrollHeight > lastScrollHeight;
-      lastScrollHeight = el.scrollHeight;
-
-      if (!grew) return;
-
-      if (restoreTarget !== null) {
-        // Keep scrolling to the restore target on every growth until
-        // scrollHeight is large enough to actually reach it.
-        el.scrollTo({ top: restoreTarget, behavior: "instant" });
-        if (el.scrollHeight >= restoreTarget + el.clientHeight) {
-          // Content is tall enough — target is reachable, we're done.
-          restoreTarget = null;
-        }
-        // Update isAtBottom after restore scroll
-        setIsAtBottom(checkAtBottom(el));
-        return;
-      }
-
-      if (isAtBottom()) {
-        el.scrollTo({ top: el.scrollHeight, behavior: "instant" });
-      }
+    const observer = new ResizeObserver(() => reconcileLayout(el));
+    observer.observe(content);
+    observer.observe(el);
+    onCleanup(() => {
+      observer.disconnect();
     });
-
-    observer.observe(contentEl);
-    onCleanup(() => observer.disconnect());
   });
 
   return {
