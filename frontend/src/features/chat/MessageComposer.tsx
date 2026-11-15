@@ -7,6 +7,7 @@ import Square from "lucide-solid/icons/square";
 import {
   createEffect,
   createMemo,
+  createResource,
   createSignal,
   createUniqueId,
   For,
@@ -15,7 +16,10 @@ import {
 } from "solid-js";
 import type { PromptDraft } from "../../platform/prompt-files";
 import { speechConnection } from "../../platform/speech";
-import type { fetchVocabulary } from "../../platform/vocabulary";
+import {
+  type fetchVocabulary,
+  vocabularyBudgetError,
+} from "../../platform/vocabulary";
 import { Button } from "../../ui/Button";
 import { IconButton } from "../../ui/IconButton";
 import { Textarea } from "../../ui/Textarea";
@@ -51,6 +55,28 @@ export function MessageComposer(props: {
   const hintID = createUniqueId();
   const draft = createMemo(() => composerDraft(props.sessionID));
   const [recordingActive, setRecordingActive] = createSignal(false);
+  const [
+    vocabularyError,
+    { refetch: refreshVocabulary, mutate: setVocabularyError },
+  ] = createResource(
+    () => {
+      const directory = props.voiceDirectory;
+      return directory
+        ? { directory, read: props.readVoiceVocabulary }
+        : undefined;
+    },
+    async ({ directory, read }) => {
+      if (!read) return;
+      try {
+        return vocabularyBudgetError(
+          (await read(directory, AbortSignal.timeout(10_000))).terms,
+        );
+      } catch {
+        // Expected configuration errors stay visible, rather than becoming toasts.
+        return "Could not load speech vocabulary. Check the vocabulary files and connection, then refresh. Type is still available.";
+      }
+    },
+  );
   let mounted = true;
   onCleanup(() => {
     mounted = false;
@@ -68,10 +94,13 @@ export function MessageComposer(props: {
         props.sessionID === sessionID &&
         (directory === undefined || props.voiceDirectory === directory),
       vocabulary: async (signal) => {
-        // Before the session location loads there is no project vocabulary;
-        // transcribe without it rather than failing every retry.
+        // Capture the reader/directory before permission awaits; do not read a
+        // newly selected project's vocabulary for this recording.
         if (!directory || !read) return undefined;
-        return read(directory, signal);
+        const vocabulary = await read(directory, signal);
+        if (mounted && props.voiceDirectory === directory)
+          setVocabularyError(vocabularyBudgetError(vocabulary.terms));
+        return vocabulary;
       },
       send: (content) => send(content, sessionID),
     });
@@ -176,6 +205,27 @@ export function MessageComposer(props: {
         <Show when={modelWarning()}>
           {(warning) => <p class="px-1 py-1 text-warning">{warning()}</p>}
         </Show>
+        <Show when={vocabularyError()}>
+          {(error) => (
+            <div class="px-1 py-1">
+              <p
+                role="status"
+                aria-label="Vocabulary status"
+                class="text-error"
+              >
+                {error()}
+              </p>
+              <Button
+                size="sm"
+                disabled={vocabularyError.loading}
+                onPointerDown={(event) => event.preventDefault()}
+                onClick={() => void refreshVocabulary()}
+              >
+                Refresh vocabulary
+              </Button>
+            </div>
+          )}
+        </Show>
       </div>
       <Show when={composerMode() === "voice"}>
         <Show when={draft()} keyed>
@@ -183,13 +233,27 @@ export function MessageComposer(props: {
             <Show when={!current.recording()?.voice.busy()}>
               <VoiceRecorder
                 disabled={
-                  busy() || Boolean(props.streaming) || !speechConnection()
+                  busy() ||
+                  Boolean(props.streaming) ||
+                  !speechConnection() ||
+                  !props.voiceDirectory ||
+                  vocabularyError.loading ||
+                  Boolean(vocabularyError())
                 }
                 onActiveChange={setRecordingActive}
                 captureRecording={captureRecording}
               />
             </Show>
           )}
+        </Show>
+        <Show when={vocabularyError.loading}>
+          <p
+            role="status"
+            aria-label="Vocabulary status"
+            class="m-0 px-2 text-xs text-muted"
+          >
+            Checking speech vocabulary…
+          </p>
         </Show>
         <Show when={!speechConnection()}>
           <p class="m-0 px-2 text-xs text-muted">

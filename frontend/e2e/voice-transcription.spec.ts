@@ -98,9 +98,9 @@ async function mount(
     }),
   );
   await page.route("**/api/rpc/voxpilot/vocabulary**", (route) => {
-    expect(
+    expect(["/fixture/original-project", "/fixture/other-project"]).toContain(
       new URL(route.request().url()).searchParams.get("location[directory]"),
-    ).toBe("/fixture/original-project");
+    );
     expect(route.request().headers().authorization).toContain("Basic ");
     return route.fulfill({
       json: { output: options.vocabulary ?? vocabulary() },
@@ -462,6 +462,86 @@ test("prompt admission failure preserves the transcript and retries sending with
     page.getByRole("button", { name: "Preview item 1", exact: true }),
   ).toHaveCount(0);
   expect(requests).toBe(1);
+});
+
+test("preparation retry retains its captured draft even before request metadata exists", async ({
+  page,
+}) => {
+  await mount(page);
+  await page.getByRole("button", { name: "Type", exact: true }).click();
+  await page
+    .getByRole("textbox", { name: "Message", exact: true })
+    .fill("Captured context");
+  await page.getByRole("button", { name: "Voice", exact: true }).click();
+  let preparations = 0;
+  await page.route(`${speechURL}/v1/capabilities`, (route) =>
+    ++preparations === 1 ? route.abort("connectionreset") : route.fallback(),
+  );
+  await record(page);
+  const retry = page.getByRole("button", {
+    name: "Retry same transcription",
+    exact: true,
+  });
+  await expect(retry).toBeVisible();
+  await page.getByRole("button", { name: "Type", exact: true }).click();
+  const input = page.getByRole("textbox", { name: "Message", exact: true });
+  await input.fill("Later context");
+  await page.route(`${speechURL}/v1/transcriptions`, (route) =>
+    route.fulfill({
+      json: result(metadata(route.request()), "Voice context"),
+    }),
+  );
+  await retry.click();
+  await expect(page.getByLabel("Sent message")).toHaveText(
+    "Captured context\n\nVoice context",
+  );
+  await expect(input).toHaveValue("Later context");
+});
+
+test("a new attempt captures the latest draft and vocabulary instead of retaining the failed attempt", async ({
+  page,
+}) => {
+  await mount(page);
+  await page.getByRole("button", { name: "Type", exact: true }).click();
+  await page
+    .getByRole("textbox", { name: "Message", exact: true })
+    .fill("Original context");
+  await page.getByRole("button", { name: "Voice", exact: true }).click();
+  const requests: ReturnType<typeof metadata>[] = [];
+  await page.route(`${speechURL}/v1/transcriptions`, (route) => {
+    requests.push(metadata(route.request()));
+    return requests.length === 1
+      ? route.abort("connectionreset")
+      : route.fulfill({
+          json: result(metadata(route.request()), "Fresh voice context"),
+        });
+  });
+  await record(page);
+  await expect(
+    page.getByRole("button", { name: "Retry same transcription", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Type", exact: true }).click();
+  const input = page.getByRole("textbox", { name: "Message", exact: true });
+  await input.fill("Updated context");
+  await page.route("**/api/rpc/voxpilot/vocabulary**", (route) =>
+    route.fulfill({
+      json: { output: vocabulary(["SolidJS"]) },
+    }),
+  );
+  await page
+    .getByRole("button", { name: "Start a new paid attempt…", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Confirm new paid attempt", exact: true })
+    .click();
+  await expect(page.getByLabel("Sent message")).toHaveText(
+    "Updated context\n\nFresh voice context",
+  );
+  await expect(input).toBeEmpty();
+  expect(requests).toHaveLength(2);
+  expect(requests[0]?.vocabulary).toEqual(["VoxPilot", "Incus"]);
+  expect(requests[1]?.vocabulary).toEqual(["SolidJS"]);
+  expect(requests[1]?.id).not.toBe(requests[0]?.id);
 });
 
 test("transport failure has no automatic retry, same-ID/body explicit retry, and uncertain new-attempt warning", async ({
@@ -862,7 +942,9 @@ test("backend change stops an active microphone and cannot attach a late recordi
   await expect(page.getByLabel("Sent message")).toBeEmpty();
 });
 
-test("malformed vocabulary blocks before upload", async ({ page }) => {
+test("malformed vocabulary shows a persistent error before recording", async ({
+  page,
+}) => {
   await mount(page, {
     vocabulary: { ...vocabulary(), terms: ["<malformed>"] },
   });
@@ -870,10 +952,23 @@ test("malformed vocabulary blocks before upload", async ({ page }) => {
   page.on("request", (request) => {
     if (request.url() === `${speechURL}/v1/transcriptions`) uploads++;
   });
-  await record(page);
   await expect(
-    page.getByRole("status", { name: "Transcription status", exact: true }),
-  ).toContainText("Could not prepare transcription");
+    page.getByRole("button", { name: "Record a message", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("status", { name: "Vocabulary status", exact: true }),
+  ).toContainText("Could not load speech vocabulary");
+  await page.getByRole("button", { name: "Type", exact: true }).click();
+  await expect(
+    page.getByRole("status", { name: "Vocabulary status", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("textbox", { name: "Message", exact: true })
+    .fill("Typing still works");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(page.getByLabel("Sent message")).toHaveText(
+    "Typing still works",
+  );
   expect(uploads).toBe(0);
 });
 
@@ -881,36 +976,131 @@ for (const terms of [
   Array.from({ length: 31 }, (_, index) => `Term${index}`),
   Array.from({ length: 20 }, (_, index) => `${index}${"a".repeat(100)}`),
 ]) {
-  test(`oversize vocabulary (${terms.length} terms) requires an explicit subset`, async ({
+  test(`oversize vocabulary (${terms.length} terms) blocks recording until files are fixed and refreshed`, async ({
     page,
   }) => {
     await mount(page, { vocabulary: vocabulary(terms) });
     let uploads = 0;
     await page.route(`${speechURL}/v1/transcriptions`, (route) => {
       uploads++;
-      expect(metadata(route.request()).vocabulary).toEqual([terms[0]]);
+      expect(metadata(route.request()).vocabulary).toEqual(["VoxPilot"]);
       return route.fulfill({ json: result(metadata(route.request())) });
     });
-    await record(page);
+    const recordButton = page.getByRole("button", {
+      name: "Record a message",
+      exact: true,
+    });
+    await expect(recordButton).toBeDisabled();
+    const error = page.getByRole("status", {
+      name: "Vocabulary status",
+      exact: true,
+    });
+    await expect(error).toContainText(
+      `${terms.length} terms / ${terms.reduce((total, term) => total + term.length, 0)} characters`,
+    );
+    await expect(error).toContainText("30 terms / 2000 characters");
     await expect(
       page.getByRole("group", {
         name: "Choose vocabulary subset",
         exact: true,
       }),
-    ).toBeVisible();
+    ).toHaveCount(0);
     expect(uploads).toBe(0);
+    await page.route("**/api/rpc/voxpilot/vocabulary**", (route) =>
+      route.fulfill({ json: { output: vocabulary(["VoxPilot"]) } }),
+    );
     await page
-      .getByRole("group", { name: "Choose vocabulary subset", exact: true })
-      .getByRole("checkbox")
-      .first()
-      .check();
-    await page
-      .getByRole("button", { name: "Use selected vocabulary", exact: true })
+      .getByRole("button", { name: "Refresh vocabulary", exact: true })
       .click();
+    await expect(error).toHaveCount(0);
+    await expect(recordButton).toBeEnabled();
+    await record(page);
     await expect(page.getByLabel("Sent message")).not.toBeEmpty();
     expect(uploads).toBe(1);
   });
 }
+
+test("vocabulary validation finishes before recording, while Type stays usable", async ({
+  page,
+}) => {
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await mount(page);
+  await page.route("**/api/rpc/voxpilot/vocabulary**", async (route) => {
+    await held;
+    await route.fulfill({ json: { output: vocabulary() } });
+  });
+  await page.evaluate(() =>
+    document.dispatchEvent(new Event("switch-project")),
+  );
+  await expect(
+    page.getByRole("status", { name: "Vocabulary status", exact: true }),
+  ).toHaveText("Checking speech vocabulary…");
+  await expect(
+    page.getByRole("button", { name: "Record a message", exact: true }),
+  ).toBeDisabled();
+  await page.getByRole("button", { name: "Type", exact: true }).click();
+  await page
+    .getByRole("textbox", { name: "Message", exact: true })
+    .fill("No need to wait for voice");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(page.getByLabel("Sent message")).toHaveText(
+    "No need to wait for voice",
+  );
+  release();
+  await page.getByRole("button", { name: "Voice", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Record a message", exact: true }),
+  ).toBeEnabled();
+});
+
+test("vocabulary edits during recording are rejected before upload and can be refreshed", async ({
+  page,
+}) => {
+  await mount(page);
+  let uploads = 0;
+  await page.route(`${speechURL}/v1/transcriptions`, (route) => {
+    uploads++;
+    return route.fulfill({ json: result(metadata(route.request())) });
+  });
+  await record(page, async () => {
+    await page.route("**/api/rpc/voxpilot/vocabulary**", (route) =>
+      route.fulfill({
+        json: {
+          output: vocabulary(
+            Array.from({ length: 31 }, (_, index) => `Term${index}`),
+          ),
+        },
+      }),
+    );
+  });
+  await expect(
+    page.getByRole("status", { name: "Vocabulary status", exact: true }),
+  ).toContainText("31 terms");
+  await expect(
+    page.getByRole("status", { name: "Transcription status", exact: true }),
+  ).toContainText("31 terms");
+  await expect(
+    page.getByRole("button", { name: "Record a message", exact: true }),
+  ).toBeDisabled();
+  expect(uploads).toBe(0);
+  await page.route("**/api/rpc/voxpilot/vocabulary**", (route) =>
+    route.fulfill({ json: { output: vocabulary() } }),
+  );
+  await page
+    .getByRole("button", { name: "Refresh vocabulary", exact: true })
+    .click();
+  await expect(
+    page.getByRole("status", { name: "Vocabulary status", exact: true }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Retry same transcription", exact: true })
+    .click();
+  await expect(page.getByLabel("Sent message")).not.toBeEmpty();
+  expect(uploads).toBe(1);
+});
 
 for (const speech of [
   {},
@@ -1352,6 +1542,20 @@ test("project captured before microphone permission awaits owns vocabulary and t
   page,
 }) => {
   await mount(page);
+  await page.route("**/api/rpc/voxpilot/vocabulary**", (route) => {
+    const directory = new URL(route.request().url()).searchParams.get(
+      "location[directory]",
+    );
+    return route.fulfill({
+      json: {
+        output: vocabulary(
+          directory === "/fixture/original-project"
+            ? ["VoxPilot", "Incus"]
+            : ["OtherProject"],
+        ),
+      },
+    });
+  });
   await page.evaluate(() => {
     const acquire = navigator.mediaDevices.getUserMedia.bind(
       navigator.mediaDevices,
@@ -1369,11 +1573,13 @@ test("project captured before microphone permission awaits owns vocabulary and t
       return stream;
     };
   });
-  await page.route(`${speechURL}/v1/transcriptions`, (route) =>
-    route.fulfill({
-      json: result(metadata(route.request()), "Original project transcript"),
-    }),
-  );
+  await page.route(`${speechURL}/v1/transcriptions`, (route) => {
+    const input = metadata(route.request());
+    expect(input.vocabulary).toEqual(["VoxPilot", "Incus"]);
+    return route.fulfill({
+      json: result(input, "Original project transcript"),
+    });
+  });
   await page
     .getByRole("button", { name: "Record a message", exact: true })
     .click();

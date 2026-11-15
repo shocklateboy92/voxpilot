@@ -1,8 +1,3 @@
-import {
-  SPEECH_MAX_TERMS,
-  SPEECH_MAX_VOCABULARY_CHARACTERS,
-  VocabularyTerm,
-} from "@plugin/speech-contract";
 import { createSignal, untrack } from "solid-js";
 import type { PromptDraft } from "../../platform/prompt-files";
 import {
@@ -16,16 +11,42 @@ import {
   registerSpeechJob,
   speechBackendGeneration,
 } from "../../platform/speech-lifecycle";
-import type { fetchVocabulary } from "../../platform/vocabulary";
-import type { ComposerDraft } from "./create-composer-draft";
+import {
+  type fetchVocabulary,
+  vocabularyBudgetError,
+} from "../../platform/vocabulary";
+import type { ComposerDraft, DraftRecording } from "./create-composer-draft";
 
-export function vocabularyFits(terms: readonly string[]) {
-  return (
-    terms.length <= SPEECH_MAX_TERMS &&
-    terms.reduce((total, term) => total + term.length, 0) <=
-      SPEECH_MAX_VOCABULARY_CHARACTERS
-  );
-}
+type DraftSnapshot = ReturnType<ComposerDraft["snapshot"]>;
+type RecordedAudio = Pick<DraftRecording, "blob" | "duration">;
+type Attempt = {
+  id: string;
+  audio: RecordedAudio;
+  snapshot: DraftSnapshot;
+} & (
+  | { kind: "unprepared" }
+  | {
+      kind: "prepared";
+      metadata: ReturnType<typeof transcriptionMetadata>;
+      created: number;
+    }
+);
+type PreparedAttempt = Extract<Attempt, { kind: "prepared" }>;
+type SendSource =
+  | { kind: "captured"; snapshot: DraftSnapshot; transcript: string }
+  | { kind: "draft" };
+type VoiceState = { message: string } & (
+  | { phase: "idle" }
+  | { phase: "preparing"; attempt: Attempt; controller: AbortController }
+  | {
+      phase: "transcribing";
+      attempt: PreparedAttempt;
+      controller: AbortController;
+    }
+  | { phase: "failed" | "cancelled"; attempt: Attempt }
+  | { phase: "ready" | "sending"; source: SendSource }
+  | { phase: "no_speech"; attempt: PreparedAttempt }
+);
 
 /** Capture draft/destination before microphone awaits; freeze prompt before cloud work. */
 export function createVoiceTake(
@@ -38,58 +59,59 @@ export function createVoiceTake(
     send: (content: PromptDraft) => Promise<boolean>;
   },
 ) {
-  let snapshot = draft.snapshot();
-  let snapshotCaptured = false;
   const backend = speechBackendGeneration();
-  const [phase, setPhase] = createSignal<
-    | "idle"
-    | "preparing"
-    | "subset"
-    | "transcribing"
-    | "ready"
-    | "no_speech"
-    | "failed"
-    | "cancelled"
-    | "sending"
-  >("idle");
-  const [terms, setTerms] = createSignal<string[]>([]);
-  const [selectedTerms, setSelectedTerms] = createSignal<string[]>([]);
-  const [message, setMessage] = createSignal("");
-  let audio: { blob: Blob; duration: number } | undefined;
-  let metadata: ReturnType<typeof transcriptionMetadata> | undefined;
-  let metadataCreated = 0;
-  let abort: AbortController | undefined;
-  let id = crypto.randomUUID();
-  let transcript = "";
-  let transcriptApplied = false;
+  const [state, setState] = createSignal<VoiceState>({
+    phase: "idle",
+    message: "",
+  });
+  let audio: RecordedAudio | undefined;
   let run = 0;
+  const phase = () => state().phase;
+  const message = () => state().message;
+  const setMessage = (message: string) =>
+    setState((current) => ({ ...current, message }));
   const owned = () => backend === speechBackendGeneration() && capture.owned();
-  const busy = () => ["preparing", "transcribing", "sending"].includes(phase());
+  const busy = () => {
+    const current = state();
+    return (
+      current.phase === "preparing" ||
+      current.phase === "transcribing" ||
+      current.phase === "sending"
+    );
+  };
 
-  function attach(value: { blob: Blob; duration: number }) {
+  function attach(value: RecordedAudio) {
     audio = value;
   }
-  function applyTranscript() {
-    if (transcriptApplied || !transcript) return;
-    draft.setText([draft.text(), transcript].filter(Boolean).join("\n\n"));
-    transcriptApplied = true;
+  function applyTranscript(source: SendSource): SendSource {
+    if (source.kind === "draft") return source;
+    draft.setText(
+      [draft.text(), source.transcript].filter(Boolean).join("\n\n"),
+    );
+    return { kind: "draft" };
   }
   async function sendTranscript() {
-    if (!transcript || busy()) return;
+    const current = state();
+    if (current.phase !== "ready") return;
+    let source = current.source;
     if (!owned()) {
-      applyTranscript();
-      setMessage(
-        "The session or project changed. Return to the original conversation to send.",
-      );
+      setState({
+        phase: "ready",
+        source: applyTranscript(source),
+        message:
+          "The session or project changed. Return to the original conversation to send.",
+      });
       return;
     }
-    setPhase("sending");
+    setState({ ...current, phase: "sending" });
     draft.setSending(true);
     try {
-      const submitted = transcriptApplied ? draft.snapshot() : snapshot;
-      const text = transcriptApplied
-        ? submitted.text
-        : [submitted.text, transcript].filter(Boolean).join("\n\n");
+      const submitted =
+        source.kind === "draft" ? draft.snapshot() : source.snapshot;
+      const text =
+        source.kind === "draft"
+          ? submitted.text
+          : [submitted.text, source.transcript].filter(Boolean).join("\n\n");
       const accepted = await capture.send({
         text: [
           text,
@@ -104,47 +126,61 @@ export function createVoiceTake(
       if (accepted) {
         draft.consume(submitted);
         if (draft.recording()?.voice === take) draft.setRecording(undefined);
-      } else applyTranscript();
+      } else source = applyTranscript(source);
     } catch (error) {
-      applyTranscript();
+      source = applyTranscript(source);
       throw error;
     } finally {
       draft.setSending(false);
-      setPhase("ready");
+      setState({ phase: "ready", source, message: message() });
     }
   }
   function cancel() {
-    if (!abort || phase() === "sending") return;
-    abort.abort();
+    const current = state();
+    if (current.phase !== "preparing" && current.phase !== "transcribing")
+      return;
+    current.controller.abort();
     const cancelledRun = ++run;
-    if (metadata) {
+    if (current.attempt.kind === "prepared") {
       // Cancellation failures are state, never a hidden retry or a toast catch.
-      void cancelTranscription(metadata.id).catch(() => {
+      void cancelTranscription(current.attempt.metadata.id).catch(() => {
         if (run !== cancelledRun) return;
         setMessage("Cancellation could not be confirmed.");
       });
     }
-    setPhase("cancelled");
-    setMessage("Transcription cancelled.");
+    setState({
+      phase: "cancelled",
+      attempt: current.attempt,
+      message: "Transcription cancelled.",
+    });
   }
-  async function transcribe(subset = false) {
+  async function transcribe() {
     if (busy() || !audio) return;
+    const current = state();
+    // A completed transcript is sent/corrected, never transcribed again.
+    if (current.phase === "ready") return;
     if (backend !== speechBackendGeneration()) {
       setMessage("Backend changed. Start a new recording or use Type.");
       return;
     }
-    if (metadata && Date.now() - metadataCreated >= 15 * 60_000) {
+    let attempt: Attempt =
+      "attempt" in current
+        ? current.attempt
+        : {
+            kind: "unprepared",
+            id: crypto.randomUUID(),
+            audio,
+            snapshot: draft.snapshot(),
+          };
+    if (
+      attempt.kind === "prepared" &&
+      Date.now() - attempt.created >= 15 * 60_000
+    ) {
       setMessage("Retry expired. Start a new paid attempt.");
       return;
     }
-    if (!snapshotCaptured) {
-      snapshot = draft.snapshot();
-      snapshotCaptured = true;
-    }
-    const currentAudio = audio;
     const controller = new AbortController();
     const currentRun = ++run;
-    abort = controller;
     const signal = AbortSignal.any([
       controller.signal,
       AbortSignal.timeout(360_000),
@@ -154,35 +190,30 @@ export function createVoiceTake(
         if (run === currentRun) cancel();
       }),
     );
-    setPhase("preparing");
-    setMessage("");
-    let uploaded = false;
+    setState({ phase: "preparing", attempt, controller, message: "" });
     try {
-      if (!metadata) {
+      if (attempt.kind === "unprepared") {
         await speechCapabilities(signal);
         if (signal.aborted || run !== currentRun) return;
-        if (!subset) {
-          const vocabulary = await capture.vocabulary(signal);
-          if (signal.aborted || run !== currentRun) return;
-          const canonical = (vocabulary?.terms ?? []).map((term) =>
-            VocabularyTerm.parse(term),
-          );
-          setTerms(canonical);
-          if (!vocabularyFits(canonical)) {
-            setSelectedTerms([]);
-            setPhase("subset");
-            setMessage("Choose up to 30 terms or 2000 characters.");
-            return;
-          }
-          setSelectedTerms(canonical);
+        const vocabulary = await capture.vocabulary(signal);
+        if (signal.aborted || run !== currentRun) return;
+        const terms = vocabulary?.terms ?? [];
+        const error = vocabularyBudgetError(terms);
+        if (error) {
+          setState({ phase: "failed", attempt, message: error });
+          return;
         }
-        metadata = transcriptionMetadata(
-          id,
-          currentAudio.blob,
-          currentAudio.duration,
-          selectedTerms(),
-        );
-        metadataCreated = Date.now();
+        attempt = {
+          ...attempt,
+          kind: "prepared",
+          metadata: transcriptionMetadata(
+            attempt.id,
+            attempt.audio.blob,
+            attempt.audio.duration,
+            terms,
+          ),
+          created: Date.now(),
+        };
       }
       if (
         signal.aborted ||
@@ -190,9 +221,12 @@ export function createVoiceTake(
         backend !== speechBackendGeneration()
       )
         return;
-      setPhase("transcribing");
-      uploaded = true;
-      const result = await transcribeAudio(currentAudio.blob, metadata, signal);
+      setState({ phase: "transcribing", attempt, controller, message: "" });
+      const result = await transcribeAudio(
+        attempt.audio.blob,
+        attempt.metadata,
+        signal,
+      );
       if (
         signal.aborted ||
         run !== currentRun ||
@@ -200,39 +234,51 @@ export function createVoiceTake(
       )
         return;
       if (result.status === "no_speech") {
-        setPhase("no_speech");
-        setMessage("No speech detected.");
+        setState({
+          phase: "no_speech",
+          attempt,
+          message: "No speech detected.",
+        });
         return;
       }
-      transcript = result.text;
-      setPhase("ready");
+      const source: SendSource = {
+        kind: "captured",
+        snapshot: attempt.snapshot,
+        transcript: result.text,
+      };
       if (!owned()) {
-        applyTranscript();
-        setMessage(
-          "The session or project changed. Return to the original conversation to send.",
-        );
+        setState({
+          phase: "ready",
+          source: applyTranscript(source),
+          message:
+            "The session or project changed. Return to the original conversation to send.",
+        });
         return;
       }
+      setState({ phase: "ready", source, message: "" });
     } catch (error) {
       if (controller.signal.aborted || run !== currentRun) return;
-      setPhase("failed");
-      setMessage(
+      const message =
         error instanceof SpeechRequestError
           ? error.message
-          : uploaded
+          : state().phase === "transcribing"
             ? "Transcription could not be confirmed."
-            : "Could not prepare transcription. Check the service and vocabulary.",
-      );
+            : "Could not prepare transcription. Check the service and vocabulary.";
+      setState({ phase: "failed", attempt, message });
       // Sanitized local error only; validation/provider payloads must not leak.
-      throw new Error(message());
+      throw new Error(message);
     } finally {
       unregister();
-      if (abort === controller) abort = undefined;
+      const current = state();
       if (
         run === currentRun &&
-        (phase() === "preparing" || phase() === "transcribing")
+        (current.phase === "preparing" || current.phase === "transcribing")
       )
-        setPhase("cancelled");
+        setState({
+          phase: "cancelled",
+          attempt: current.attempt,
+          message: current.message,
+        });
     }
     // Native prompt errors remain native errors; never retry paid transcription
     // merely because admission of an already-transcribed prompt failed.
@@ -240,20 +286,12 @@ export function createVoiceTake(
   }
   async function newAttempt() {
     if (busy()) return;
-    id = crypto.randomUUID();
-    metadata = undefined;
-    snapshotCaptured = false;
-    transcript = "";
-    transcriptApplied = false;
-    setPhase("idle");
+    setState({ phase: "idle", message: "" });
     await transcribe();
   }
   const take = {
     phase,
     busy,
-    terms,
-    selectedTerms,
-    setSelectedTerms,
     message,
     attach,
     transcribe,
@@ -261,7 +299,6 @@ export function createVoiceTake(
     sendTranscript,
     canSend: owned,
     newAttempt,
-    continueSubset: () => transcribe(true),
   };
   return take;
 }

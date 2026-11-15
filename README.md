@@ -128,9 +128,12 @@ can override the user list with an absolute path; test servers use this to keep
 test agents away from real user vocabulary.
 
 Transcription snapshots the original project's effective vocabulary. Context is
-bounded to 30 terms / 2000 characters; an over-budget list requires an explicit
-subset rather than silently losing terms. Invalid vocabulary edits block upload
-clearly instead of using stale context.
+bounded to 30 terms / 2000 characters. Vocabulary is checked when the project
+loads; invalid or over-budget lists show a persistent composer error and disable
+recording before microphone capture. Shorten/fix the files, then use **Refresh
+vocabulary** (or reload the project). Type remains usable. Vocabulary is checked
+again before upload to catch edits made during recording; no terms are silently
+dropped and there is no subset picker.
 
 ## Personal frontend deployment
 

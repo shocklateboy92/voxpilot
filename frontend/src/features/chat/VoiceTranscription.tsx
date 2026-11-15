@@ -1,11 +1,10 @@
-import { createSignal, For, Show } from "solid-js";
+import { createSignal, Match, Show, Switch } from "solid-js";
 import {
   speechConfigurationError,
   speechConnection,
 } from "../../platform/speech";
 import { Button } from "../../ui/Button";
 import type { VoiceTake } from "./create-voice-take";
-import { vocabularyFits } from "./create-voice-take";
 
 export function VoiceTranscription(props: {
   take: VoiceTake;
@@ -24,96 +23,48 @@ export function VoiceTranscription(props: {
           </p>
         }
       >
-        <Show when={props.take.phase() === "subset"}>
-          <fieldset class="flex max-h-56 min-w-0 flex-col gap-1 overflow-y-auto">
-            <legend class="text-sm font-semibold">
-              Choose vocabulary subset
-            </legend>
-            <For each={props.take.terms()}>
-              {(term) => (
-                <label class="flex min-h-9 items-start gap-2 break-all text-sm">
-                  <input
-                    type="checkbox"
-                    class="mt-1 shrink-0 accent-accent"
-                    checked={props.take.selectedTerms().includes(term)}
-                    onChange={(event) =>
-                      props.take.setSelectedTerms((terms) =>
-                        event.currentTarget.checked
-                          ? [...terms, term]
-                          : terms.filter((value) => value !== term),
-                      )
-                    }
-                  />
-                  {term}
-                </label>
-              )}
-            </For>
-          </fieldset>
-          <p class="m-0 text-xs text-muted">
-            {props.take.selectedTerms().length}/30 terms ·{" "}
-            {props.take
-              .selectedTerms()
-              .reduce((total, term) => total + term.length, 0)}
-            /2000 characters
-          </p>
-          <Button
-            size="sm"
-            disabled={
-              props.disabled || !vocabularyFits(props.take.selectedTerms())
-            }
-            onClick={() => void props.take.continueSubset()}
-          >
-            Use selected vocabulary
-          </Button>
-        </Show>
-        <Show
-          when={props.take.busy()}
-          fallback={
-            <Show
-              when={props.take.phase() === "ready"}
-              fallback={
-                <Show
-                  when={
-                    props.take.phase() === "failed" ||
-                    props.take.phase() === "cancelled"
-                  }
-                >
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    disabled={props.disabled}
-                    onClick={() => void props.take.transcribe()}
-                  >
-                    Retry same transcription
-                  </Button>
-                </Show>
-              }
+        <Switch>
+          <Match when={props.take.phase() === "ready"}>
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={props.disabled || !props.take.canSend()}
+              onClick={() => void props.take.sendTranscript()}
             >
-              <Button
-                variant="primary"
-                size="sm"
-                disabled={props.disabled || !props.take.canSend()}
-                onClick={() => void props.take.sendTranscript()}
-              >
-                Send transcript
-              </Button>
-              <Show when={!props.take.canSend()}>
-                <p class="m-0 text-xs text-muted">
-                  Return to the original conversation and use Type to send.
-                </p>
-              </Show>
+              Send transcript
+            </Button>
+            <Show when={!props.take.canSend()}>
+              <p class="m-0 text-xs text-muted">
+                Return to the original conversation and use Type to send.
+              </p>
             </Show>
-          }
-        >
-          <Button
-            variant="reject"
-            size="sm"
-            disabled={props.take.phase() === "sending"}
-            onClick={() => props.take.cancel()}
+          </Match>
+          <Match
+            when={
+              props.take.phase() === "failed" ||
+              props.take.phase() === "cancelled"
+            }
           >
-            Cancel transcription
-          </Button>
-        </Show>
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={props.disabled}
+              onClick={() => void props.take.transcribe()}
+            >
+              Retry same transcription
+            </Button>
+          </Match>
+          <Match when={props.take.busy()}>
+            <Button
+              variant="reject"
+              size="sm"
+              disabled={props.take.phase() === "sending"}
+              onClick={() => props.take.cancel()}
+            >
+              Cancel transcription
+            </Button>
+          </Match>
+        </Switch>
         <Show
           when={
             props.take.phase() === "failed" ||

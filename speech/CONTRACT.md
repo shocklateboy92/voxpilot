@@ -49,8 +49,10 @@ returns `no_speech` and is never submitted as a chat message. It is not a
 guarantee against all background speech/noise or ASR inventions.
 
 At most 30 canonical terms and 2000 total characters. If the merged vocabulary
-exceeds this budget, require an explicit subset rather than silently truncating.
-Malformed source vocabulary fails before upload. OpenAI receives `keywords[]`;
+exceeds this budget, show a persistent project error and disable recording until
+the vocabulary files are shortened and refreshed; never silently truncate.
+Malformed source vocabulary also blocks recording. Recheck before upload in case
+files changed during recording. OpenAI receives `keywords[]`;
 auto language detection is used (no obsolete singular `language` parameter).
 
 Errors use the shared safe envelope; never include upstream bodies, tokens,

@@ -12,7 +12,7 @@ const messages: Record<Code, string> = {
   audio_too_large: "The recording exceeds the audio size limit.",
   invalid_audio: "The recording cannot be decoded or exceeds 300 seconds.",
   vocabulary_budget:
-    "Choose a smaller valid vocabulary subset; nothing is silently dropped.",
+    "Shorten or fix the vocabulary files, then refresh; nothing is silently dropped.",
   unavailable: "The speech service is not ready.",
   busy: "The speech service is at capacity.",
   rate_limited: "The speech request rate limit was reached.",
