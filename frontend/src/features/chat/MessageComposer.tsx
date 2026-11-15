@@ -174,7 +174,10 @@ export function MessageComposer(props: {
   }
 
   return (
-    <ComposerForm onSubmit={(event) => void submit(event)}>
+    <ComposerForm
+      data-composer-mode={composerMode()}
+      onSubmit={(event) => void submit(event)}
+    >
       <Show when={draft()} keyed>
         {(current) => <PastedReferences draft={current} disabled={busy()} />}
       </Show>

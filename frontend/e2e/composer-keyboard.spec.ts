@@ -10,7 +10,7 @@ for (const touch of [false, true]) {
   test.describe(touch ? "Touch composer" : "Desktop composer", () => {
     test.use({ hasTouch: touch, viewport: { width: 390, height: 844 } });
 
-    test("Enter preserves mobile newlines and desktop submission", async ({
+    test("keyboard submission and voice-mode bottom navigation stay coordinated", async ({
       page,
     }) => {
       await page.route("**/config.json", (route) =>
@@ -28,11 +28,14 @@ for (const touch of [false, true]) {
       await page.route("**/composer-fixture", (route) =>
         route.fulfill({
           contentType: "text/html",
-          body: '<main></main><output aria-label="Sent message"></output>',
+           body: '<div class="app pb-[calc(var(--bottom-nav-height)+var(--safe-bottom))]"><main></main><nav data-bottom-nav class="flex">Bottom navigation</nav></div><output aria-label="Sent message"></output>',
         }),
       );
       await page.goto("/composer-fixture");
       await page.evaluate(async () => {
+        const stylesURL = "/src/styles/app.css";
+        await import(stylesURL);
+        document.documentElement.style.setProperty("--safe-bottom", "20px");
         const webURL = "/node_modules/solid-js/web/dist/web.js";
         const { render }: typeof import("solid-js/web") = await import(webURL);
         const composerURL = "/src/features/chat/MessageComposer.tsx";
@@ -60,6 +63,10 @@ for (const touch of [false, true]) {
         await page.evaluate(() => matchMedia("(pointer: coarse)").matches),
       ).toBe(touch);
       const input = page.getByRole("textbox", { name: "Message", exact: true });
+      const nav = page.locator("[data-bottom-nav]");
+      const shell = page.locator(".app");
+      await expect(nav).toBeVisible();
+      await expect(shell).toHaveCSS("padding-bottom", "68px");
       await page.getByRole("button", { name: "Type", exact: true }).click();
       const sent = page.getByLabel("Sent message");
       await input.fill("First line");
@@ -78,6 +85,26 @@ for (const touch of [false, true]) {
         await expect(input).toHaveValue("First line\n");
         await expect(sent).toHaveText("First line");
       }
+
+      // Switching mode removes the focused textarea without an explicit blur.
+      // Voice mode must restore both navigation and its inherited clearance.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await input.focus();
+        if (touch) {
+          await expect(nav).toBeHidden();
+          await expect(shell).toHaveCSS("padding-bottom", "0px");
+        } else {
+          await expect(nav).toBeVisible();
+        }
+        await page.getByRole("button", { name: "Voice", exact: true }).click();
+        await expect(input).toHaveCount(0);
+        await expect(nav).toBeVisible();
+        await expect(shell).toHaveCSS("padding-bottom", "68px");
+        await page.getByRole("button", { name: "Type", exact: true }).click();
+      }
+      await input.evaluate((element) => element.blur());
+      await expect(nav).toBeVisible();
+      await expect(shell).toHaveCSS("padding-bottom", "68px");
     });
   });
 }
