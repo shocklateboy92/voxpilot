@@ -168,7 +168,7 @@ export function VoiceRecorder(props: {
   }
 
   const hide = () => {
-    if (document.hidden) cancel();
+    if (document.hidden && state() !== "stopping") cancel();
   };
   document.addEventListener("visibilitychange", hide);
   onCleanup(() => {
@@ -196,6 +196,7 @@ export function VoiceRecorder(props: {
           <IconButton
             variant="ghost"
             aria-label="Cancel recording"
+            disabled={state() === "stopping"}
             onPointerDown={(event) => event.preventDefault()}
             onClick={cancel}
           >

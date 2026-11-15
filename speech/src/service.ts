@@ -322,6 +322,7 @@ export function createSpeechService(options: ServiceOptions) {
       if (prior) {
         if (prior.fingerprint && prior.fingerprint !== fingerprint)
           throw new SpeechFault("id_conflict");
+        clearTimeout(timer);
         return await wait(prior, controller.signal);
       }
       capacity();
@@ -343,18 +344,12 @@ export function createSpeechService(options: ServiceOptions) {
         remember(metadata.id, entry);
         return await entry.promise;
       }
-      if (stopped || options.ready === false || activeJobs >= 2) {
-        const entry = completed(
-          fingerprint,
-          failure(
-            new SpeechFault(
-              stopped || options.ready === false ? "unavailable" : "busy",
-            ),
-          ),
-        );
-        remember(metadata.id, entry);
-        return await entry.promise;
-      }
+      // Transient refusals are not cached so a retry with the same ID can succeed.
+      if (stopped || options.ready === false)
+        throw new SpeechFault("unavailable");
+      if (activeJobs >= 2) throw new SpeechFault("busy");
+      // The request timer bounds the upload only; the job has its own timer.
+      clearTimeout(timer);
       return await wait(
         start(metadata.id, fingerprint, audio, metadata),
         controller.signal,

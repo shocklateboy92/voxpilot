@@ -32,7 +32,9 @@ export function createVoiceTake(
   draft: ComposerDraft,
   capture: {
     owned: () => boolean;
-    vocabulary: (signal: AbortSignal) => ReturnType<typeof fetchVocabulary>;
+    vocabulary: (
+      signal: AbortSignal,
+    ) => Promise<Awaited<ReturnType<typeof fetchVocabulary>> | undefined>;
     send: (content: PromptDraft) => Promise<boolean>;
   },
 ) {
@@ -162,7 +164,7 @@ export function createVoiceTake(
         if (!subset) {
           const vocabulary = await capture.vocabulary(signal);
           if (signal.aborted || run !== currentRun) return;
-          const canonical = vocabulary.terms.map((term) =>
+          const canonical = (vocabulary?.terms ?? []).map((term) =>
             VocabularyTerm.parse(term),
           );
           setTerms(canonical);

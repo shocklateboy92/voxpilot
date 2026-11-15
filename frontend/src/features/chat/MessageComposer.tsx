@@ -66,10 +66,11 @@ export function MessageComposer(props: {
       owned: () =>
         mounted &&
         props.sessionID === sessionID &&
-        props.voiceDirectory === directory,
-      vocabulary: (signal) => {
-        if (!directory || !read)
-          throw new Error("The original project's vocabulary is unavailable.");
+        (directory === undefined || props.voiceDirectory === directory),
+      vocabulary: async (signal) => {
+        // Before the session location loads there is no project vocabulary;
+        // transcribe without it rather than failing every retry.
+        if (!directory || !read) return undefined;
         return read(directory, signal);
       },
       send: (content) => send(content, sessionID),

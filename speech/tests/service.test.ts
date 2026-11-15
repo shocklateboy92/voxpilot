@@ -317,11 +317,14 @@ test("pending duplicate shares one job even with both job slots occupied", async
   const duplicate = app.fetch(recording({ id }));
   await Bun.sleep(10);
   expect(calls).toBe(2);
-  const busy = await app.fetch(recording());
+  const busyId = crypto.randomUUID();
+  const busy = await app.fetch(recording({ id: busyId }));
   expect((await error(busy)).code).toBe("busy");
   finish.resolve({ text: "test", languages: [] });
   const results = await Promise.all([first, second, duplicate]);
   expect(results.every((result) => result.status === 200)).toBe(true);
+  const retry = await app.fetch(recording({ id: busyId }));
+  expect(retry.status).toBe(200);
 });
 
 test("cancel tombstone before upload and cancellation during guard prevent paid calls", async () => {

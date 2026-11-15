@@ -29,7 +29,7 @@ async function request(path: string, init: RequestInit) {
     credentials: "omit",
     redirect: "error",
   });
-  const body: unknown = await response.json();
+  const body: unknown = await response.json().catch(() => undefined);
   if (!response.ok) {
     const failure = SpeechFailure.safeParse(body);
     if (failure.success) throw new SpeechRequestError(failure.data.error);
