@@ -161,6 +161,15 @@ for occasional verification on a physical phone.
 The GitHub release build does not run this credential-dependent suite. Run
 `just check` locally before releasing; no provider credentials are copied into CI.
 
+## Legacy PWA upgrades
+
+`service-worker-retirement.spec.ts` uses a test-owned HTTP server and an actual
+installed cache-serving worker. It verifies that replacing `sw.js` with the SPA
+HTML fallback leaves old pages cached, and that the shipped retirement worker
+unregisters and removes only legacy caches. Open drafts, unrelated caches and
+browser storage remain untouched; the next navigation loads the current frontend.
+It needs no backend, credentials or real transcription service.
+
 ## Voice composer
 
 `voice-test.ts` supplies the shared browser setup, mount, clipboard, recording

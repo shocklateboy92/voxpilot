@@ -138,7 +138,11 @@ API hosts must use HTTPS when the frontend does.
 Settings in the bottom bar change hosts. Saved wake URLs are scoped by API host.
 The frontend has a static manifest for home-screen installation and renders
 width-aware reviews on resize. It does not register a service worker or cache
-frontend assets/API responses in Cache Storage.
+frontend assets/API responses in Cache Storage. The retained `sw.js` is a retirement
+endpoint for workers installed by older versions: it unregisters itself and removes
+only the legacy worker's caches. Keep serving it as JavaScript, not a SPA fallback
+or 404, so installed PWAs can upgrade. It does not reload open pages or clear browser
+settings; the next navigation loads the current frontend.
 
 ## Uninstall
 
