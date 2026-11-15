@@ -8,6 +8,7 @@
 
 import { createEffect, createSignal, type JSX, onCleanup } from "solid-js";
 import { ChatInput } from "../features/chat/ChatInput";
+import { StatusBar } from "../ui/StatusBar";
 import { SwipeablePane } from "../ui/SwipeablePane";
 
 export interface ContentShellProps {
@@ -15,6 +16,8 @@ export interface ContentShellProps {
   statusBarLeft: JSX.Element;
   /** Content rendered on the right side of the floating status bar. */
   statusBarRight: JSX.Element;
+  /** Optional expanded details for the floating summary. */
+  statusBarDetails?: JSX.Element;
 
   /** Can the user swipe left? */
   canSwipeLeft: () => boolean;
@@ -96,17 +99,11 @@ export function ContentShell(props: ContentShellProps) {
 
   return (
     <>
-      <div
-        data-status-bar
-        class="absolute inset-x-3 top-[calc(var(--safe-top)+1.5rem)] z-40 flex min-h-(--status-bar-height) items-center justify-between gap-3 rounded-[0.6rem] bg-glass px-3.5 py-1.5 backdrop-blur-md"
-      >
-        <div class="flex min-w-0 max-w-[60%] flex-[0_1_auto] items-center gap-1.5 font-mono text-xs whitespace-nowrap text-muted">
-          {props.statusBarLeft}
-        </div>
-        <div class="flex min-w-0 flex-[0_1_auto] items-center">
-          {props.statusBarRight}
-        </div>
-      </div>
+      <StatusBar
+        left={props.statusBarLeft}
+        right={props.statusBarRight}
+        details={props.statusBarDetails}
+      />
       <div class="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden mask-[linear-gradient(to_bottom,transparent,black_1rem,black_calc(100%_-_1rem),transparent)]">
         {props.overlay}
         <SwipeablePane

@@ -3,6 +3,120 @@ import { expect, test } from "./browser";
 import { assistant, history, openSession, user } from "./data";
 import { markdownResponse, password } from "./dev";
 
+test("status summary reveals full details without moving the conversation", async ({
+  app,
+  workspace,
+}, info) => {
+  const branch = `feature/${"a-very-long-branch-name-".repeat(7)}details`;
+  await workspace.git("checkout", "-b", branch);
+  const message = {
+    ...assistant([{ type: "text", text: markdownResponse }]),
+    tokens: {
+      input: 106600,
+      output: 0,
+      reasoning: 0,
+      cache: { read: 0, write: 0 },
+    },
+  };
+  const session = await history(workspace.directory, "Status details", [
+    user("Status summary fixture"),
+    message,
+  ]);
+  await openSession(app, session.id);
+  const trigger = app.getByRole("button", {
+    name: "Session status",
+    exact: true,
+  });
+  const details = app.getByRole("region", { name: "Session status details" });
+  const conversation = app.locator(".messages");
+  await expect(trigger).toContainText(branch);
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  await expect(details).toHaveCount(0);
+
+  // Use real touch input for the disclosure on a narrow phone viewport.
+  const cdp = await app.context().newCDPSession(app);
+  try {
+    await cdp.send("Emulation.setTouchEmulationEnabled", {
+      enabled: true,
+      maxTouchPoints: 1,
+    });
+    for (const scheme of ["dark", "light"] as const) {
+      await app.emulateMedia({ colorScheme: scheme });
+      for (const width of [280, 320, 369, 370, 390, 393, 414, 439, 440, 480]) {
+        await app.setViewportSize({ width, height: 844 });
+        const percentage = trigger.getByText(/^\(\d+%\)$/);
+        await expect(percentage).toBeVisible();
+        const percentBounds = await percentage.boundingBox();
+        const chevronBounds = await trigger.locator("svg").last().boundingBox();
+        const bounds = await trigger.boundingBox();
+        if (!bounds || !percentBounds || !chevronBounds)
+          throw new Error("Missing status summary geometry");
+        expect(
+          chevronBounds.x - (percentBounds.x + percentBounds.width),
+        ).toBeGreaterThanOrEqual(6);
+        expect(chevronBounds.x + chevronBounds.width).toBeLessThanOrEqual(
+          bounds.x + bounds.width - 12,
+        );
+        const before = await conversation.evaluate((element) => ({
+          top: element.getBoundingClientRect().top,
+          scroll: element.scrollTop,
+        }));
+        await cdp.send("Input.dispatchTouchEvent", {
+          type: "touchStart",
+          touchPoints: [
+            { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 },
+          ],
+        });
+        await cdp.send("Input.dispatchTouchEvent", {
+          type: "touchEnd",
+          touchPoints: [],
+        });
+        await expect(trigger).toHaveAttribute("aria-expanded", "true");
+        await expect(details.getByText(branch, { exact: true })).toBeVisible();
+        await expect(details).toContainText("2 changed files");
+        await expect(details).toContainText("0 added · 2 modified · 0 deleted");
+        await expect(details).toContainText("106,600");
+        expect(
+          await details.evaluate(
+            (element) => element.scrollWidth <= element.clientWidth,
+          ),
+        ).toBe(true);
+        expect(
+          await conversation.evaluate((element) => ({
+            top: element.getBoundingClientRect().top,
+            scroll: element.scrollTop,
+          })),
+        ).toEqual(before);
+        await info.attach(`status-details-${scheme}-${width}`, {
+          body: await app.screenshot(),
+          contentType: "image/png",
+        });
+        await trigger.click();
+        await expect(details).toHaveCount(0);
+      }
+    }
+  } finally {
+    await cdp.detach();
+  }
+
+  await app.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await trigger.focus();
+  await app.keyboard.press("Enter");
+  const copy = details.getByRole("button", { name: "Copy branch name" });
+  await app.keyboard.press("Tab");
+  await expect(copy).toBeFocused();
+  await copy.click();
+  expect(await app.evaluate(() => navigator.clipboard.readText())).toBe(branch);
+  await expect(details.getByRole("status")).toHaveText("Branch name copied");
+  await app.keyboard.press("Escape");
+  await expect(details).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await app.keyboard.press("Space");
+  await expect(details).toBeVisible();
+  await app.getByRole("textbox", { name: "Message", exact: true }).click();
+  await expect(details).toHaveCount(0);
+});
+
 test("theme tokens, native controls, and reactive selection survive system-theme changes", async ({
   app,
 }, info) => {

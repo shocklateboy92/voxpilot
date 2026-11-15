@@ -22,7 +22,7 @@ function formatTokens(n: number): string {
   return String(n);
 }
 
-export function ContextUsageBar() {
+export function createContextUsage() {
   const context = createMemo(() => {
     let lastAssistant: AssistantMessage | undefined;
     for (const msg of store.messages) {
@@ -52,9 +52,14 @@ export function ContextUsageBar() {
       percentage: limit ? Math.round((total / limit) * 100) : undefined,
     };
   });
+  return context;
+}
 
+export function ContextUsageBar(props: {
+  context: ReturnType<typeof createContextUsage>;
+}) {
   return (
-    <Show when={context()}>
+    <Show when={props.context()}>
       {(ctx) => (
         <div class="ml-auto flex min-w-0 items-center gap-1.5">
           <span class="flex min-w-0 gap-[0.75em] font-mono text-[0.7rem] whitespace-nowrap text-muted">
