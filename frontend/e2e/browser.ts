@@ -151,7 +151,16 @@ export const test = base.extend<{
 
 export { expect };
 
-export async function send(page: Page, prompt: string) {
+export async function send(
+  page: Page,
+  prompt: string,
+  options: { reading?: boolean } = {},
+) {
+  const expand = page.getByRole("button", {
+    name: "Expand controls",
+    exact: true,
+  });
+  if (await expand.isVisible()) await expand.click();
   await expect(
     page.getByRole("combobox", { name: "Model", exact: true }),
   ).toHaveValue(modelKey);
@@ -168,6 +177,8 @@ export async function send(page: Page, prompt: string) {
   expect((await admitted).ok(), "Prompt admission succeeded").toBe(true);
   await expect(userMessages).toHaveCount(previousCount + 1);
   await expect(userMessages.last()).toHaveText(prompt);
+  // Most existing scenarios exercise the full controls after admission.
+  if (!options.reading) await expand.click();
 }
 
 export async function idle(page: Page) {
@@ -180,6 +191,11 @@ export async function idle(page: Page) {
   await expect(
     page.getByRole("button", { name: "Stop generating", exact: true }),
   ).toHaveCount(0);
+  const expand = page.getByRole("button", {
+    name: "Expand controls",
+    exact: true,
+  });
+  if (await expand.isVisible()) await expand.click();
   await expect(
     page.getByRole("button", { name: "Send", exact: true }),
   ).toBeEnabled();

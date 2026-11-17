@@ -6,6 +6,96 @@ import {
   trackMicrophone,
 } from "./voice-test";
 
+test("reading mode records in one tap, finishes in place, and exposes transcription recovery", async ({
+  page,
+}) => {
+  await mountComposer(page);
+  await trackMicrophone(page);
+  await page.evaluate(() => document.dispatchEvent(new Event("reading-mode")));
+  await expect(
+    page.getByRole("button", { name: "Type", exact: true }),
+  ).toBeHidden();
+  await page
+    .getByRole("button", { name: "Record a message", exact: true })
+    .click();
+  const finish = page.getByRole("button", {
+    name: "Finish recording",
+    exact: true,
+  });
+  await expect(finish).toBeEnabled();
+  await expect(page.getByLabel("Recording status")).toBeVisible();
+  await expect(page.getByLabel("Recording status")).not.toHaveText("0:00");
+  await expect(
+    page.getByRole("button", { name: "Type", exact: true }),
+  ).toBeHidden();
+  await finish.click();
+  await expect(
+    page.getByRole("button", { name: "Type", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Recover transcription", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Sent message")).toHaveAttribute(
+    "data-track",
+    "ended",
+  );
+});
+
+test("reading mode swaps the mic for Stop while generating", async ({
+  page,
+}) => {
+  await mountComposer(page);
+  await page.evaluate(() => {
+    document.dispatchEvent(new Event("reading-mode"));
+    document.dispatchEvent(new Event("start-streaming"));
+  });
+  await expect(
+    page.getByRole("button", { name: "Record a message", exact: true }),
+  ).toBeHidden();
+  await page
+    .getByRole("button", { name: "Stop generating", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Stop generating", exact: true }),
+  ).toBeHidden();
+  await expect(
+    page.getByRole("button", { name: "Record a message", exact: true }),
+  ).toBeEnabled();
+});
+
+test("switching between reading and composing keeps the microphone active", async ({
+  page,
+}) => {
+  await mountComposer(page);
+  await trackMicrophone(page);
+  await page
+    .getByRole("button", { name: "Record a message", exact: true })
+    .click();
+  const finish = page.getByRole("button", {
+    name: "Finish recording",
+    exact: true,
+  });
+  await expect(finish).toBeEnabled();
+  for (const mode of ["reading-mode", "composing-mode", "reading-mode"]) {
+    await page.evaluate(
+      (event) => document.dispatchEvent(new Event(event)),
+      mode,
+    );
+    await expect(finish).toBeEnabled();
+    await expect(page.getByLabel("Sent message")).not.toHaveAttribute(
+      "data-track",
+      "ended",
+    );
+  }
+  await page
+    .getByRole("button", { name: "Cancel recording", exact: true })
+    .click();
+  await expect(page.getByLabel("Sent message")).toHaveAttribute(
+    "data-track",
+    "ended",
+  );
+});
+
 test("voice is the keyboard-free default, typing preserves its draft and remembers the mode", async ({
   page,
 }) => {

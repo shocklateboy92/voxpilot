@@ -2,6 +2,11 @@
    Insets are inherited by both shell padding and the floating composer. */
 /* Same layer as utilities so these contextual selectors can override `flex`. */
 @layer utilities {
+  .app.reading-mode {
+    --bottom-nav-height: 0px;
+    /* Content can reach the home-indicator area; floating controls keep their inset. */
+    padding-bottom: 0;
+  }
   @media (pointer: coarse) {
     .app.composer-keyboard-active {
       --bottom-nav-height: 0px;

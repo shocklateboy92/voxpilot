@@ -20,6 +20,9 @@ test("renders markdown, persists on reload, forks, and deletes through the UI", 
   await app.reload({ waitUntil: "domcontentloaded" });
   await expect(app.locator(".message.user")).toHaveText(markdownPrompt);
   await expect(response).toHaveText(transcript);
+  await app
+    .getByRole("button", { name: "Expand controls", exact: true })
+    .click();
   await app.getByTitle("Fork conversation", { exact: true }).click();
   await app
     .getByRole("button", { name: "Fork entire conversation", exact: true })
@@ -163,6 +166,9 @@ test("explicit model selection persists across reload", async ({ app }) => {
   await expect(app.locator(".model-badge")).toContainText("GPT-6 Luna");
   await idle(app);
   await app.reload({ waitUntil: "domcontentloaded" });
+  await app
+    .getByRole("button", { name: "Expand controls", exact: true })
+    .click();
   await expect(model).toHaveValue(modelKey);
   await expect(app.locator(".model-badge")).toContainText("GPT-6 Luna");
 });
@@ -216,6 +222,9 @@ test("switching conversations restores their model and thinking level", async ({
   // Reload and hash navigation must also ignore a different global preference.
   await picker.selectOption(alternateKey);
   await app.reload({ waitUntil: "domcontentloaded" });
+  await app
+    .getByRole("button", { name: "Expand controls", exact: true })
+    .click();
   await expect(picker).toHaveValue(modelKey);
   await expect(thinking).toHaveValue("low");
   await app.evaluate((id) => {

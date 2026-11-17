@@ -6,8 +6,15 @@
  * Used by ChatView, ReviewOverlay, and the read-only Markdown viewer.
  */
 
-import { createEffect, createSignal, type JSX, onCleanup } from "solid-js";
+import {
+  createEffect,
+  createSignal,
+  type JSX,
+  onCleanup,
+  Show,
+} from "solid-js";
 import { ChatInput } from "../features/chat/ChatInput";
+import type { ReadingControls } from "../features/chat/reading-controls";
 import { StatusBar } from "../ui/StatusBar";
 import { SwipeablePane } from "../ui/SwipeablePane";
 
@@ -48,12 +55,14 @@ export interface ContentShellProps {
   composerOverlay?: JSX.Element;
   /** Optional callback fired after a message is sent from the chat input. */
   onSend?: () => void;
+  readingControls?: ReadingControls;
 
   /** The scrollable content. */
   children: JSX.Element;
 }
 
 export function ContentShell(props: ContentShellProps) {
+  const reading = () => props.readingControls?.reading ?? false;
   let composer: HTMLDivElement | undefined;
   const [pane, setPane] = createSignal<HTMLDivElement>();
   const [bottomClearance, setBottomClearance] = createSignal(0);
@@ -104,7 +113,14 @@ export function ContentShell(props: ContentShellProps) {
         right={props.statusBarRight}
         details={props.statusBarDetails}
       />
-      <div class="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden mask-[linear-gradient(to_bottom,transparent,black_1rem,black_calc(100%_-_1rem),transparent)]">
+      <div
+        class="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+        classList={{
+          "mask-[linear-gradient(to_bottom,transparent,black_1rem)]": reading(),
+          "mask-[linear-gradient(to_bottom,transparent,black_1rem,black_calc(100%_-_1rem),transparent)]":
+            !reading(),
+        }}
+      >
         {props.overlay}
         <SwipeablePane
           class={props.paneClass}
@@ -125,11 +141,18 @@ export function ContentShell(props: ContentShellProps) {
       <div
         ref={composer}
         data-composer-stack
-        class="absolute inset-x-3 bottom-[calc(var(--bottom-nav-height)+var(--safe-bottom)+0.75rem)] z-40 flex flex-col items-center gap-2"
+        class="pointer-events-none absolute inset-x-3 bottom-[calc(var(--bottom-nav-height)+var(--safe-bottom)+0.75rem)] z-40 flex flex-col gap-2 [&>*]:pointer-events-auto"
+        classList={{
+          "items-end": reading(),
+          "items-center": !reading(),
+        }}
       >
         {props.composerOverlay}
-        {props.aboveInput}
-        <ChatInput onSend={props.onSend} />
+        <Show when={!reading()}>{props.aboveInput}</Show>
+        <ChatInput
+          onSend={props.onSend}
+          readingControls={props.readingControls}
+        />
       </div>
     </>
   );

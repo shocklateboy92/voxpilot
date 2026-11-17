@@ -1,6 +1,7 @@
 import { SPEECH_MAX_SECONDS } from "@plugin/speech-contract";
 import ArrowUp from "lucide-solid/icons/arrow-up";
 import Mic from "lucide-solid/icons/mic";
+import Square from "lucide-solid/icons/square";
 import X from "lucide-solid/icons/x";
 import { createSignal, For, onCleanup, Show } from "solid-js";
 import { registerSpeechJob } from "../../platform/speech-lifecycle";
@@ -17,6 +18,7 @@ function clock(seconds: number) {
 }
 
 export function VoiceRecorder(props: {
+  compact?: boolean;
   disabled: boolean;
   onActiveChange: (active: boolean) => void;
   captureRecording: () => (audio: RecordedAudio) => void;
@@ -182,76 +184,133 @@ export function VoiceRecorder(props: {
   });
 
   return (
-    <div class="flex min-w-0 flex-col gap-2 px-2 py-2">
-      <Show
-        when={state() !== "idle"}
-        fallback={
-          <Button
-            variant="primary"
-            disabled={props.disabled || !supported}
-            onPointerDown={(event) => event.preventDefault()}
-            onClick={() => void start()}
-          >
-            <Mic size={20} />
-            Record a message
-          </Button>
-        }
-      >
-        <div class="flex min-w-0 items-center gap-2">
+    <Show
+      when={!props.compact}
+      fallback={
+        <div class="flex items-center gap-2">
+          <Show when={state() !== "idle"}>
+            <IconButton
+              size="lg"
+              class="shadow-floating"
+              aria-label="Cancel recording"
+              disabled={state() === "stopping"}
+              onPointerDown={(event) => event.preventDefault()}
+              onClick={cancel}
+            >
+              <X size={20} />
+            </IconButton>
+            <span
+              role="status"
+              aria-label="Recording status"
+              class="rounded-lg bg-surface px-2 py-1 font-mono text-xs text-text"
+            >
+              {state() === "recording"
+                ? clock(seconds())
+                : state() === "requesting"
+                  ? "Microphone…"
+                  : "Preparing…"}
+            </span>
+          </Show>
           <IconButton
-            variant="ghost"
-            aria-label="Cancel recording"
-            disabled={state() === "stopping"}
+            size="lg"
+            class="shadow-floating"
+            variant={state() === "idle" ? "primary" : "stop"}
+            aria-label={
+              state() === "idle" ? "Record a message" : "Finish recording"
+            }
+            title={
+              !supported
+                ? "Recording unavailable. Expand controls to type."
+                : undefined
+            }
+            disabled={
+              state() === "idle"
+                ? props.disabled || !supported
+                : state() !== "recording"
+            }
             onPointerDown={(event) => event.preventDefault()}
-            onClick={cancel}
+            onClick={() => (state() === "idle" ? void start() : finish())}
           >
-            <X size={18} />
-          </IconButton>
-          <div
-            class="flex h-11 min-w-0 flex-1 items-center justify-center gap-0.5 overflow-hidden"
-            role="img"
-            aria-label="Microphone audio level"
-          >
-            <For each={Array.from({ length: BAR_COUNT }, (_, index) => index)}>
-              {(index) => (
-                <span
-                  class="w-1 shrink-0 rounded-full bg-accent"
-                  style={{ height: `${3 + (levels()[index] ?? 0) * 32}px` }}
-                />
-              )}
-            </For>
-          </div>
-          <span class="font-mono text-xs text-muted" role="timer">
-            {clock(seconds())}
-          </span>
-          <IconButton
-            variant="primary"
-            aria-label="Finish recording"
-            title="Finish recording"
-            disabled={state() !== "recording"}
-            onPointerDown={(event) => event.preventDefault()}
-            onClick={finish}
-          >
-            <ArrowUp size={18} />
+            <Show when={state() === "idle"} fallback={<Square size={18} />}>
+              <Mic size={20} />
+            </Show>
           </IconButton>
         </div>
-      </Show>
-      <Show when={state() !== "idle" || !supported}>
-        <p
-          class="m-0 text-center text-xs text-muted"
-          role="status"
-          aria-label="Recording status"
+      }
+    >
+      <div class="flex min-w-0 flex-col gap-2 px-2 py-2">
+        <Show
+          when={state() !== "idle"}
+          fallback={
+            <Button
+              variant="primary"
+              disabled={props.disabled || !supported}
+              onPointerDown={(event) => event.preventDefault()}
+              onClick={() => void start()}
+            >
+              <Mic size={20} />
+              Record a message
+            </Button>
+          }
         >
-          {state() === "requesting"
-            ? "Waiting for microphone permission…"
-            : state() === "recording"
-              ? "Recording · 5 minute limit"
-              : state() === "stopping"
-                ? "Preparing audio…"
-                : "Recording unavailable. Use Type."}
-        </p>
-      </Show>
-    </div>
+          <div class="flex min-w-0 items-center gap-2">
+            <IconButton
+              variant="ghost"
+              aria-label="Cancel recording"
+              disabled={state() === "stopping"}
+              onPointerDown={(event) => event.preventDefault()}
+              onClick={cancel}
+            >
+              <X size={18} />
+            </IconButton>
+            <div
+              class="flex h-11 min-w-0 flex-1 items-center justify-center gap-0.5 overflow-hidden"
+              role="img"
+              aria-label="Microphone audio level"
+            >
+              <For
+                each={Array.from({ length: BAR_COUNT }, (_, index) => index)}
+              >
+                {(index) => (
+                  <span
+                    class="w-1 shrink-0 rounded-full bg-accent"
+                    style={{ height: `${3 + (levels()[index] ?? 0) * 32}px` }}
+                  />
+                )}
+              </For>
+            </div>
+            <span class="font-mono text-xs text-muted" role="timer">
+              {clock(seconds())}
+            </span>
+            <IconButton
+              variant="primary"
+              aria-label="Finish recording"
+              title="Finish recording"
+              disabled={state() !== "recording"}
+              onPointerDown={(event) => event.preventDefault()}
+              onClick={finish}
+            >
+              <ArrowUp size={18} />
+            </IconButton>
+          </div>
+        </Show>
+        <Show when={state() !== "idle" || !supported}>
+          <p
+            class="m-0 text-center text-xs text-muted"
+            role="status"
+            aria-label="Recording status"
+          >
+            {state() === "requesting"
+              ? "Waiting for microphone permission…"
+              : state() === "recording"
+                ? "Recording · 5 minute limit"
+                : state() === "stopping"
+                  ? "Preparing audio…"
+                  : "Recording unavailable. Use Type."}
+          </p>
+        </Show>
+      </div>
+    </Show>
   );
 }
 

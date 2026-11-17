@@ -77,6 +77,9 @@ for (const view of ["new chat", "existing chat"]) {
       }
     });
     await win3.click();
+    await app
+      .getByRole("button", { name: "Expand controls", exact: true })
+      .click();
     await expect(win3).toHaveAttribute("aria-pressed", "true");
     await expect(dev2).toHaveAttribute("aria-pressed", "false");
     await expect.poll(() => new URL(app.url()).hash).toBe(`#${latest.id}`);
@@ -98,8 +101,14 @@ for (const view of ["new chat", "existing chat"]) {
     ).toBe("win3");
 
     await app.reload();
+    await app
+      .getByRole("button", { name: "Expand controls", exact: true })
+      .click();
     await expect(win3).toHaveAttribute("aria-pressed", "true");
     await dev2.click();
+    await app
+      .getByRole("button", { name: "Expand controls", exact: true })
+      .click();
     await expect(dev2).toHaveAttribute("aria-pressed", "true");
     await expect(win3).toHaveAttribute("aria-pressed", "false");
   });
@@ -150,6 +159,9 @@ test("latest landing preserves explicit chat links and does not follow newer ses
   url.hash = older.id;
   await app.goto("about:blank");
   await app.goto(url.href);
+  await app
+    .getByRole("button", { name: "Expand controls", exact: true })
+    .click();
   await expect(app.locator(".session-title-btn")).toHaveText(
     "Explicit destination",
   );

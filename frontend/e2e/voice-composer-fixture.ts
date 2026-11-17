@@ -13,6 +13,23 @@ export function mount() {
   const [sessionID, setSessionID] = createSignal<string | undefined>("first");
   const [directory, setDirectory] = createSignal("/fixture/original-project");
   const [streaming, setStreaming] = createSignal(false);
+  const [compact, setCompact] = createSignal(false);
+  const [readingEnabled, setReadingEnabled] = createSignal(false);
+  const readingControls = {
+    get reading() {
+      return compact();
+    },
+    expand: () => setCompact(false),
+    collapse: () => setCompact(true),
+  };
+  document.addEventListener("reading-mode", () => {
+    setReadingEnabled(true);
+    setCompact(true);
+  });
+  document.addEventListener("composing-mode", () => {
+    setReadingEnabled(true);
+    setCompact(false);
+  });
   document.addEventListener("start-streaming", () => setStreaming(true));
   document.addEventListener("stop-streaming", () => setStreaming(false));
   document.addEventListener("switch-session", () =>
@@ -26,6 +43,10 @@ export function mount() {
   const dispose = render(
     () =>
       MessageComposer({
+        get readingControls() {
+          return readingEnabled() ? readingControls : undefined;
+        },
+        onStop: () => setStreaming(false),
         get sessionID() {
           return sessionID();
         },

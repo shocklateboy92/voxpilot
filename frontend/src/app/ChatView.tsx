@@ -42,6 +42,19 @@ import {
 import { store } from "./store";
 
 export function ChatView() {
+  const [composing, setComposing] = createSignal(false);
+  const reading = () => !isNewSessionPage() && !composing();
+  const readingControls = {
+    get reading() {
+      return reading();
+    },
+    expand: () => setComposing(true),
+    collapse: () => {
+      const focused = document.activeElement;
+      if (focused instanceof HTMLElement) focused.blur();
+      setComposing(false);
+    },
+  };
   const keyboard = createComposerKeyboard();
   const drop = createAttachmentDrop(() => composerDraft(activeSessionId()));
   const context = createContextUsage();
@@ -68,7 +81,10 @@ export function ChatView() {
   return (
     <main
       class="app relative flex size-full flex-col overflow-hidden bg-surface px-3 pb-[calc(var(--bottom-nav-height)+var(--safe-bottom))] text-center"
-      classList={{ "composer-keyboard-active": keyboard.active() }}
+      classList={{
+        "composer-keyboard-active": keyboard.active(),
+        "reading-mode": reading(),
+      }}
       onFocusIn={keyboard.onFocusIn}
       onFocusOut={keyboard.onFocusOut}
       onDragEnter={drop.onDragEnter}
@@ -85,8 +101,17 @@ export function ChatView() {
           Drop images to attach
         </div>
       </Show>
-      <Show when={!isNewSessionPage()} fallback={<NewSessionPage />}>
+      <Show
+        when={!isNewSessionPage()}
+        fallback={
+          <NewSessionPage
+            onCompose={readingControls.expand}
+            onSend={readingControls.collapse}
+          />
+        }
+      >
         <ContentShell
+          readingControls={readingControls}
           statusBarLeft={
             <Show when={store.gitBranch} fallback={<span class="h-4 w-px" />}>
               {(branch) => (
@@ -212,7 +237,9 @@ export function ChatView() {
           <ChatMain />
         </ContentShell>
       </Show>
-      <BottomNav />
+      <Show when={!reading()}>
+        <BottomNav />
+      </Show>
       <ReviewOverlay />
       <MarkdownViewer />
     </main>

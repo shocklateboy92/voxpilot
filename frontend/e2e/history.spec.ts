@@ -265,6 +265,9 @@ test("keyboard sending, multiline input, and thinking selections reach the nativ
     "build",
   );
   await app.reload();
+  await app
+    .getByRole("button", { name: "Expand controls", exact: true })
+    .click();
   await expect(
     app.getByRole("combobox", { name: "Model", exact: true }),
   ).toHaveValue(modelKey);

@@ -324,6 +324,9 @@ test("drafts are isolated across in-app session switches and newer typing surviv
   await expect(
     app.getByRole("button", { name: "Preview red.png", exact: true }),
   ).toHaveCount(0);
+  await app
+    .getByRole("button", { name: "Expand controls", exact: true })
+    .click();
   await expect(
     app.getByRole("textbox", { name: "Message", exact: true }),
   ).toHaveValue("My next message");

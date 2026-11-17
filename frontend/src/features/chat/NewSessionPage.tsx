@@ -12,6 +12,7 @@
 import Plus from "lucide-solid/icons/plus";
 import { createMemo, createResource, createSignal, For, Show } from "solid-js";
 import {
+  activeSessionId,
   createSessionAndSend,
   navigateNext,
   rootSessions,
@@ -35,7 +36,9 @@ import { isSelectableProject } from "./project-selection";
 
 const ALWAYS_FALSE = () => false;
 
-export function NewSessionPage() {
+export function NewSessionPage(
+  props: { onSend?: () => void; onCompose?: () => void } = {},
+) {
   const [sending, setSending] = createSignal(false);
   const [creatingWorktree, setCreatingWorktree] = createSignal(false);
   const [worktreeName, setWorktreeName] = createSignal("");
@@ -84,6 +87,7 @@ export function NewSessionPage() {
     // Use the selected worktree directory, falling back to the project root
     const directory = selectedWorktreeDir() ?? selectedProjectDir();
     if (!directory) return false;
+    props.onCompose?.();
     const agent = effectiveAgent();
     const model = selectedModel();
     const variant = selectedVariant();
@@ -91,14 +95,19 @@ export function NewSessionPage() {
     setSending(true);
     try {
       const content = await preparePrompt(draft.text, draft.files);
+      let createdSessionID: string | undefined;
       await createSessionAndSend(
         content,
         agent,
         directory,
         model,
         variant,
-        moveNewComposerDraft,
+        (sessionID) => {
+          createdSessionID = sessionID;
+          moveNewComposerDraft(sessionID);
+        },
       );
+      if (activeSessionId() === createdSessionID) props.onSend?.();
       return true;
     } finally {
       setSending(false);

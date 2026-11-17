@@ -59,6 +59,82 @@ test("normal Finish transcribes and sends without preview or collection controls
   ).not.toContain(token);
 });
 
+for (const transition of ["streaming", "permission", "expanded", "cancel"]) {
+  test(`dictation survives agent resumption (${transition})`, async ({
+    page,
+  }) => {
+    await mount(page);
+    await trackMicrophone(page, transition === "permission");
+    let requests = 0;
+    await page.route(`${speechURL}/v1/transcriptions`, (route) => {
+      requests++;
+      return route.fulfill({
+        json: result(metadata(route.request()), "Consider this task result."),
+      });
+    });
+    await page.evaluate(() =>
+      document.dispatchEvent(new Event("reading-mode")),
+    );
+    await page
+      .getByRole("button", { name: "Record a message", exact: true })
+      .click();
+    const finish = page.getByRole("button", {
+      name: "Finish recording",
+      exact: true,
+    });
+    if (transition === "permission") {
+      await expect(page.getByLabel("Sent message")).toHaveAttribute(
+        "data-permission",
+        "waiting",
+      );
+    } else {
+      await expect(finish).toBeEnabled();
+    }
+    await page.evaluate(() =>
+      document.dispatchEvent(new Event("start-streaming")),
+    );
+    await expect(
+      page.getByRole("button", { name: "Stop generating", exact: true }),
+    ).toBeVisible();
+    if (transition === "permission") {
+      await page.evaluate(() =>
+        document.dispatchEvent(new Event("release-permission")),
+      );
+    }
+    if (transition === "expanded") {
+      await page.evaluate(() =>
+        document.dispatchEvent(new Event("composing-mode")),
+      );
+    }
+    await expect(finish).toBeEnabled();
+    const output = page.getByLabel("Sent message");
+    await expect(output).not.toHaveAttribute("data-track", "ended");
+    if (transition === "cancel") {
+      await page
+        .getByRole("button", { name: "Cancel recording", exact: true })
+        .click();
+      await expect(output).toHaveAttribute("data-track", "ended");
+      await expect(finish).toHaveCount(0);
+      await expect(output).toBeEmpty();
+      expect(requests).toBe(0);
+      return;
+    }
+    if (transition === "expanded") {
+      await expect(page.getByRole("timer")).not.toHaveText("0:00");
+    } else {
+      await expect(page.getByLabel("Recording status")).not.toHaveText("0:00");
+    }
+    await finish.click();
+    await expect(output).toHaveText("Consider this task result.");
+    await expect(output).toHaveAttribute("data-sends", "1");
+    await expect(output).toHaveAttribute("data-track", "ended");
+    await expect(
+      page.getByRole("button", { name: "Stop generating", exact: true }),
+    ).toBeVisible();
+    expect(requests).toBe(1);
+  });
+}
+
 test("recording recovery creates no audio preview URLs and preserves image previews", async ({
   page,
 }) => {

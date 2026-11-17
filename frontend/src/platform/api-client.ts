@@ -184,7 +184,7 @@ export async function sendPromptAsync(
   if (model !== undefined) {
     await client.session.switchModel({ sessionID, model });
   }
-  await client.session.prompt({ sessionID, ...content });
+  await client.session.prompt({ sessionID, ...content, delivery: "steer" });
 }
 
 export async function abortSession(sessionID: string): Promise<void> {

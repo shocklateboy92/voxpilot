@@ -63,7 +63,11 @@ export async function history(
   return client.session.get({ sessionID: imported.id });
 }
 
-export async function openSession(page: Page, sessionID: string) {
+export async function openSession(
+  page: Page,
+  sessionID: string,
+  options: { reading?: boolean } = {},
+) {
   // A hash-only navigation can validate against the old page's session list and
   // redirect before session.created arrives. Start a fresh document directly,
   // retaining the context's origin-scoped storage but not the old router state.
@@ -76,12 +80,26 @@ export async function openSession(page: Page, sessionID: string) {
   await page.goto(`${origin}/#${sessionID}`, { waitUntil: "domcontentloaded" });
   await expect.poll(() => new URL(page.url()).hash).toBe(`#${sessionID}`);
   await expect(
-    page.getByRole("textbox", { name: "Message", exact: true }),
+    page.getByRole("button", { name: "Expand controls", exact: true }),
+  ).toBeVisible();
+  if (!options.reading)
+    await page
+      .getByRole("button", { name: "Expand controls", exact: true })
+      .click();
+  await expect(
+    options.reading
+      ? page.getByRole("button", { name: "Expand controls", exact: true })
+      : page.getByRole("textbox", { name: "Message", exact: true }),
   ).toBeVisible();
   await eventsReady;
 }
 
 export async function selectSession(page: Page, title: string) {
+  const expand = page.getByRole("button", {
+    name: "Expand controls",
+    exact: true,
+  });
+  if (await expand.isVisible()) await expand.click();
   await page.locator(".bottom-nav .session-title-btn").click();
   await page
     .getByRole("dialog", { name: "Sessions", exact: true })
@@ -90,6 +108,7 @@ export async function selectSession(page: Page, title: string) {
     .getByRole("button")
     .first()
     .click();
+  if (await expand.isVisible()) await expand.click();
 }
 
 /** Dispatch through Chromium's input subsystem, not DOM event mocks. */
