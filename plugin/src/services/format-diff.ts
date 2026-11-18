@@ -250,48 +250,25 @@ async function formatWithRustfmt(
   ]);
 
   const exitCode = await proc.exited;
-  // rustfmt can emit a complete formatted file but exit 1 because an opaque
-  // macro retained trailing whitespace. Keep that display output, without
-  // trimming input/output (which could change multiline string contents).
-  const whitespaceOnlyFailure =
-    exitCode === 1 &&
-    rawStdout.trim() !== "" &&
-    isRustfmtWhitespaceOnlyFailure(rawStderr);
-  if (exitCode !== 0 && !whitespaceOnlyFailure) {
+  if (!canUseRustfmtOutput(proc, rawStdout)) {
     throw new Error(`rustfmt failed (exit ${exitCode}): ${rawStderr}`);
   }
 
   return rawStdout;
 }
 
-export function isRustfmtWhitespaceOnlyFailure(stderr: string): boolean {
-  let errors = 0;
-  let reportedErrors: number | undefined;
-  for (const line of stderr.split(/\r?\n/)) {
-    if (line === "error[internal]: left behind trailing whitespace") {
-      errors++;
-      continue;
-    }
-    const summary = line.match(
-      /^warning: rustfmt has failed to format\. See previous (\d+) errors\.$/,
-    );
-    if (summary) {
-      // Multiple summaries or any unrecognized diagnostics must fail closed.
-      if (reportedErrors !== undefined) return false;
-      reportedErrors = Number(summary[1]);
-      continue;
-    }
-    if (
-      line.trim() === "" ||
-      /^\s*--> <stdin>:\d+:\d+(?::\d+)?$/.test(line) ||
-      /^\s*(?:\d+\s+)?\|/.test(line) ||
-      /^\^+$/.test(line)
-    ) {
-      continue;
-    }
-    return false;
-  }
-  return errors > 0 && errors === reportedErrors;
+export function canUseRustfmtOutput(
+  result: Pick<Bun.Subprocess, "exitCode" | "signalCode">,
+  stdout: string,
+): boolean {
+  // Display-only, best-effort policy: exit 1 can accompany usable output, e.g.
+  // when opaque macros retain whitespace. This is not error classification.
+  // Inspect trimmed text only for emptiness; never trim actual string contents.
+  return (
+    result.signalCode === null &&
+    (result.exitCode === 0 || result.exitCode === 1) &&
+    stdout.trim() !== ""
+  );
 }
 
 // ---------------------------------------------------------------------------

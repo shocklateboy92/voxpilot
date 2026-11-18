@@ -150,12 +150,17 @@ formatter fallback behavior preserves raw code when a formatter cannot run.
   handle calls, chains and signatures; no nightly-only options are required.
   Imports and modules are not reordered. Ambient rustfmt configuration is ignored
   so both historical and current snapshots use the same display profile.
-  Nonempty formatted output is retained when rustfmt exits 1 with only its known
-  trailing-whitespace diagnostics (opaque macros can trigger these). Other
-  failures still fall back to the original snapshot; string contents are never
-  trimmed to suppress whitespace errors.
+  Reviews use best-effort output: exit 0 or 1 is accepted only with nonblank
+  stdout (opaque macros retaining whitespace can trigger exit 1). Empty input
+  bypasses rustfmt; empty or whitespace-only output never replaces a nonempty
+  snapshot, even on exit 0. Stderr is not parsed. This may also accept output
+  from other internal formatting errors; it
+  is a display policy, not proof of formatting correctness. Other exit codes,
+  signal termination, launch failures and timeouts fall back to the original
+  snapshot. String contents are never trimmed to suppress whitespace errors.
 - Rust snapshots are parsed as Rust 2024 without Cargo manifest/edition lookup.
-  Edition-incompatible or malformed code falls back to the original text.
+  Edition-incompatible or malformed code normally produces no output and falls
+  back to the original text.
   No filename is passed to rustfmt, so external module files are not followed or
   modified. Rust comments (including rustdoc) are left intact: the generic reflow
   pass does not understand Rust raw strings or nested block comments.

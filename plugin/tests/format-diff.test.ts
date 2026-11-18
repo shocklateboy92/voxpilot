@@ -1,55 +1,42 @@
 import { describe, expect, it } from "bun:test";
 import {
+  canUseRustfmtOutput,
   formatAndDiff,
-  isRustfmtWhitespaceOnlyFailure,
 } from "../src/services/format-diff";
 
-describe("isRustfmtWhitespaceOnlyFailure", () => {
-  const diagnostic = [
-    "error[internal]: left behind trailing whitespace",
-    " --> <stdin>:508:508:67",
-    "  |",
-    "508 |   info!(client_id = client_id, ",
-    "  |                                  ^",
-    "  |",
-    "",
-  ].join("\n");
-  const summary = (count: number) =>
-    `warning: rustfmt has failed to format. See previous ${count} errors.\n`;
+describe("canUseRustfmtOutput", () => {
+  const output = "fn main() {\n  let value = 42;\n}\n";
 
-  it("recognizes one or multiple whitespace-only diagnostics", () => {
-    expect(isRustfmtWhitespaceOnlyFailure(diagnostic + summary(1))).toBe(true);
-    expect(
-      isRustfmtWhitespaceOnlyFailure(diagnostic + diagnostic + summary(2)),
-    ).toBe(true);
-    expect(
-      isRustfmtWhitespaceOnlyFailure(
-        (diagnostic + summary(1)).replaceAll("\n", "\r\n"),
-      ),
-    ).toBe(true);
-    // At very narrow widths rustfmt sometimes renders the marker without a
-    // gutter, below an elided whitespace-only source line.
-    expect(
-      isRustfmtWhitespaceOnlyFailure(
-        diagnostic.replace(/^ {2}\| +\^$/m, "^^^^^^^") + summary(1),
-      ),
-    ).toBe(true);
+  it("accepts successful nonblank output", () => {
+    const result = { exitCode: 0, signalCode: null };
+    expect(canUseRustfmtOutput(result, output)).toBe(true);
   });
 
-  it("rejects other failures, unknown messages and incomplete diagnostics", () => {
-    for (const stderr of [
-      "",
-      summary(1),
-      diagnostic,
-      diagnostic + summary(2),
-      diagnostic + summary(1) + summary(1),
-      "error: this file contains an unclosed delimiter\n",
-      `${diagnostic}error: unexpected token\n${summary(2)}`,
-      `${diagnostic}error[internal]: line exceeded maximum width\n${summary(2)}`,
-      `${diagnostic}${summary(1)}thread 'main' panicked at src/lib.rs:1\n`,
-      `${diagnostic}${summary(1)}warning: unrecognized configuration option\n`,
-    ]) {
-      expect(isRustfmtWhitespaceOnlyFailure(stderr)).toBe(false);
+  it("accepts nonblank output on exit 1 without interpreting diagnostics", () => {
+    const result = { exitCode: 1, signalCode: null };
+    expect(canUseRustfmtOutput(result, output)).toBe(true);
+  });
+
+  it("rejects blank output even when rustfmt reports success", () => {
+    for (const exitCode of [0, 1]) {
+      for (const stdout of ["", " ", "\n", " \t\r\n"]) {
+        expect(
+          canUseRustfmtOutput({ exitCode, signalCode: null }, stdout),
+        ).toBe(false);
+      }
+    }
+  });
+
+  it("rejects crashes and other exit codes even with partial output", () => {
+    for (const exitCode of [null, 2, 101, 137, 143]) {
+      expect(canUseRustfmtOutput({ exitCode, signalCode: null }, output)).toBe(
+        false,
+      );
+    }
+    for (const exitCode of [0, 1, null]) {
+      expect(
+        canUseRustfmtOutput({ exitCode, signalCode: "SIGTERM" }, output),
+      ).toBe(false);
     }
   });
 });
@@ -195,6 +182,19 @@ describe("formatAndDiff", () => {
     expect(result.formattedAfter).toBe("fn answer() -> u32 {\n  42\n}\n");
     expect(result.hunks.length).toBeGreaterThan(0);
     expect(result.html).toContain("fulltext-file");
+  });
+
+  it("preserves empty Rust input and falls back when rustfmt outputs only whitespace", async () => {
+    const whitespace = " \t\n  \n";
+    const result = await formatAndDiff({
+      before: "",
+      after: whitespace,
+      filePath: "test.rs",
+      printWidth: 40,
+    });
+
+    expect(result.formattedBefore).toBe("");
+    expect(result.formattedAfter).toBe(whitespace);
   });
 
   it("uses compact block indentation for Rust at mobile widths", async () => {
