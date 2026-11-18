@@ -224,6 +224,8 @@ async function formatWithRustfmt(
       "rustfmt",
       "--emit",
       "stdout",
+      "--color",
+      "never",
       "--edition",
       "2024",
       // Review snapshots are standalone files, not a Cargo workspace. Ignore
@@ -248,11 +250,48 @@ async function formatWithRustfmt(
   ]);
 
   const exitCode = await proc.exited;
-  if (exitCode !== 0) {
+  // rustfmt can emit a complete formatted file but exit 1 because an opaque
+  // macro retained trailing whitespace. Keep that display output, without
+  // trimming input/output (which could change multiline string contents).
+  const whitespaceOnlyFailure =
+    exitCode === 1 &&
+    rawStdout.trim() !== "" &&
+    isRustfmtWhitespaceOnlyFailure(rawStderr);
+  if (exitCode !== 0 && !whitespaceOnlyFailure) {
     throw new Error(`rustfmt failed (exit ${exitCode}): ${rawStderr}`);
   }
 
   return rawStdout;
+}
+
+export function isRustfmtWhitespaceOnlyFailure(stderr: string): boolean {
+  let errors = 0;
+  let reportedErrors: number | undefined;
+  for (const line of stderr.split(/\r?\n/)) {
+    if (line === "error[internal]: left behind trailing whitespace") {
+      errors++;
+      continue;
+    }
+    const summary = line.match(
+      /^warning: rustfmt has failed to format\. See previous (\d+) errors\.$/,
+    );
+    if (summary) {
+      // Multiple summaries or any unrecognized diagnostics must fail closed.
+      if (reportedErrors !== undefined) return false;
+      reportedErrors = Number(summary[1]);
+      continue;
+    }
+    if (
+      line.trim() === "" ||
+      /^\s*--> <stdin>:\d+:\d+(?::\d+)?$/.test(line) ||
+      /^\s*(?:\d+\s+)?\|/.test(line) ||
+      /^\^+$/.test(line)
+    ) {
+      continue;
+    }
+    return false;
+  }
+  return errors > 0 && errors === reportedErrors;
 }
 
 // ---------------------------------------------------------------------------

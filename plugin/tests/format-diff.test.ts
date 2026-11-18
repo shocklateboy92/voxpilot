@@ -1,5 +1,58 @@
 import { describe, expect, it } from "bun:test";
-import { formatAndDiff } from "../src/services/format-diff";
+import {
+  formatAndDiff,
+  isRustfmtWhitespaceOnlyFailure,
+} from "../src/services/format-diff";
+
+describe("isRustfmtWhitespaceOnlyFailure", () => {
+  const diagnostic = [
+    "error[internal]: left behind trailing whitespace",
+    " --> <stdin>:508:508:67",
+    "  |",
+    "508 |   info!(client_id = client_id, ",
+    "  |                                  ^",
+    "  |",
+    "",
+  ].join("\n");
+  const summary = (count: number) =>
+    `warning: rustfmt has failed to format. See previous ${count} errors.\n`;
+
+  it("recognizes one or multiple whitespace-only diagnostics", () => {
+    expect(isRustfmtWhitespaceOnlyFailure(diagnostic + summary(1))).toBe(true);
+    expect(
+      isRustfmtWhitespaceOnlyFailure(diagnostic + diagnostic + summary(2)),
+    ).toBe(true);
+    expect(
+      isRustfmtWhitespaceOnlyFailure(
+        (diagnostic + summary(1)).replaceAll("\n", "\r\n"),
+      ),
+    ).toBe(true);
+    // At very narrow widths rustfmt sometimes renders the marker without a
+    // gutter, below an elided whitespace-only source line.
+    expect(
+      isRustfmtWhitespaceOnlyFailure(
+        diagnostic.replace(/^ {2}\| +\^$/m, "^^^^^^^") + summary(1),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects other failures, unknown messages and incomplete diagnostics", () => {
+    for (const stderr of [
+      "",
+      summary(1),
+      diagnostic,
+      diagnostic + summary(2),
+      diagnostic + summary(1) + summary(1),
+      "error: this file contains an unclosed delimiter\n",
+      `${diagnostic}error: unexpected token\n${summary(2)}`,
+      `${diagnostic}error[internal]: line exceeded maximum width\n${summary(2)}`,
+      `${diagnostic}${summary(1)}thread 'main' panicked at src/lib.rs:1\n`,
+      `${diagnostic}${summary(1)}warning: unrecognized configuration option\n`,
+    ]) {
+      expect(isRustfmtWhitespaceOnlyFailure(stderr)).toBe(false);
+    }
+  });
+});
 
 describe("formatAndDiff", () => {
   it("returns formatted diff for TypeScript file", async () => {
@@ -233,6 +286,63 @@ describe("formatAndDiff", () => {
     expect(result.formattedBefore).toBe("fn answer() -> u32 {\n  42\n}\n");
     expect(result.formattedAfter).toBe(badRust);
     expect(result.hunks.length).toBeGreaterThan(0);
+  });
+
+  it("keeps Rust formatting when opaque macros retain trailing whitespace", async () => {
+    // Like the real multiplexer snapshot, tracing's custom macro syntax cannot
+    // be reformatted. rustfmt 1.9 emits the file but reports an internal
+    // trailing-whitespace error. Raw-string whitespace must stay untouched.
+    const code = [
+      "fn main(){",
+      'let text = r#"',
+      "preserve these trailing spaces   ",
+      '"#;',
+      "info!(client_id = client_id, unique_name = %unique_name, ",
+      ' "registered client");',
+      "let answer=41;",
+      "}",
+      "",
+    ].join("\n");
+    for (const printWidth of [32, 40, 60]) {
+      const result = await formatAndDiff({
+        before: code,
+        after: code.replace("answer=41", "answer=42"),
+        filePath: "multiplexer.rs",
+        printWidth,
+      });
+
+      expect(result.formattedBefore).toStartWith("fn main() {\n  let text");
+      expect(result.formattedBefore).toContain("\n  let answer = 41;\n");
+      expect(result.formattedAfter).toContain("\n  let answer = 42;\n");
+      expect(result.formattedAfter).toContain(
+        'r#"\npreserve these trailing spaces   \n"#',
+      );
+      expect(result.formattedAfter).toContain(
+        "info!(client_id = client_id, unique_name = %unique_name, \n",
+      );
+      expect(result.hunks.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("still rejects malformed Rust containing macros with trailing whitespace", async () => {
+    const code = [
+      "fn main(){",
+      "info!(client_id = client_id, unique_name = %unique_name, ",
+      ' "registered client");',
+      "}",
+      "fn broken(",
+      "",
+    ].join("\n");
+    const result = await formatAndDiff({
+      before: code,
+      after: code,
+      filePath: "multiplexer.rs",
+      printWidth: 40,
+    });
+
+    expect(result.formattedBefore).toBe(code);
+    expect(result.formattedAfter).toBe(code);
+    expect(result.hunks).toHaveLength(0);
   });
 
   it("ignores Rust whitespace-only changes after formatting", async () => {
