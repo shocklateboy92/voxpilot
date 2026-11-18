@@ -18,7 +18,8 @@ schemas live in `plugin/`; the frontend imports their inferred types.
 ## Development
 
 Prerequisites: Bun, Node.js 22+, just, Git, native OpenCode 2.0.22, Ruff and
-clang-format. Prettier is bundled. Provider configuration belongs to OpenCode.
+clang-format, plus stable rustfmt with Rust 2024 support for Rust reviews.
+Prettier is bundled. Provider configuration belongs to OpenCode.
 
 ```sh
 cp .env.example .env

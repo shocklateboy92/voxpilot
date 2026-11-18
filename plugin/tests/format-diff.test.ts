@@ -130,6 +130,122 @@ describe("formatAndDiff", () => {
     expect(result.hunks.length).toBe(0);
   });
 
+  it("formats Rust snapshots with rustfmt before diffing", async () => {
+    const result = await formatAndDiff({
+      before: "fn answer()->u32{41}\n",
+      after: "fn answer()->u32{42}\n",
+      filePath: "src/lib.rs",
+      printWidth: 40,
+    });
+
+    expect(result.formattedBefore).toBe("fn answer() -> u32 {\n  41\n}\n");
+    expect(result.formattedAfter).toBe("fn answer() -> u32 {\n  42\n}\n");
+    expect(result.hunks.length).toBeGreaterThan(0);
+    expect(result.html).toContain("fulltext-file");
+  });
+
+  it("uses compact block indentation for Rust at mobile widths", async () => {
+    const code =
+      "fn main(){some_long_function_name(first_argument, second_argument, third_argument);}\n";
+    for (const printWidth of [32, 40, 60]) {
+      const result = await formatAndDiff({
+        before: "",
+        after: code,
+        filePath: "test.rs",
+        printWidth,
+      });
+
+      expect(result.formattedBefore).toBe("");
+      expect(result.formattedAfter).toContain("\n    first_argument,");
+      for (const line of result.formattedAfter.split("\n")) {
+        expect(line.length).toBeLessThanOrEqual(printWidth);
+      }
+    }
+
+    const wide = await formatAndDiff({
+      before: "",
+      after: code,
+      filePath: "test.rs",
+      printWidth: 120,
+    });
+    expect(wide.formattedAfter).toContain(
+      "some_long_function_name(first_argument, second_argument, third_argument);",
+    );
+  });
+
+  it("parses modern Rust and does not resolve external modules", async () => {
+    const result = await formatAndDiff({
+      before: "",
+      after:
+        "mod nonexistent_snapshot_module;\nasync fn load(){let value=fetch().await;}\n",
+      filePath: "missing/snapshot.RS",
+      printWidth: 40,
+    });
+
+    expect(result.formattedAfter).toBe(
+      "mod nonexistent_snapshot_module;\nasync fn load() {\n  let value = fetch().await;\n}\n",
+    );
+  });
+
+  it("does not reorder Rust imports or module declarations", async () => {
+    const code = "use z::Z;\nuse a::A;\nmod zebra;\nmod alpha;\n";
+    const result = await formatAndDiff({
+      before: code,
+      after: code,
+      filePath: "test.rs",
+      printWidth: 40,
+    });
+
+    expect(result.formattedAfter).toBe(code);
+    expect(result.hunks).toHaveLength(0);
+  });
+
+  it("preserves Rust doc comments and raw string contents", async () => {
+    const code = [
+      "/// Documentation that should remain unchanged even at a narrow width.",
+      "fn main() {",
+      '  let text = r#"',
+      "// This is string data, not a comment that may be reflowed at narrow widths.",
+      '"#;',
+      "}",
+      "",
+    ].join("\n");
+    const result = await formatAndDiff({
+      before: code,
+      after: code,
+      filePath: "test.rs",
+      printWidth: 32,
+    });
+
+    expect(result.formattedAfter).toBe(code);
+    expect(result.hunks).toHaveLength(0);
+  });
+
+  it("falls back to the original Rust when rustfmt cannot parse it", async () => {
+    const badRust = "fn broken(\n";
+    const result = await formatAndDiff({
+      before: "fn answer()->u32{42}\n",
+      after: badRust,
+      filePath: "test.rs",
+      printWidth: 40,
+    });
+
+    expect(result.formattedBefore).toBe("fn answer() -> u32 {\n  42\n}\n");
+    expect(result.formattedAfter).toBe(badRust);
+    expect(result.hunks.length).toBeGreaterThan(0);
+  });
+
+  it("ignores Rust whitespace-only changes after formatting", async () => {
+    const result = await formatAndDiff({
+      before: "fn answer()->u32{42}\n",
+      after: "fn answer() -> u32 {\n    42\n}\n",
+      filePath: "test.rs",
+      printWidth: 40,
+    });
+
+    expect(result.hunks).toHaveLength(0);
+  });
+
   it("formats C++ files with clang-format", async () => {
     const result = await formatAndDiff({
       before: "int x = 1;\n",
@@ -198,6 +314,37 @@ describe("formatAndDiff", () => {
     expect(result.formattedBefore).toBeDefined();
     expect(result.formattedAfter).toBeDefined();
     expect(result.html).toContain("fulltext-file");
+  });
+
+  it("puts wrapped C++ parameters on separate lines with two-space indentation", async () => {
+    const result = await formatAndDiff({
+      before: "",
+      after:
+        "void doSomething(int alpha, int beta, int gamma, int delta, int epsilon) { return; }\n",
+      filePath: "test.cpp",
+      printWidth: 40,
+    });
+
+    expect(result.formattedAfter).toContain(
+      "\n  int alpha,\n  int beta,\n  int gamma,\n  int delta,\n  int epsilon\n",
+    );
+    for (const line of result.formattedAfter.split("\n")) {
+      expect(line.length).toBeLessThanOrEqual(40);
+    }
+  });
+
+  it("preserves C++ include order and long string literals", async () => {
+    const literal =
+      '"This string must not be split just to fit the phone screen."';
+    const result = await formatAndDiff({
+      before: "",
+      after: `#include "z.h"\n#include "a.h"\nconst char *text = ${literal};\n`,
+      filePath: "test.cpp",
+      printWidth: 32,
+    });
+
+    expect(result.formattedAfter).toStartWith('#include "z.h"\n#include "a.h"');
+    expect(result.formattedAfter).toContain(literal);
   });
 
   it("falls back gracefully when clang-format encounters a syntax error", async () => {

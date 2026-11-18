@@ -74,6 +74,7 @@ export async function formatAndDiff(
 type FormatterKind =
   | { type: "prettier"; parser: string }
   | { type: "ruff" }
+  | { type: "rustfmt" }
   | { type: "clang-format" }
   | { type: "passthrough" };
 
@@ -116,6 +117,10 @@ function detectFormatter(filePath: string): FormatterKind {
     return { type: "ruff" };
   }
 
+  if (ext === "rs") {
+    return { type: "rustfmt" };
+  }
+
   if (clangFormatExtensions.has(ext)) {
     return { type: "clang-format" };
   }
@@ -143,6 +148,8 @@ async function tryFormat(
         });
       case "ruff":
         return await formatWithRuff(content, printWidth, filePath, signal);
+      case "rustfmt":
+        return await formatWithRustfmt(content, printWidth, signal);
       case "clang-format":
         return await formatWithClangFormat(
           content,
@@ -202,6 +209,53 @@ async function formatWithRuff(
 }
 
 // ---------------------------------------------------------------------------
+// rustfmt formatter (Rust)
+// ---------------------------------------------------------------------------
+
+async function formatWithRustfmt(
+  content: string,
+  printWidth: number,
+  signal?: AbortSignal,
+): Promise<string> {
+  if (content === "") return content;
+
+  const proc = Bun.spawn(
+    [
+      "rustfmt",
+      "--emit",
+      "stdout",
+      "--edition",
+      "2024",
+      // Review snapshots are standalone files, not a Cargo workspace. Ignore
+      // ambient config and never pass a filename (which could follow modules).
+      "--config-path",
+      "/dev/null",
+      "--config",
+      `max_width=${printWidth},tab_spaces=2,hard_tabs=false,reorder_imports=false,reorder_modules=false`,
+    ],
+    {
+      stdin: new Blob([content]),
+      signal,
+      timeout: 30_000,
+      stdout: "pipe",
+      stderr: "pipe",
+    },
+  );
+
+  const [rawStdout, rawStderr] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ]);
+
+  const exitCode = await proc.exited;
+  if (exitCode !== 0) {
+    throw new Error(`rustfmt failed (exit ${exitCode}): ${rawStderr}`);
+  }
+
+  return rawStdout;
+}
+
+// ---------------------------------------------------------------------------
 // clang-format formatter (C/C++)
 // ---------------------------------------------------------------------------
 
@@ -211,7 +265,23 @@ async function formatWithClangFormat(
   filePath: string,
   signal?: AbortSignal,
 ): Promise<string> {
-  const style = `{ColumnLimit: ${printWidth}, AlignAfterOpenBracket: BlockIndent}`;
+  // A display profile, not the repository's source style: spend narrow screens
+  // on code rather than alignment, and keep wrapped lists easy to scan.
+  const style = JSON.stringify({
+    BasedOnStyle: "LLVM",
+    ColumnLimit: printWidth,
+    IndentWidth: 2,
+    ContinuationIndentWidth: 2,
+    UseTab: "Never",
+    AlignAfterOpenBracket: "BlockIndent",
+    BinPackArguments: false,
+    BinPackParameters: false,
+    AlignOperands: "DontAlign",
+    AlignEscapedNewlines: "DontAlign",
+    BreakStringLiterals: false,
+    ReflowComments: false,
+    SortIncludes: false,
+  });
   const proc = Bun.spawn(
     ["clang-format", `--style=${style}`, `--assume-filename=${filePath}`],
     {

@@ -131,9 +131,30 @@ merge-base → HEAD. The agent additionally accepts Git refs and INDEX compariso
 Renames are represented as deletion/addition. Binary comparisons report an error.
 
 `formatComparison` formats both full files with the requested printWidth using
-Prettier, Ruff, or clang-format, reflows comments, recomputes line differences and
+Prettier, Ruff, rustfmt, or clang-format, reflows supported comments, recomputes line differences and
 returns escaped diff HTML. Formatting never edits the repository. Existing
 formatter fallback behavior preserves raw code when a formatter cannot run.
+
+### Narrow-width formatting policy
+
+- The requested character width is a target, not a hard limit. Long identifiers,
+  strings, macros and deeply nested code can still overflow; never truncate code
+  or split string literals merely to fit a phone screen.
+- C/C++ uses an explicit LLVM-based display profile with two-space block and
+  continuation indentation, no tabs or operand alignment, and no packing of
+  wrapped arguments/parameters. Bracket block indentation avoids aligning
+  continuations under long function names. Include order is preserved and the
+  existing comment reflow pass handles prose rather than clang-format.
+- Rust uses stable rustfmt on stdin with two-space indentation and `max_width`
+  set to the requested width. Its default block layout and wrapping heuristics
+  handle calls, chains and signatures; no nightly-only options are required.
+  Imports and modules are not reordered. Ambient rustfmt configuration is ignored
+  so both historical and current snapshots use the same display profile.
+- Rust snapshots are parsed as Rust 2024 without Cargo manifest/edition lookup.
+  Edition-incompatible or malformed code falls back to the original text.
+  No filename is passed to rustfmt, so external module files are not followed or
+  modified. Rust comments (including rustdoc) are left intact: the generic reflow
+  pass does not understand Rust raw strings or nested block comments.
 
 Snapshots use `snapshot/<uuid>` keys in plugin storage. There is no VoxPilot
 database or Drizzle migration system. Review references created by the retired
@@ -150,6 +171,6 @@ backend are intentionally unsupported.
 - `packaging`: exec launcher, systemd unit, Caddy example, installation docs.
 
 The plugin bundle includes JS dependencies and needs no install-time npm commands.
-Native Git, Ruff and clang-format remain host prerequisites. Static frontend and
+Native Git, Ruff, rustfmt and clang-format remain host prerequisites. Static frontend and
 plugin artifacts are released together; the RPC exposes protocol version 1 so
 the connection screen can detect incompatible frontend/plugin combinations.
