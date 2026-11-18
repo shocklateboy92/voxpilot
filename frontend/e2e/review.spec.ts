@@ -68,8 +68,17 @@ test("code review reformats on resize, navigates regions both ways, and reopens 
   });
   const details = review.getByRole("region", { name: "Review status details" });
   const close = review.getByRole("button", { name: "Close review" });
+  const keyword = review
+    .locator(".fulltext-line-add code .diff-syntax", {
+      hasText: /^const$/,
+    })
+    .first();
+  const keywordColors = new Set<string>();
   for (const scheme of ["dark", "light"] as const) {
     await app.emulateMedia({ colorScheme: scheme });
+    keywordColors.add(
+      await keyword.evaluate((token) => getComputedStyle(token).color),
+    );
     for (const width of [280, 390, 480]) {
       await app.setViewportSize({ width, height: 844 });
       const header = await review.locator("[data-status-bar]").boundingBox();
@@ -85,14 +94,16 @@ test("code review reformats on resize, navigates regions both ways, and reopens 
       expect(closeBounds.x + closeBounds.width).toBeLessThanOrEqual(
         triggerBounds.x,
       );
-      const pathBounds = await review.locator(".review-file-path").boundingBox();
+      const pathBounds = await review
+        .locator(".review-file-path")
+        .boundingBox();
       if (!pathBounds) throw new Error("Missing review file path geometry");
       expect(pathBounds.x - (closeBounds.x + closeBounds.width)).toBe(6);
       expect(await trigger.locator("button").count()).toBe(0);
       expect(
-        await review.locator(".review-file-path").evaluate(
-          (element) => element.scrollWidth > element.clientWidth,
-        ),
+        await review
+          .locator(".review-file-path")
+          .evaluate((element) => element.scrollWidth > element.clientWidth),
       ).toBe(true);
       const pane = review.locator(".review-pane");
       const before = await pane.boundingBox();
@@ -120,6 +131,7 @@ test("code review reformats on resize, navigates regions both ways, and reopens 
       await expect(review).toBeVisible();
     }
   }
+  expect(keywordColors.size).toBe(2);
   await app.setViewportSize({ width: 390, height: 844 });
   await trigger.press("Enter");
   await expect(details).toBeVisible();

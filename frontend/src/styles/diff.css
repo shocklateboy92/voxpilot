@@ -61,6 +61,14 @@
     background: none;
     padding: 0;
   }
+  .diff-syntax {
+    color: var(--syntax-dark);
+  }
+  @media (prefers-color-scheme: light) {
+    :root[data-theme-ready] .diff-syntax {
+      color: var(--syntax-light);
+    }
+  }
   .diff-line-add,
   .fulltext-line-add {
     background: var(--color-diff-add-bg);
@@ -83,7 +91,6 @@
     color: var(--color-ok);
   }
   .fulltext-line-del .fulltext-line-content {
-    opacity: 0.7;
     text-decoration: none;
   }
   .current-change > .fulltext-line {

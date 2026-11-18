@@ -67,6 +67,28 @@ describe("formatAndDiff", () => {
     expect(result.hunks.length).toBe(0);
   });
 
+  it("highlights deletions using their original multiline context and escapes source text", async () => {
+    const { html } = await formatAndDiff({
+      before: "/*\nconst before = 1;\n*/\nconst keep = 0;\n",
+      after: 'const after = "<script>&";\nconst keep = 0;\n',
+      filePath: "test.ts",
+      printWidth: 80,
+    });
+
+    // Inside the old block comment, the entire deleted line is a single token.
+    expect(html).toMatch(
+      /fulltext-line-del[^\n]*<span class="diff-syntax"[^>]*>const before = 1;<\/span>/,
+    );
+    expect(html).toMatch(
+      /fulltext-line-add[^\n]*<span class="diff-syntax"[^>]*>const<\/span>/,
+    );
+    expect(html).toMatch(
+      /class="fulltext-line"[^\n]*<span class="diff-syntax"[^>]*>keep<\/span>/,
+    );
+    expect(html).toContain("&quot;&lt;script&gt;&amp;&quot;");
+    expect(html).not.toContain("<script>");
+  });
+
   it("passes through unknown file types without formatting", async () => {
     const before = "hello world";
     const after = "hello new world";
@@ -81,6 +103,19 @@ describe("formatAndDiff", () => {
     expect(result.formattedBefore).toBe(before);
     expect(result.formattedAfter).toBe(after);
     expect(result.html).toContain("fulltext-file");
+    expect(result.html).not.toContain("diff-syntax");
+  });
+
+  it("keeps oversized supported files readable as plain text", async () => {
+    const after = `{"value":"${"x".repeat(100_000)}"}`;
+    const { html } = await formatAndDiff({
+      before: "",
+      after,
+      filePath: "large.json",
+      printWidth: 80,
+    });
+    expect(html).toContain("&quot;value&quot;");
+    expect(html).not.toContain("diff-syntax");
   });
 
   it("respects printWidth for formatting", async () => {

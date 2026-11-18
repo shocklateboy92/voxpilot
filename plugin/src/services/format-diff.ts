@@ -1,5 +1,6 @@
 import { diffLines } from "diff";
 import * as prettier from "prettier";
+import { highlightDiff } from "./diff-highlight";
 import { renderFullFileHtml } from "./diff-render";
 import type { DiffHunk, DiffLine } from "./diff-types";
 import { languageForFile, reflowComments } from "./reflow-comments";
@@ -54,10 +55,22 @@ export async function formatAndDiff(
 
   const changes = diffLines(reflowedBefore, reflowedAfter);
   const hunks = buildHunks(changes);
+  const highlight = await highlightDiff(
+    input.filePath,
+    reflowedBefore,
+    reflowedAfter,
+  );
+  input.signal?.throwIfAborted();
 
   // Use file path as a stable file ID
   const fileId = input.filePath.replace(/[^a-zA-Z0-9._/-]/g, "_");
-  const html = renderFullFileHtml(fileId, input.filePath, reflowedAfter, hunks);
+  const html = renderFullFileHtml(
+    fileId,
+    input.filePath,
+    reflowedAfter,
+    hunks,
+    highlight,
+  );
 
   return {
     formattedBefore: reflowedBefore,

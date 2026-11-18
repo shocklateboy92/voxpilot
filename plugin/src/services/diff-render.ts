@@ -9,6 +9,7 @@
  * 1:1 (page N = files[N].html).
  */
 
+import type { DiffHighlight } from "./diff-highlight";
 import type { DiffHunk, DiffLine } from "./diff-types";
 
 /** Escape HTML special characters. */
@@ -18,6 +19,43 @@ function escapeHtml(text: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+const HEX_COLOR = /^#[\da-f]{6}(?:[\da-f]{2})?$/i;
+
+function renderCodeLine(
+  text: string,
+  tokens?: DiffHighlight["after"][number],
+): string {
+  if (!tokens) return escapeHtml(text);
+
+  // Keep the source as the authority, including CRLF line endings Shiki strips.
+  const tokenText = tokens.map(({ content }) => content).join("");
+  if (text !== tokenText && text !== `${tokenText}\r`) return escapeHtml(text);
+
+  return (
+    tokens
+      .map(({ content, variants }) => {
+        const escaped = escapeHtml(content);
+        const dark = variants.dark?.color ?? "";
+        const light = variants.light?.color ?? "";
+        if (!content.trim() || !HEX_COLOR.test(dark) || !HEX_COLOR.test(light))
+          return escaped;
+        return `<span class="diff-syntax" style="--syntax-dark:${dark};--syntax-light:${light}">${escaped}</span>`;
+      })
+      .join("") + text.slice(tokenText.length)
+  );
+}
+
+function renderDeletedRow(line: DiffLine, highlight?: DiffHighlight): string {
+  const tokens =
+    line.oldLine === null ? undefined : highlight?.before[line.oldLine - 1];
+  return (
+    `<tr class="fulltext-line fulltext-line-del">` +
+    `<td class="fulltext-line-num"></td>` +
+    `<td class="fulltext-line-content"><code>${renderCodeLine(line.content, tokens)}</code></td>` +
+    `</tr>`
+  );
 }
 
 /**
@@ -85,6 +123,7 @@ function renderDiffLine(line: DiffLine): string {
  * @param path - File path for display.
  * @param fullTextContent - Full post-change file content.
  * @param hunks - Parsed diff hunks (used to identify changes).
+ * @param highlight - Optional syntax tokens for both versions of the file.
  * @returns HTML string for the full-file view with diff highlighting.
  */
 export function renderFullFileHtml(
@@ -92,6 +131,7 @@ export function renderFullFileHtml(
   _path: string,
   fullTextContent: string,
   hunks: DiffHunk[],
+  highlight?: DiffHighlight,
 ): string {
   // Build set of 1-based line numbers that are additions
   const addedLines = new Set<number>();
@@ -195,12 +235,7 @@ export function renderFullFileHtml(
     if (dels) {
       openChangeRegion();
       for (const del of dels) {
-        bodyParts.push(
-          `<tr class="fulltext-line fulltext-line-del">` +
-            `<td class="fulltext-line-num"></td>` +
-            `<td class="fulltext-line-content"><code>${escapeHtml(del.content)}</code></td>` +
-            `</tr>`,
-        );
+        bodyParts.push(renderDeletedRow(del, highlight));
       }
     }
 
@@ -219,7 +254,7 @@ export function renderFullFileHtml(
     bodyParts.push(
       `<tr class="${rowClass}">` +
         `<td class="fulltext-line-num">${lineNum}</td>` +
-        `<td class="fulltext-line-content"><code>${escapeHtml(lines[i] ?? "")}</code></td>` +
+        `<td class="fulltext-line-content"><code>${renderCodeLine(lines[i] ?? "", highlight?.after[i])}</code></td>` +
         `</tr>`,
     );
   }
@@ -230,12 +265,7 @@ export function renderFullFileHtml(
   if (trailingDels) {
     openChangeRegion();
     for (const del of trailingDels) {
-      bodyParts.push(
-        `<tr class="fulltext-line fulltext-line-del">` +
-          `<td class="fulltext-line-num"></td>` +
-          `<td class="fulltext-line-content"><code>${escapeHtml(del.content)}</code></td>` +
-          `</tr>`,
-      );
+      bodyParts.push(renderDeletedRow(del, highlight));
     }
   }
 
