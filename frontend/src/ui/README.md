@@ -6,8 +6,8 @@ import stores, features, or API clients. ESLint enforces the import boundary.
 
 | Primitive | API / purpose |
 | --- | --- |
-| `Button` | `variant`: neutral, primary, success, reject, stop, ghost; `size`: md, sm, icon, icon-lg. Defaults to `type="button"`. |
-| `IconButton` | Button with required `aria-label`; `size`: md or lg. |
+| `Button` | `variant`: neutral, primary, success, reject, stop, ghost; `size`: md, sm, icon-sm, icon, icon-lg. Defaults to `type="button"`. |
+| `IconButton` | Button with required `aria-label`; `size`: sm (compact status-bar action), md, or lg. |
 | `TextInput` | Native input; normal/compact `density`, optional `mono`. |
 | `Textarea` | Native textarea; field/composer `variant`. |
 | `Select` | Native select; field/ghost `variant`, normal/compact `density`, optional `mono`. |
@@ -23,7 +23,7 @@ import stores, features, or API clients. ESLint enforces the import boundary.
 | `ListRow` | Native full-width selection button for picker rows. |
 | `EmptyState` | Centered, muted empty-state content. |
 | `Spinner` | Centered loading indicator, optionally fullscreen. |
-| `StatusBar` | Floating left/right summary with optional expandable details; outside-click and Escape dismissal. |
+| `StatusBar` | Floating left/right summary with optional expandable details, accessible label, and independent actions; outside-click and Escape dismissal. |
 | `SwipeablePane` | Scroll container with optional swipe navigation callbacks. |
 
 Read `frontend/DESIGN_SYSTEM.md` before changing presentation. Keep native DOM

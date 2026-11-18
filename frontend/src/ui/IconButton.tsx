@@ -3,10 +3,21 @@ import { Button, type ButtonProps } from "./Button";
 
 type IconButtonProps = Omit<ButtonProps, "size"> & {
   "aria-label": string;
-  size?: "md" | "lg";
+  size?: "sm" | "md" | "lg";
 };
 
 export function IconButton(props: IconButtonProps) {
   const [local, rest] = splitProps(props, ["size"]);
-  return <Button {...rest} size={local.size === "lg" ? "icon-lg" : "icon"} />;
+  return (
+    <Button
+      {...rest}
+      size={
+        local.size === "lg"
+          ? "icon-lg"
+          : local.size === "sm"
+            ? "icon-sm"
+            : "icon"
+      }
+    />
+  );
 }

@@ -25,6 +25,9 @@ export interface ContentShellProps {
   statusBarRight: JSX.Element;
   /** Optional expanded details for the floating summary. */
   statusBarDetails?: JSX.Element;
+  /** Independent status-bar buttons, outside the details disclosure. */
+  statusBarActions?: JSX.Element;
+  statusBarLabel?: string;
 
   /** Can the user swipe left? */
   canSwipeLeft: () => boolean;
@@ -112,6 +115,8 @@ export function ContentShell(props: ContentShellProps) {
         left={props.statusBarLeft}
         right={props.statusBarRight}
         details={props.statusBarDetails}
+        actions={props.statusBarActions}
+        label={props.statusBarLabel}
       />
       <div
         class="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"

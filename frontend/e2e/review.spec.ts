@@ -8,15 +8,16 @@ import { client } from "./dev";
 test("code review reformats on resize, navigates regions both ways, and reopens its snapshot", async ({
   app,
   workspace,
-}) => {
-  const path = join(workspace.directory, "review.ts");
+}, info) => {
+  const fileName = `review-${"long-file-name-".repeat(7)}details.ts`;
+  const path = join(workspace.directory, fileName);
   const source = Array.from(
     { length: 45 },
     (_, i) =>
       `export const value${i} = example(11111111, 22222222, 33333333, 44444444);`,
   ).join("\n");
   await writeFile(path, source);
-  await workspace.git("add", "review.ts");
+  await workspace.git("add", fileName);
   await workspace.git(
     "-c",
     "user.name=E2E",
@@ -56,9 +57,74 @@ test("code review reformats on resize, navigates regions both ways, and reopens 
     ]),
   ]);
   await openSession(app, session.id);
-  await app.locator(".changeset-file-row", { hasText: "review.ts" }).click();
+  const chatHeader = await app.locator("[data-status-bar]").boundingBox();
+  if (!chatHeader) throw new Error("Missing chat status bar");
+  await app.locator(".changeset-file-row", { hasText: fileName }).click();
   const review = app.getByRole("dialog", { name: "File review" });
   await expect(review.locator(".change-region")).toHaveCount(2);
+  const trigger = review.getByRole("button", {
+    name: "Review status",
+    exact: true,
+  });
+  const details = review.getByRole("region", { name: "Review status details" });
+  const close = review.getByRole("button", { name: "Close review" });
+  for (const scheme of ["dark", "light"] as const) {
+    await app.emulateMedia({ colorScheme: scheme });
+    for (const width of [280, 390, 480]) {
+      await app.setViewportSize({ width, height: 844 });
+      const header = await review.locator("[data-status-bar]").boundingBox();
+      if (!header) throw new Error("Missing review status bar");
+      expect(header.height).toBe(chatHeader.height);
+      await expect(close).toBeInViewport();
+      const closeBounds = await close.boundingBox();
+      const triggerBounds = await trigger.boundingBox();
+      if (!closeBounds || !triggerBounds)
+        throw new Error("Missing review controls geometry");
+      expect(closeBounds.width).toBe(32);
+      expect(closeBounds.height).toBe(32);
+      expect(closeBounds.x + closeBounds.width).toBeLessThanOrEqual(
+        triggerBounds.x,
+      );
+      const pathBounds = await review.locator(".review-file-path").boundingBox();
+      if (!pathBounds) throw new Error("Missing review file path geometry");
+      expect(pathBounds.x - (closeBounds.x + closeBounds.width)).toBe(6);
+      expect(await trigger.locator("button").count()).toBe(0);
+      expect(
+        await review.locator(".review-file-path").evaluate(
+          (element) => element.scrollWidth > element.clientWidth,
+        ),
+      ).toBe(true);
+      const pane = review.locator(".review-pane");
+      const before = await pane.boundingBox();
+      await trigger.click();
+      await expect(trigger).toHaveAttribute("aria-expanded", "true");
+      await expect(details.getByText(fileName, { exact: true })).toBeVisible();
+      await expect(details).toContainText(workspace.directory);
+      await expect(details).toContainText(
+        `${snapshot.resolvedFrom} → ${snapshot.resolvedTo}`,
+      );
+      await expect(details).toContainText("File 1 of 3 · Change 1 of 2");
+      expect(
+        await details.evaluate(
+          (element) => element.scrollWidth <= element.clientWidth,
+        ),
+      ).toBe(true);
+      expect(await pane.boundingBox()).toEqual(before);
+      await info.attach(`review-details-${scheme}-${width}`, {
+        body: await app.screenshot(),
+        contentType: "image/png",
+      });
+      await trigger.press("Escape");
+      await expect(details).toHaveCount(0);
+      await expect(trigger).toBeFocused();
+      await expect(review).toBeVisible();
+    }
+  }
+  await app.setViewportSize({ width: 390, height: 844 });
+  await trigger.press("Enter");
+  await expect(details).toBeVisible();
+  await review.locator(".review-diff-container").click();
+  await expect(details).toHaveCount(0);
   await expect(review.locator(".current-change").first()).toContainText(
     "changed2",
   );
@@ -94,7 +160,7 @@ test("code review reformats on resize, navigates regions both ways, and reopens 
   await writeFile(path, "// changed after snapshot capture\n");
   await review.getByRole("button", { name: "Close review" }).click();
   await app.reload({ waitUntil: "domcontentloaded" });
-  await app.locator(".changeset-file-row", { hasText: "review.ts" }).click();
+  await app.locator(".changeset-file-row", { hasText: fileName }).click();
   await expect(review).toContainText("changed35");
   await expect(review).not.toContainText("changed after snapshot capture");
   await expect(review.locator(".current-change").first()).toContainText(
@@ -106,11 +172,18 @@ test("code review reformats on resize, navigates regions both ways, and reopens 
   );
   await review.press("PageDown");
   await expect(review.locator(".review-file-path")).toContainText("sample.txt");
-  await review.press("PageUp");
-  await expect(review.locator(".review-file-path")).toContainText("review.ts");
+  await trigger.click();
+  await expect(details.getByText("sample.txt", { exact: true })).toBeVisible();
+  await trigger.press("PageUp");
+  await expect(review.locator(".review-file-path")).toContainText(fileName);
+  await expect(details.getByText(fileName, { exact: true })).toBeVisible();
   await expect(review.locator(".current-change").first()).toContainText(
     "changed35",
   );
+  await expect(details).toContainText("File 1 of 3 · Change 2 of 2");
+  await trigger.press("Escape");
+  await expect(details).toHaveCount(0);
+  await expect(review).toBeVisible();
   await review.press("Escape");
   await expect(review).toHaveCount(0);
   expect(await readFile(path, "utf8")).toBe(

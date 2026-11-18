@@ -67,9 +67,11 @@ fallback styles would override Tailwind's layered theme styling.
 ```
 
 `Button` variants are `neutral` (default), `primary`, `success`, `reject`, `stop`,
-and `ghost`. Sizes are `md`, `sm`, `icon`, and `icon-lg`; prefer `IconButton` for
+and `ghost`. Sizes are `md`, `sm`, `icon-sm`, `icon`, and `icon-lg`; prefer `IconButton` for
 icon-only actions because it requires an accessible label. Button type defaults
 to `button`; submit actions must explicitly use `type="submit"`.
+Use `IconButton size="sm"` for compact status-bar actions; keep these in the
+status bar's independent actions slot, never inside its disclosure button.
 
 `TextInput`, `Textarea`, and `Select` preserve native controls, refs, events, and
 validation. `FormField` connects labels and optional help/error text to a control:

@@ -338,9 +338,9 @@ export function ReviewOverlay() {
             role="document"
             ref={containerRef}
             onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => e.stopPropagation()}
           >
             <ContentShell
+              statusBarLabel="Review status"
               statusBarLeft={
                 <span class="review-file-path min-w-0 flex-1 truncate font-mono text-xs font-semibold text-muted">
                   {req().filePath}
@@ -354,22 +354,57 @@ export function ReviewOverlay() {
                 </span>
               }
               statusBarRight={
-                <>
-                  <Show when={changeCounter()}>
-                    {(cc) => (
-                      <span class="mr-2 font-mono text-[0.7rem] whitespace-nowrap text-muted">
-                        {cc()}
-                      </span>
-                    )}
-                  </Show>
-                  <IconButton
-                    variant="ghost"
-                    aria-label="Close review"
-                    onClick={close}
-                  >
-                    <X size={18} />
-                  </IconButton>
-                </>
+                <Show when={changeCounter()}>
+                  {(cc) => (
+                    <span class="font-mono text-[0.7rem] whitespace-nowrap text-muted">
+                      {cc()}
+                    </span>
+                  )}
+                </Show>
+              }
+              statusBarActions={
+                <IconButton
+                  variant="ghost"
+                  aria-label="Close review"
+                  onClick={close}
+                >
+                  <X size={14} />
+                </IconButton>
+              }
+              statusBarDetails={
+                <dl class="flex min-w-0 flex-col gap-4">
+                  <div>
+                    <dt class="mb-1 text-xs font-semibold text-muted">File</dt>
+                    <dd class="font-mono select-text [overflow-wrap:anywhere]">
+                      {req().filePath}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt class="mb-1 text-xs font-semibold text-muted">
+                      Repository
+                    </dt>
+                    <dd class="font-mono select-text [overflow-wrap:anywhere]">
+                      {req().repoRoot}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt class="mb-1 text-xs font-semibold text-muted">
+                      Comparison
+                    </dt>
+                    <dd class="font-mono select-text [overflow-wrap:anywhere]">
+                      {req().fromRef} → {req().toRef}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt class="mb-1 text-xs font-semibold text-muted">Position</dt>
+                    <dd>
+                      File {req().fileIndex + 1} of {req().files.length}
+                      <Show when={changeCounter()} fallback=" · No changes">
+                        {(counter) => <> · Change {counter()}</>}
+                      </Show>
+                    </dd>
+                  </div>
+                </dl>
               }
               canSwipeLeft={canSwipeLeft}
               canSwipeRight={canSwipeRight}

@@ -2,7 +2,7 @@ import { type ComponentProps, splitProps } from "solid-js";
 
 export type ButtonProps = ComponentProps<"button"> & {
   variant?: "neutral" | "primary" | "success" | "reject" | "stop" | "ghost";
-  size?: "md" | "sm" | "icon" | "icon-lg";
+  size?: "md" | "sm" | "icon-sm" | "icon" | "icon-lg";
 };
 
 export function Button(props: ButtonProps) {
@@ -22,6 +22,7 @@ export function Button(props: ButtonProps) {
       classList={{
         "rounded-lg px-4 py-2 text-[0.85rem]": size() === "md",
         "rounded px-3 py-1.5 text-[0.8rem]": size() === "sm",
+        "size-5 rounded-full p-0": size() === "icon-sm",
         "size-8 rounded-full p-0": size() === "icon",
         "size-11 rounded-full p-0": size() === "icon-lg",
         "bg-subtle-bg text-text enabled:hover:bg-bg": variant() === "neutral",

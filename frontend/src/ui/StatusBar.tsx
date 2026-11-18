@@ -13,6 +13,9 @@ export function StatusBar(props: {
   left: JSX.Element;
   right: JSX.Element;
   details?: JSX.Element;
+  /** Leading controls, kept outside the disclosure button. */
+  actions?: JSX.Element;
+  label?: string;
 }) {
   const [open, setOpen] = createSignal(false);
   const id = createUniqueId();
@@ -34,11 +37,11 @@ export function StatusBar(props: {
     };
     document.addEventListener("pointerdown", dismissOutside);
     document.addEventListener("focusin", dismissOutside);
-    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("keydown", onKeyDown, true);
     onCleanup(() => {
       document.removeEventListener("pointerdown", dismissOutside);
       document.removeEventListener("focusin", dismissOutside);
-      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("keydown", onKeyDown, true);
     });
   });
 
@@ -65,34 +68,51 @@ export function StatusBar(props: {
       data-status-bar
       class="absolute inset-x-3 top-[calc(var(--safe-top)+1.5rem)] z-40 rounded-[0.6rem] bg-glass backdrop-blur-md"
     >
-      <Show
-        when={props.details}
-        fallback={
-          <div class="grid min-h-(--status-bar-height) grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-3.5 py-1.5">
-            {summary()}
+      <div class="flex min-w-0 items-center">
+        <Show when={props.actions}>
+          <div class="flex shrink-0 items-center gap-1.5 pl-3.5">
+            {props.actions}
           </div>
-        }
-      >
-        <button
-          ref={trigger}
-          type="button"
-          aria-label="Session status"
-          aria-expanded={open()}
-          aria-controls={id}
-          onClick={() => setOpen(!open())}
-          class="grid min-h-(--status-bar-height) w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-1.5 rounded-[0.6rem] px-3.5 py-1.5 text-left focus-visible:outline-2 focus-visible:outline-accent"
-        >
-          {summary()}
-        </button>
-        <Show when={open()}>
-          <section
-            id={id}
-            aria-label="Session status details"
-            class="max-h-[min(60dvh,28rem)] overflow-y-auto overscroll-contain border-t border-border px-3.5 py-4 text-left text-sm text-text"
-          >
-            {props.details}
-          </section>
         </Show>
+        <Show
+          when={props.details}
+          fallback={
+            <div
+              class="grid min-h-(--status-bar-height) min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 py-1.5 pr-3.5"
+              classList={{
+                "pl-1.5": Boolean(props.actions),
+                "pl-3.5": !props.actions,
+              }}
+            >
+              {summary()}
+            </div>
+          }
+        >
+          <button
+            ref={trigger}
+            type="button"
+            aria-label={props.label ?? "Session status"}
+            aria-expanded={open()}
+            aria-controls={id}
+            onClick={() => setOpen(!open())}
+            class="grid min-h-(--status-bar-height) min-w-0 flex-1 cursor-pointer grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-1.5 rounded-[0.6rem] py-1.5 pr-3.5 text-left focus-visible:outline-2 focus-visible:outline-accent"
+            classList={{
+              "pl-1.5": Boolean(props.actions),
+              "pl-3.5": !props.actions,
+            }}
+          >
+            {summary()}
+          </button>
+        </Show>
+      </div>
+      <Show when={open()}>
+        <section
+          id={id}
+          aria-label={`${props.label ?? "Session status"} details`}
+          class="max-h-[min(60dvh,28rem)] overflow-y-auto overscroll-contain border-t border-border px-3.5 py-4 text-left text-sm text-text"
+        >
+          {props.details}
+        </section>
       </Show>
     </div>
   );
