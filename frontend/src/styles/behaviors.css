@@ -2,6 +2,14 @@
    Insets are inherited by both shell padding and the floating composer. */
 /* Same layer as utilities so these contextual selectors can override `flex`. */
 @layer utilities {
+  /* Full-bleed panes reach the viewport edge; expanded chat already stops
+     above the navigation and safe area. */
+  .app:is(.viewer-open, .reading-mode) {
+    --composer-scroll-inset: var(--safe-bottom);
+  }
+  .app.viewer-open {
+    --bottom-nav-height: 0px;
+  }
   .app.reading-mode {
     --bottom-nav-height: 0px;
     /* Content can reach the home-indicator area; floating controls keep their inset. */

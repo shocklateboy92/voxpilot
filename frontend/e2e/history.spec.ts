@@ -232,7 +232,7 @@ test("tables and other overflow containers scroll horizontally without session s
   }
 });
 
-test("keyboard sending, multiline input, and thinking selections reach the native session", async ({
+test("multiline input and thinking selections reach the native session", async ({
   app,
 }) => {
   await app
@@ -240,11 +240,11 @@ test("keyboard sending, multiline input, and thinking selections reach the nativ
     .selectOption("low");
   const input = app.getByRole("textbox", { name: "Message", exact: true });
   await input.fill("Reply exactly KEYBOARD_OK. Do not use tools.");
-  await input.press("Shift+Enter");
+  await input.press("Enter");
   await expect(input).toHaveValue(
     "Reply exactly KEYBOARD_OK. Do not use tools.\n",
   );
-  await input.press("Enter");
+  await app.getByRole("button", { name: "Send", exact: true }).click();
   await expect(app.locator(".markdown-body").last()).toHaveText("KEYBOARD_OK");
   await idle(app);
   const session = await client.session.get({

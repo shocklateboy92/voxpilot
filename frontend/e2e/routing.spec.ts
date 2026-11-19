@@ -29,7 +29,7 @@ test("native Markdown links use soft navigation and browser history across docum
   });
   await expect(trigger).toHaveAttribute("link", "");
   await trigger.click();
-  const viewer = app.getByRole("dialog", { name: "Markdown viewer" });
+  const viewer = app.getByRole("region", { name: "Markdown viewer" });
   await expect(
     viewer.getByRole("heading", { name: "First document", exact: true }),
   ).toBeVisible();
@@ -90,7 +90,7 @@ test("same-document anchor navigation preserves authenticated local images", asy
   ]);
   await openSession(app, session.id);
   await app.getByRole("link", { name: "Preview", exact: true }).click();
-  const viewer = app.getByRole("dialog", { name: "Markdown viewer" });
+  const viewer = app.getByRole("region", { name: "Markdown viewer" });
   const image = viewer.getByAltText("Diagram");
   await expect(image).toHaveAttribute("src", /^blob:/);
   for (const depth of [2, 3]) {
@@ -184,7 +184,7 @@ test("opening a file in a new tab uses the href without inheriting in-app histor
     trigger.click({ modifiers: ["Control"] }),
   ]);
   try {
-    const preview = tab.getByRole("dialog", { name: "Markdown viewer" });
+    const preview = tab.getByRole("region", { name: "Markdown viewer" });
     const connect = tab.getByRole("button", { name: "Connect", exact: true });
     await expect(preview.or(connect)).toBeVisible();
     if (await connect.isVisible()) {
@@ -192,17 +192,17 @@ test("opening a file in a new tab uses the href without inheriting in-app histor
       await connect.click();
     }
     await expect(
-      tab.getByRole("dialog", { name: "Markdown viewer" }),
+      tab.getByRole("region", { name: "Markdown viewer" }),
     ).toContainText("New tab preview");
     await expect(
-      app.getByRole("dialog", { name: "Markdown viewer" }),
+      app.getByRole("region", { name: "Markdown viewer" }),
     ).toHaveCount(0);
     await expect(
       tab.getByRole("button", { name: "Previous document" }),
     ).toHaveCount(0);
     await tab.getByRole("button", { name: "Close viewer" }).click();
     await expect(
-      tab.getByRole("dialog", { name: "Markdown viewer" }),
+      tab.getByRole("region", { name: "Markdown viewer" }),
     ).toHaveCount(0);
     expect(new URL(tab.url()).hash).toBe(`#${session.id}`);
   } finally {

@@ -5,6 +5,7 @@ import {
   createEffect,
   createResource,
   onCleanup,
+  onMount,
   Show,
   Suspense,
 } from "solid-js";
@@ -25,8 +26,8 @@ import { Button } from "../../ui/Button";
 import { EmptyState } from "../../ui/EmptyState";
 import { IconButton } from "../../ui/IconButton";
 import { MarkdownView } from "../../ui/MarkdownView";
-import { Overlay } from "../../ui/Overlay";
 import { Spinner } from "../../ui/Spinner";
+import type { ReadingControls } from "../chat/reading-controls";
 import { fileReadRequest, fileUrl, isMarkdownPath } from "./file-state";
 
 const NO_SWIPE = () => false;
@@ -42,15 +43,31 @@ const imageTypes: Record<string, string> = {
   bmp: "image/bmp",
 };
 
-export function MarkdownViewer() {
+interface MarkdownViewerProps {
+  composerHeight: number;
+  readingControls: ReadingControls;
+}
+
+export function MarkdownViewer(props: MarkdownViewerProps) {
   return (
     <Show when={currentFile()}>
-      <OpenMarkdownViewer />
+      <OpenMarkdownViewer {...props} />
     </Show>
   );
 }
 
-function OpenMarkdownViewer() {
+function OpenMarkdownViewer(props: MarkdownViewerProps) {
+  let region: HTMLElement | undefined;
+  onMount(() => {
+    const previous = document.activeElement;
+    region?.focus();
+    onCleanup(() =>
+      queueMicrotask(() => {
+        if (previous instanceof HTMLElement && previous.isConnected)
+          previous.focus();
+      }),
+    );
+  });
   let content: HTMLDivElement | undefined;
   let pane: HTMLDivElement | undefined;
   const [loaded, { refetch }] = createResource(currentFile, async (request) => {
@@ -150,8 +167,15 @@ function OpenMarkdownViewer() {
   });
 
   return (
-    <Overlay label="Markdown viewer" position="fullscreen" onClose={closeFile}>
+    <section
+      ref={region}
+      tabIndex={-1}
+      aria-label="Markdown viewer"
+      class="absolute inset-0 flex flex-col bg-bg text-left outline-none [--status-bar-clearance:calc(4.5rem+var(--safe-top))]"
+    >
       <ContentShell
+        composerHeight={props.composerHeight}
+        readingControls={props.readingControls}
         statusBarLeft={
           <span class="min-w-0 truncate" title={currentFile()?.path}>
             {currentFile()?.path}
@@ -193,7 +217,6 @@ function OpenMarkdownViewer() {
           pane = element;
         }}
         paneClass="markdown-pane min-h-0 flex-1 touch-pan-y overflow-x-clip overflow-y-auto scroll-pt-(--status-bar-clearance) pt-(--status-bar-clearance) text-left"
-        onSend={closeFile}
       >
         <Suspense fallback={<Spinner />}>
           <Show when={loaded()} keyed>
@@ -241,6 +264,6 @@ function OpenMarkdownViewer() {
           </Show>
         </Suspense>
       </ContentShell>
-    </Overlay>
+    </section>
   );
 }

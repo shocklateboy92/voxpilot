@@ -17,7 +17,7 @@ for (const touch of [false, true]) {
   test.describe(touch ? "Touch composer" : "Desktop composer", () => {
     test.use({ hasTouch: touch, viewport: { width: 390, height: 844 } });
 
-    test("keyboard submission and voice-mode bottom navigation stay coordinated", async ({
+    test("Enter inserts a newline and voice mode restores bottom navigation", async ({
       page,
     }) => {
       await page.route("**/config.json", (route) =>
@@ -62,19 +62,11 @@ for (const touch of [false, true]) {
       await input.fill("First line");
       await input.press("End");
       await input.press("Enter");
-      if (touch) {
-        await expect(input).toHaveValue("First line\n");
-        await expect(sent).toBeEmpty();
-        await input.pressSequentially("Second line");
-        await page.getByRole("button", { name: "Send", exact: true }).click();
-        await expect(sent).toHaveText("First line\nSecond line");
-      } else {
-        await expect(sent).toHaveText("First line");
-        await expect(input).toHaveValue("First line");
-        await input.press("Shift+Enter");
-        await expect(input).toHaveValue("First line\n");
-        await expect(sent).toHaveText("First line");
-      }
+      await expect(input).toHaveValue("First line\n");
+      await expect(sent).toBeEmpty();
+      await input.pressSequentially("Second line");
+      await page.getByRole("button", { name: "Send", exact: true }).click();
+      await expect(sent).toHaveText("First line\nSecond line");
 
       // Switching mode removes the focused textarea without an explicit blur.
       // Voice mode must restore both navigation and its inherited clearance.

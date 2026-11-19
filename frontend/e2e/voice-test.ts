@@ -24,6 +24,24 @@ export const test = frontendTest.extend({
 export const token = "test-speech-token-not-real-provider-credential";
 export const speechURL = "https://speech.example.invalid";
 
+export async function mockSpeechCapabilities(page: Page) {
+  await page.route(`${speechURL}/v1/capabilities`, (route) =>
+    route.fulfill({
+      json: {
+        protocol: 1,
+        provider: "openai",
+        model: "gpt-transcribe",
+        ready: true,
+        maxBytes: SPEECH_MAX_BYTES,
+        maxSeconds: SPEECH_MAX_SECONDS,
+        maxTerms: SPEECH_MAX_TERMS,
+        maxVocabularyCharacters: SPEECH_MAX_VOCABULARY_CHARACTERS,
+        persistsAudio: false,
+      },
+    }),
+  );
+}
+
 export function vocabulary(terms = ["VoxPilot", "Incus"]) {
   const source = { path: "fixture-vocabulary", exists: true, terms };
   return SpeechVocabulary.parse({
@@ -93,21 +111,7 @@ export async function mount(
   await page.route("**/api/model/default", (route) =>
     route.fulfill({ json: {} }),
   );
-  await page.route(`${speechURL}/v1/capabilities`, (route) =>
-    route.fulfill({
-      json: {
-        protocol: 1,
-        provider: "openai",
-        model: "gpt-transcribe",
-        ready: true,
-        maxBytes: SPEECH_MAX_BYTES,
-        maxSeconds: SPEECH_MAX_SECONDS,
-        maxTerms: SPEECH_MAX_TERMS,
-        maxVocabularyCharacters: SPEECH_MAX_VOCABULARY_CHARACTERS,
-        persistsAudio: false,
-      },
-    }),
-  );
+  await mockSpeechCapabilities(page);
   await page.route("**/api/rpc/voxpilot/vocabulary**", (route) => {
     expect(["/fixture/original-project", "/fixture/other-project"]).toContain(
       new URL(route.request().url()).searchParams.get("location[directory]"),

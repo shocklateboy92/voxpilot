@@ -281,9 +281,6 @@ test("user opens a working-copy review without an agent tool", async ({
     "old baseline line",
   );
   await expect(app.locator(".review-file-counter")).toHaveText("1/2");
-  await app.locator(".review-overlay").press("PageDown");
-  await expect(app.locator(".review-file-counter")).toHaveText("2/2");
-  await expect(app.locator(".review-file-path")).toContainText("second.txt");
 });
 
 test("new worktree hosts a session that survives reload", async ({

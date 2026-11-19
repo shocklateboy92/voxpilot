@@ -1,9 +1,77 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { VoxPilotRpc } from "../../plugin/src/rpc";
-import { expect, test } from "./browser";
+import { expect, send, test } from "./browser";
 import { assistant, history, openSession, swipe } from "./data";
-import { client } from "./dev";
+import { client, modelKey, password } from "./dev";
+
+test("review shares the live composer, its modes, and its selectors with chat", async ({
+  app,
+  workspace,
+}) => {
+  const url = new URL(app.url()).origin;
+  await app.route("**/config.json", (route) =>
+    route.fulfill({
+      json: { servers: [{ id: "dev", name: "Dev", url, password }] },
+    }),
+  );
+  await app.evaluate(() => localStorage.setItem("voxpilot:serverId", "dev"));
+  const session = await history(workspace.directory, "Shared review composer");
+  await openSession(app, session.id);
+  await app.setViewportSize({ width: 320, height: 844 });
+  const message = app.getByRole("textbox", { name: "Message", exact: true });
+  await message.fill("Explain the changes in this diff in one sentence.");
+  await message.evaluate((element) =>
+    element.setAttribute("data-test-draft", "original"),
+  );
+
+  async function openReview() {
+    await app
+      .getByRole("button", { name: "Review changes", exact: true })
+      .click();
+    const picker = app.getByRole("dialog", {
+      name: "Review changes",
+      exact: true,
+    });
+    await picker.getByRole("button", { name: "Load changes" }).click();
+    await picker.getByRole("button", { name: /sample\.txt/ }).click();
+  }
+  await openReview();
+  const review = app.getByRole("region", { name: "File review" });
+  const input = message;
+  const model = app.getByRole("combobox", { name: "Model", exact: true });
+  const thinking = app.getByRole("combobox", { name: "Thinking level" });
+  const server = app.getByRole("group", { name: "Server", exact: true });
+  await expect(server).toBeVisible();
+  await expect(model).toHaveValue(modelKey);
+  await thinking.selectOption("low");
+  await expect(input).toHaveAttribute("data-test-draft", "original");
+  await expect(app.locator("textarea[data-composer-input]")).toHaveCount(1);
+  await expect(review.locator(".current-change").first()).toBeVisible();
+
+  await app.getByRole("button", { name: "Return to reading" }).click();
+  await expect(input).toBeHidden();
+  await expect(model).toBeHidden();
+  await expect(server).toBeHidden();
+  await expect(app.getByText("Draft", { exact: true })).toBeVisible();
+  await app.getByRole("button", { name: "Expand controls" }).click();
+  await expect(input).toHaveValue(
+    "Explain the changes in this diff in one sentence.",
+  );
+  await expect(thinking).toHaveValue("low");
+  await review.getByRole("button", { name: "Close review" }).click();
+  await expect(message).toHaveAttribute("data-test-draft", "original");
+  await expect(
+    app.getByRole("combobox", { name: "Thinking level" }),
+  ).toHaveValue("low");
+
+  await openReview();
+  await send(app, "Reply with one sentence about the diff.", { reading: true });
+  await expect(review).toHaveCount(0);
+  await expect(
+    app.getByRole("button", { name: "Expand controls" }),
+  ).toBeVisible();
+});
 
 test("code review reformats on resize, navigates regions both ways, and reopens its snapshot", async ({
   app,
@@ -60,7 +128,7 @@ test("code review reformats on resize, navigates regions both ways, and reopens 
   const chatHeader = await app.locator("[data-status-bar]").boundingBox();
   if (!chatHeader) throw new Error("Missing chat status bar");
   await app.locator(".changeset-file-row", { hasText: fileName }).click();
-  const review = app.getByRole("dialog", { name: "File review" });
+  const review = app.getByRole("region", { name: "File review" });
   await expect(review.locator(".change-region")).toHaveCount(2);
   const trigger = review.getByRole("button", {
     name: "Review status",
@@ -125,7 +193,7 @@ test("code review reformats on resize, navigates regions both ways, and reopens 
         body: await app.screenshot(),
         contentType: "image/png",
       });
-      await trigger.press("Escape");
+      await trigger.click();
       await expect(details).toHaveCount(0);
       await expect(trigger).toBeFocused();
       await expect(review).toBeVisible();
@@ -137,14 +205,6 @@ test("code review reformats on resize, navigates regions both ways, and reopens 
   await expect(details).toBeVisible();
   await review.locator(".review-diff-container").click();
   await expect(details).toHaveCount(0);
-  await expect(review.locator(".current-change").first()).toContainText(
-    "changed2",
-  );
-  await review.press("PageDown");
-  await expect(review.locator(".current-change").first()).toContainText(
-    "changed35",
-  );
-  await review.press("PageUp");
   await expect(review.locator(".current-change").first()).toContainText(
     "changed2",
   );
@@ -178,25 +238,20 @@ test("code review reformats on resize, navigates regions both ways, and reopens 
   await expect(review.locator(".current-change").first()).toContainText(
     "changed2",
   );
-  await review.press("PageDown");
-  await expect(review.locator(".current-change").first()).toContainText(
-    "changed35",
-  );
-  await review.press("PageDown");
-  await expect(review.locator(".review-file-path")).toContainText("sample.txt");
-  await trigger.click();
-  await expect(details.getByText("sample.txt", { exact: true })).toBeVisible();
-  await trigger.press("PageUp");
-  await expect(review.locator(".review-file-path")).toContainText(fileName);
-  await expect(details.getByText(fileName, { exact: true })).toBeVisible();
-  await expect(review.locator(".current-change").first()).toContainText(
-    "changed35",
-  );
-  await expect(details).toContainText("File 1 of 3 · Change 2 of 2");
-  await trigger.press("Escape");
-  await expect(details).toHaveCount(0);
-  await expect(review).toBeVisible();
-  await review.press("Escape");
+  if (!process.env.VOXPILOT_E2E_CDP) {
+    const pane = review.locator(".review-pane");
+    await swipe(app, pane, "left");
+    await expect(review.locator(".current-change").first()).toContainText("changed35");
+    await swipe(app, pane, "left");
+    await expect(review.locator(".review-file-path")).toContainText("sample.txt");
+    await expect(review.locator(".current-change").first()).toBeVisible();
+    await swipe(app, pane, "right");
+    await expect(review.locator(".review-file-path")).toContainText(fileName);
+    await expect(review.locator(".current-change").first()).toContainText("changed35");
+    await trigger.click();
+    await expect(details).toContainText("File 1 of 3 · Change 2 of 2");
+  }
+  await close.click();
   await expect(review).toHaveCount(0);
   expect(await readFile(path, "utf8")).toBe(
     "// changed after snapshot capture\n",

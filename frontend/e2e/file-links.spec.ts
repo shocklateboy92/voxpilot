@@ -144,7 +144,7 @@ test("chat file links open scoped previews, preserve anchors, reload, and suppor
   await app.getByRole("link", { name: "Section", exact: true }).click();
   expect(new URL(app.url()).hash).toBe(`#${session.id}`);
   await guide.click();
-  const viewer = app.getByRole("dialog", { name: "Markdown viewer" });
+  const viewer = app.getByRole("region", { name: "Markdown viewer" });
   await expect(viewer).toContainText("Correct session directory.");
   expect(new URL(app.url()).searchParams.get("fragment")).toBe("details");
   await app.reload();
@@ -187,7 +187,7 @@ test("chat file links open scoped previews, preserve anchors, reload, and suppor
       .toBe(join(workspace.directory, "docs", "guide #1.md"));
     await expect.poll(() => new URL(tab.url()).hash).toBe(`#${session.id}`);
     await expect(
-      tab.getByRole("dialog", { name: "Markdown viewer" }),
+      tab.getByRole("region", { name: "Markdown viewer" }),
     ).toContainText("Correct session directory.");
     expect(new URL(tab.url()).hash).toBe(`#${session.id}`);
   } finally {
@@ -244,6 +244,6 @@ test("configured file URLs select the named backend instead of the previously se
   url.hash = session.id;
   await app.goto(url.href);
   await expect(
-    app.getByRole("dialog", { name: "Markdown viewer" }),
+    app.getByRole("region", { name: "Markdown viewer" }),
   ).toContainText("Configured file route");
 });

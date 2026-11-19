@@ -108,7 +108,7 @@ test("status summary reveals full details without moving the conversation", asyn
   await copy.click();
   expect(await app.evaluate(() => navigator.clipboard.readText())).toBe(branch);
   await expect(details.getByRole("status")).toHaveText("Branch name copied");
-  await app.keyboard.press("Escape");
+  await trigger.click();
   await expect(details).toHaveCount(0);
   await expect(trigger).toBeFocused();
   await app.keyboard.press("Space");
@@ -209,7 +209,7 @@ test("narrow layouts keep controls reachable and review rows below floating chro
     .click();
   await app.getByRole("button", { name: "Load changes", exact: true }).click();
   await app.locator(".changeset-file-row", { hasText: "sample.txt" }).click();
-  const review = app.getByRole("dialog", { name: "File review" });
+  const review = app.getByRole("region", { name: "File review" });
   await expect(review).toContainText("new baseline line");
   const header = await review.locator("[data-status-bar]").boundingBox();
   const firstRow = await review.locator(".fulltext-line").first().boundingBox();

@@ -23,7 +23,7 @@ import stores, features, or API clients. ESLint enforces the import boundary.
 | `ListRow` | Native full-width selection button for picker rows. |
 | `EmptyState` | Centered, muted empty-state content. |
 | `Spinner` | Centered loading indicator, optionally fullscreen. |
-| `StatusBar` | Floating left/right summary with optional expandable details, accessible label, and independent actions; outside-click and Escape dismissal. |
+| `StatusBar` | Floating left/right summary with optional expandable details, accessible label, and independent actions; toggle the summary or interact outside it to dismiss. |
 | `SwipeablePane` | Scroll container with optional swipe navigation callbacks. |
 
 Read `frontend/DESIGN_SYSTEM.md` before changing presentation. Keep native DOM

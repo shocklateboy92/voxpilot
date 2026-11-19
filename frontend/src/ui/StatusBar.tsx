@@ -20,7 +20,6 @@ export function StatusBar(props: {
   const [open, setOpen] = createSignal(false);
   const id = createUniqueId();
   let container: HTMLDivElement | undefined;
-  let trigger: HTMLButtonElement | undefined;
 
   createEffect(() => {
     if (!open()) return;
@@ -28,20 +27,11 @@ export function StatusBar(props: {
       if (event.target instanceof Node && !container?.contains(event.target))
         setOpen(false);
     };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
-      event.preventDefault();
-      event.stopPropagation();
-      setOpen(false);
-      trigger?.focus();
-    };
     document.addEventListener("pointerdown", dismissOutside);
     document.addEventListener("focusin", dismissOutside);
-    document.addEventListener("keydown", onKeyDown, true);
     onCleanup(() => {
       document.removeEventListener("pointerdown", dismissOutside);
       document.removeEventListener("focusin", dismissOutside);
-      document.removeEventListener("keydown", onKeyDown, true);
     });
   });
 
@@ -89,7 +79,6 @@ export function StatusBar(props: {
           }
         >
           <button
-            ref={trigger}
             type="button"
             aria-label={props.label ?? "Session status"}
             aria-expanded={open()}

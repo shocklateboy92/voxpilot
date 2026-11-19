@@ -57,7 +57,7 @@ test("Mermaid renders in chat and files, follows themes, and preserves invalid s
   await expect(block.locator("svg")).not.toHaveAttribute("id", darkId ?? "");
   await expect(block).toContainText("Start");
   await app.getByRole("link", { name: "Open diagram", exact: true }).click();
-  const viewer = app.getByRole("dialog", { name: "Markdown viewer" });
+  const viewer = app.getByRole("region", { name: "Markdown viewer" });
   await expect(viewer.locator("[data-mermaid] svg")).toBeVisible();
   await app.setViewportSize({ width: 360, height: 800 });
   expect(

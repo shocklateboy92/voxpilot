@@ -8,10 +8,9 @@
  * 4. Plugin formatComparison RPC -> gets width-formatted HTML
  * 5. Renders HTML diff; resize re-renders at correct width
  *
- * Swipe / keyboard navigation:
- * - Swipe left  / PageDown → scroll to next change region, then next file
- * - Swipe right / PageUp   → scroll to prev change region, then prev file
- * - Escape closes the overlay
+ * Swipe navigation:
+ * - Swipe left → scroll to next change region, then next file
+ * - Swipe right → scroll to previous change region, then previous file
  * - Current change is highlighted with a left-border accent
  * - Status bar shows "change N of M" counter
  */
@@ -26,11 +25,13 @@ import {
   onCleanup,
   Show,
   Suspense,
+  untrack,
 } from "solid-js";
 import { ContentShell } from "../../app/ContentShell";
 import { rpc } from "../../platform/rpc";
 import { IconButton } from "../../ui/IconButton";
 import { Spinner } from "../../ui/Spinner";
+import type { ReadingControls } from "../chat/reading-controls";
 
 /** What the overlay needs to display a single file diff. */
 export interface ReviewRequest {
@@ -56,10 +57,30 @@ const SCROLL_TOP_PADDING = 32;
 /** CSS class applied to rows belonging to the current change region. */
 const CURRENT_CHANGE_CLASS = "current-change";
 
-export function ReviewOverlay() {
-  let containerRef: HTMLDivElement | undefined;
+export function ReviewOverlay(props: {
+  composerHeight: number;
+  readingControls: ReadingControls;
+}) {
+  let containerRef: HTMLElement | undefined;
   let paneRef: HTMLDivElement | undefined;
   const [printWidth, setPrintWidth] = createSignal<number | undefined>();
+
+  const open = createMemo(() => Boolean(reviewFile()));
+  createEffect(() => {
+    if (!open()) return;
+    const previous = document.activeElement;
+    containerRef?.focus();
+    onCleanup(() => {
+      queueMicrotask(() => {
+        if (
+          !untrack(open) &&
+          previous instanceof HTMLElement &&
+          previous.isConnected
+        )
+          previous.focus();
+      });
+    });
+  });
 
   // Explicit index of the current change region (0-based).
   // -1 means "no region selected yet" (before first navigation).
@@ -295,148 +316,123 @@ export function ReviewOverlay() {
   });
 
   // ---------------------------------------------------------------------------
-  // Keyboard navigation
-  // ---------------------------------------------------------------------------
-
-  function handleKeyDown(e: KeyboardEvent): void {
-    switch (e.key) {
-      case "PageDown":
-        e.preventDefault();
-        navigateNext();
-        break;
-      case "PageUp":
-        e.preventDefault();
-        navigatePrev();
-        break;
-      case "Escape":
-        e.preventDefault();
-        close();
-        break;
-    }
-  }
-
-  // ---------------------------------------------------------------------------
 
   function close(): void {
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement && containerRef?.contains(focused))
+      focused.blur();
     setReviewFile(null);
   }
 
   return (
     <Show when={reviewFile()}>
       {(req) => (
-        <div
-          class="review-overlay fixed inset-0 z-200 flex flex-col bg-bg text-left [--bottom-nav-height:0px] [--status-bar-clearance:calc(4.5rem+var(--safe-top))]"
-          role="dialog"
-          aria-modal="true"
+        <section
+          class="review-overlay absolute inset-0 flex flex-col bg-bg text-left outline-none [--status-bar-clearance:calc(4.5rem+var(--safe-top))]"
           aria-label="File review"
           tabIndex={-1}
-          onClick={close}
-          onKeyDown={handleKeyDown}
+          ref={containerRef}
         >
-          <div
-            class="relative flex h-full flex-col"
-            role="document"
-            ref={containerRef}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <ContentShell
-              statusBarLabel="Review status"
-              statusBarLeft={
-                <span class="review-file-path min-w-0 flex-1 truncate font-mono text-xs font-semibold text-muted">
-                  {req().filePath}
-                  <Show when={fileCounter()}>
-                    {(fc) => (
-                      <span class="review-file-counter ml-2 text-[0.65rem] text-muted opacity-70">
-                        {fc()}
-                      </span>
-                    )}
-                  </Show>
-                </span>
-              }
-              statusBarRight={
-                <Show when={changeCounter()}>
-                  {(cc) => (
-                    <span class="font-mono text-[0.7rem] whitespace-nowrap text-muted">
-                      {cc()}
+          <ContentShell
+            composerHeight={props.composerHeight}
+            readingControls={props.readingControls}
+            statusBarLabel="Review status"
+            statusBarLeft={
+              <span class="review-file-path min-w-0 flex-1 truncate font-mono text-xs font-semibold text-muted">
+                {req().filePath}
+                <Show when={fileCounter()}>
+                  {(fc) => (
+                    <span class="review-file-counter ml-2 text-[0.65rem] text-muted opacity-70">
+                      {fc()}
                     </span>
                   )}
                 </Show>
-              }
-              statusBarActions={
-                <IconButton
-                  variant="ghost"
-                  aria-label="Close review"
-                  onClick={close}
-                >
-                  <X size={14} />
-                </IconButton>
-              }
-              statusBarDetails={
-                <dl class="flex min-w-0 flex-col gap-4">
-                  <div>
-                    <dt class="mb-1 text-xs font-semibold text-muted">File</dt>
-                    <dd class="font-mono select-text [overflow-wrap:anywhere]">
-                      {req().filePath}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt class="mb-1 text-xs font-semibold text-muted">
-                      Repository
-                    </dt>
-                    <dd class="font-mono select-text [overflow-wrap:anywhere]">
-                      {req().repoRoot}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt class="mb-1 text-xs font-semibold text-muted">
-                      Comparison
-                    </dt>
-                    <dd class="font-mono select-text [overflow-wrap:anywhere]">
-                      {req().fromRef} → {req().toRef}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt class="mb-1 text-xs font-semibold text-muted">Position</dt>
-                    <dd>
-                      File {req().fileIndex + 1} of {req().files.length}
-                      <Show when={changeCounter()} fallback=" · No changes">
-                        {(counter) => <> · Change {counter()}</>}
-                      </Show>
-                    </dd>
-                  </div>
-                </dl>
-              }
-              canSwipeLeft={canSwipeLeft}
-              canSwipeRight={canSwipeRight}
-              onSwipeLeft={navigateNext}
-              onSwipeRight={navigatePrev}
-              onPaneMount={(el) => {
-                paneRef = el;
-              }}
-              paneClass="review-pane min-h-0 flex-1 touch-pan-y overflow-x-clip overflow-y-auto pt-(--status-bar-clearance) text-left"
-              onSend={close}
-            >
-              <ErrorBoundary
-                fallback={(err) => (
-                  <div class="review-diff-container min-h-0">
-                    <div class="text-error">
-                      Error:{" "}
-                      {err instanceof Error ? err.message : "Unknown error"}
-                    </div>
-                  </div>
+              </span>
+            }
+            statusBarRight={
+              <Show when={changeCounter()}>
+                {(cc) => (
+                  <span class="font-mono text-[0.7rem] whitespace-nowrap text-muted">
+                    {cc()}
+                  </span>
                 )}
+              </Show>
+            }
+            statusBarActions={
+              <IconButton
+                variant="ghost"
+                aria-label="Close review"
+                onClick={close}
               >
-                <Suspense fallback={<Spinner />}>
-                  <div
-                    class="review-diff-container min-h-0"
-                    // eslint-disable-next-line solid/no-innerhtml -- intentional: server-rendered diff HTML
-                    innerHTML={diffHtml() ?? ""}
-                  />
-                </Suspense>
-              </ErrorBoundary>
-            </ContentShell>
-          </div>
-        </div>
+                <X size={14} />
+              </IconButton>
+            }
+            statusBarDetails={
+              <dl class="flex min-w-0 flex-col gap-4">
+                <div>
+                  <dt class="mb-1 text-xs font-semibold text-muted">File</dt>
+                  <dd class="font-mono select-text [overflow-wrap:anywhere]">
+                    {req().filePath}
+                  </dd>
+                </div>
+                <div>
+                  <dt class="mb-1 text-xs font-semibold text-muted">
+                    Repository
+                  </dt>
+                  <dd class="font-mono select-text [overflow-wrap:anywhere]">
+                    {req().repoRoot}
+                  </dd>
+                </div>
+                <div>
+                  <dt class="mb-1 text-xs font-semibold text-muted">
+                    Comparison
+                  </dt>
+                  <dd class="font-mono select-text [overflow-wrap:anywhere]">
+                    {req().fromRef} → {req().toRef}
+                  </dd>
+                </div>
+                <div>
+                  <dt class="mb-1 text-xs font-semibold text-muted">
+                    Position
+                  </dt>
+                  <dd>
+                    File {req().fileIndex + 1} of {req().files.length}
+                    <Show when={changeCounter()} fallback=" · No changes">
+                      {(counter) => <> · Change {counter()}</>}
+                    </Show>
+                  </dd>
+                </div>
+              </dl>
+            }
+            canSwipeLeft={canSwipeLeft}
+            canSwipeRight={canSwipeRight}
+            onSwipeLeft={navigateNext}
+            onSwipeRight={navigatePrev}
+            onPaneMount={(el) => {
+              paneRef = el;
+            }}
+            paneClass="review-pane min-h-0 flex-1 touch-pan-y overflow-x-clip overflow-y-auto pt-(--status-bar-clearance) text-left"
+          >
+            <ErrorBoundary
+              fallback={(err) => (
+                <div class="review-diff-container min-h-0">
+                  <div class="text-error">
+                    Error:{" "}
+                    {err instanceof Error ? err.message : "Unknown error"}
+                  </div>
+                </div>
+              )}
+            >
+              <Suspense fallback={<Spinner />}>
+                <div
+                  class="review-diff-container min-h-0"
+                  // eslint-disable-next-line solid/no-innerhtml -- intentional: server-rendered diff HTML
+                  innerHTML={diffHtml() ?? ""}
+                />
+              </Suspense>
+            </ErrorBoundary>
+          </ContentShell>
+        </section>
       )}
     </Show>
   );

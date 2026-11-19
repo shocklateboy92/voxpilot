@@ -111,6 +111,7 @@ backdrop dismissal. Its header uses an accessible close button.
 Composer action buttons prevent pointer-driven focus transfer so keyboard/nav
 layout changes cannot move a button between pointer-down and click. Keyboard
 activation still works normally.
+Enter inserts a newline in the composer on all devices; use Send to submit.
 
 Async event errors go through the global rejection handler. Do not add per-control
 try/catch blocks just to display error toasts.
@@ -139,12 +140,15 @@ Reading content extends to the bottom edge without a bottom fade or reserved
 safe-area band; floating controls still respect `--safe-bottom`.
 The composer stays mounted to preserve drafts and active microphone capture;
 its compact recorder uses the same recording lifecycle as the expanded controls.
+Chat, diff review and the Markdown viewer share a single session footer, including
+the server, model and thinking selectors. Switching panes preserves the current
+mode, draft and recorder; only the background content becomes inert.
 If the agent resumes while dictation is active or microphone permission is pending,
 keep recording with Finish and Cancel available. Finishing transcribes and submits
 with `steer` delivery even while the agent is busy; generation must not discard audio.
 Idle reading controls still replace the microphone with Stop during generation.
 Reading-mode state and expand/collapse callbacks travel together in the optional
-`ReadingControls` capability; overlays without it keep their full composer.
+`ReadingControls` capability.
 Sending returns to reading, while finishing a recording reveals transcription
 progress/recovery. New conversations retain their full setup form.
 `ReviewOverlay` measures `--code-font-size`, `--code-line-height`,

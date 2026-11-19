@@ -345,18 +345,6 @@ export function MessageComposer(props: {
               autofocus={!compact()}
               rows={1}
               disabled={props.disabled}
-              onKeyDown={(event) => {
-                if (
-                  event.key === "Enter" &&
-                  !event.shiftKey &&
-                  !event.isComposing &&
-                  // Touch-first devices need Enter for newlines; use Send instead.
-                  !window.matchMedia("(pointer: coarse)").matches
-                ) {
-                  event.preventDefault();
-                  event.currentTarget.form?.requestSubmit();
-                }
-              }}
               onInput={(event) => draft().setText(event.currentTarget.value)}
               onPaste={(event) => {
                 const files = clipboardFiles(event);
