@@ -39,6 +39,15 @@ export const ReviewReference = z.object({
 
 export type ReviewReference = z.infer<typeof ReviewReference>;
 
+export const ReviewLine = z.object({
+  side: z.enum(["before", "after"]),
+  line: z.number().int().positive(),
+});
+
+export const ReviewCitation = ReviewReference.extend(ReviewLine.shape);
+export type ReviewCitation = z.infer<typeof ReviewCitation>;
+export type ReviewLine = z.infer<typeof ReviewLine>;
+
 export const VOCABULARY_MAX_TERMS = 100;
 export const VocabularyFile = z.array(VocabularyTerm).max(VOCABULARY_MAX_TERMS);
 
@@ -78,11 +87,13 @@ export const VoxPilotRpc = Rpc.define({
         cacheId: z.string(),
         filePath: z.string(),
         printWidth: z.number().int().min(10).max(500),
+        sourceLine: ReviewLine.optional(),
       }),
       output: z.object({
         formattedBefore: z.string(),
         formattedAfter: z.string(),
         html: z.string(),
+        targetRow: ReviewLine.optional(),
       }),
     },
   },

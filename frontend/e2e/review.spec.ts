@@ -5,6 +5,62 @@ import { expect, send, test } from "./browser";
 import { assistant, history, openSession, selectSession, swipe } from "./data";
 import { client, modelKey, password } from "./dev";
 
+test("review citations scroll to the original snapshot line without highlighting", async ({
+  app,
+  workspace,
+}) => {
+  const file = "citation example.ts";
+  const path = join(workspace.directory, file);
+  const before = Array.from({ length: 95 }, (_, index) =>
+    index === 80
+      ? "removedCall();"
+      : `call(${index}, "first long argument", "second long argument", "third long argument");`,
+  ).join("\n");
+  await writeFile(path, before);
+  await workspace.git("add", file);
+  await workspace.git(
+    "-c",
+    "user.name=E2E",
+    "-c",
+    "user.email=e2e@example.invalid",
+    "-c",
+    "commit.gpgsign=false",
+    "commit",
+    "-m",
+    "Citation fixture",
+  );
+  await writeFile(path, before.replace("removedCall();\n", ""));
+  const snapshot = await client.rpc(VoxPilotRpc).compare({
+    workdir: workspace.directory,
+    path: file,
+  });
+  await writeFile(path, "// newer working copy\n");
+  const cite = `voxpilot-review:${snapshot.id}?file=${encodeURIComponent(file)}&side=before`;
+  const session = await history(workspace.directory, "Review citations", [
+    assistant([
+      {
+        type: "text",
+        text: `[Removed call](${cite}&line=81)\n\n[Unavailable line](${cite}&line=999)`,
+      },
+    ]),
+  ]);
+  await openSession(app, session.id, { reading: true });
+  const review = app.getByRole("region", { name: "File review" });
+  await app.getByRole("link", { name: "Removed call" }).click();
+  const deleted = review.locator(".fulltext-line-del", {
+    hasText: "removedCall",
+  });
+  await expect(deleted).toBeInViewport();
+  await expect(review.locator(".current-change")).toHaveCount(0);
+  await expect(review).not.toContainText("newer working copy");
+  await review.getByRole("button", { name: "Close review" }).click();
+  await app.getByRole("link", { name: "Unavailable line" }).click();
+  await expect(review.getByRole("status")).toHaveText(
+    "Exact line not located in this diff.",
+  );
+  await expect(deleted).not.toBeInViewport();
+});
+
 test("review shares the live composer, its modes, and its selectors with chat", async ({
   app,
   workspace,

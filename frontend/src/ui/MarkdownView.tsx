@@ -12,6 +12,7 @@ import { renderMermaid } from "./mermaid";
 export function MarkdownView(props: {
   text: string;
   resolveLink?: Parameters<typeof renderMarkdown>[1];
+  onLinkClick?: (href: string) => boolean;
   onMount?: (element: HTMLDivElement) => void;
 }) {
   let root: HTMLDivElement | undefined;
@@ -63,6 +64,10 @@ export function MarkdownView(props: {
         const target = event.target;
         if (!(target instanceof Element)) return;
         const href = target.closest("a[href]")?.getAttribute("href");
+        if (href && props.onLinkClick?.(href)) {
+          event.preventDefault();
+          return;
+        }
         if (!href?.startsWith("#")) return;
         // Fragment-only links target this Markdown body, not the app's session hash.
         event.preventDefault();

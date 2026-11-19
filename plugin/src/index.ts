@@ -45,7 +45,10 @@ export default Plugin.define({
       vocabulary: (_, context) => vocabulary.read(context.signal),
       compare: (input, context) => compare(input, context.signal),
       snapshot: ({ id }) => snapshot(id),
-      formatComparison: async ({ cacheId, filePath, printWidth }, context) => {
+      formatComparison: async (
+        { cacheId, filePath, printWidth, sourceLine },
+        context,
+      ) => {
         const entry = await snapshot(cacheId);
         const file = entry?.files.find((file) => file.filePath === filePath);
         if (!file)
@@ -55,6 +58,7 @@ export default Plugin.define({
           after: file.afterContent,
           filePath,
           printWidth,
+          sourceLine,
           signal: context.signal,
         });
       },
@@ -64,7 +68,7 @@ export default Plugin.define({
         name: "voxpilot_read_review_source",
         options: { codemode: false },
         description:
-          "Read original, unformatted source from one side of an immutable VoxPilot review snapshot. When a message's 'User was viewing' or 'Selected from' context includes a Snapshot, use that ID and file path instead of reading the current working tree. Line numbers are original source lines, starting at 1. Read before and after to see what changed.",
+          "Read original, unformatted source from one side of an immutable VoxPilot review snapshot. When a message's 'User was viewing' or 'Selected from' context includes a Snapshot, use that ID and file path instead of reading the current working tree. Line numbers are original source lines, starting at 1. Read before and after to see what changed. To cite a verified line in your reply, use a Markdown link like [the removed check](voxpilot-review:SNAPSHOT_UUID?file=src%2Fexample.ts&side=before&line=42). URL-encode the file path; use the before side for deleted code and the after side for current code. Use original source line numbers, never displayed diff line numbers.",
         input: {
           type: "object",
           properties: {

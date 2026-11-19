@@ -162,6 +162,8 @@ Sending returns to reading, while finishing a recording reveals transcription
 progress/recovery. New conversations retain their full setup form.
 `ReviewOverlay` measures `--code-font-size`, `--code-line-height`,
 `--line-num-width`, `--cell-padding`, and `--font-mono` to calculate print width.
+Review citations scroll to the mapped row without highlighting it. If the row
+cannot be located, open the snapshot file and show a notice rather than guessing.
 
 Some semantic classes remain as stable behavior/test hooks, not styling rules:
 `message`, `streaming`, `tool-block`, `changeset-card`, and picker/review hooks.

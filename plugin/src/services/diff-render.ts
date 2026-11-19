@@ -51,7 +51,7 @@ function renderDeletedRow(line: DiffLine, highlight?: DiffHighlight): string {
   const tokens =
     line.oldLine === null ? undefined : highlight?.before[line.oldLine - 1];
   return (
-    `<tr class="fulltext-line fulltext-line-del">` +
+    `<tr class="fulltext-line fulltext-line-del" data-review-before="${line.oldLine ?? ""}">` +
     `<td class="fulltext-line-num"></td>` +
     `<td class="fulltext-line-content"><code>${renderCodeLine(line.content, tokens)}</code></td>` +
     `</tr>`
@@ -252,7 +252,7 @@ export function renderFullFileHtml(
       : "fulltext-line";
 
     bodyParts.push(
-      `<tr class="${rowClass}">` +
+      `<tr class="${rowClass}" data-review-after="${lineNum}">` +
         `<td class="fulltext-line-num">${lineNum}</td>` +
         `<td class="fulltext-line-content"><code>${renderCodeLine(lines[i] ?? "", highlight?.after[i])}</code></td>` +
         `</tr>`,

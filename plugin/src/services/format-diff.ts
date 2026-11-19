@@ -1,9 +1,11 @@
 import { diffLines } from "diff";
 import * as prettier from "prettier";
+import type { ReviewLine } from "../rpc";
 import { highlightDiff } from "./diff-highlight";
 import { renderFullFileHtml } from "./diff-render";
 import type { DiffHunk, DiffLine } from "./diff-types";
 import { languageForFile, reflowComments } from "./reflow-comments";
+import { mapSourceLine } from "./source-line-map";
 
 interface FormatDiffInput {
   before: string;
@@ -11,6 +13,7 @@ interface FormatDiffInput {
   filePath: string;
   printWidth: number;
   signal?: AbortSignal;
+  sourceLine?: ReviewLine;
 }
 
 interface FormatDiffResult {
@@ -18,6 +21,7 @@ interface FormatDiffResult {
   formattedAfter: string;
   hunks: DiffHunk[];
   html: string;
+  targetRow?: ReviewLine;
 }
 
 export async function formatAndDiff(
@@ -54,6 +58,7 @@ export async function formatAndDiff(
     : formattedAfter;
 
   const changes = diffLines(reflowedBefore, reflowedAfter);
+  const targetRow = locateRow(input, reflowedBefore, reflowedAfter, changes);
   const hunks = buildHunks(changes);
   const highlight = await highlightDiff(
     input.filePath,
@@ -77,7 +82,38 @@ export async function formatAndDiff(
     formattedAfter: reflowedAfter,
     hunks,
     html,
+    ...(targetRow ? { targetRow } : {}),
   };
+}
+
+/** Context lines on the before side are rendered as ordinary after rows. */
+function locateRow(
+  input: FormatDiffInput,
+  before: string,
+  after: string,
+  changes: ReturnType<typeof diffLines>,
+): ReviewLine | undefined {
+  const target = input.sourceLine;
+  if (!target) return;
+  if (target.side === "after") {
+    const line = mapSourceLine(input.after, after, target.line);
+    return line === undefined ? undefined : { side: "after", line };
+  }
+  const line = mapSourceLine(input.before, before, target.line);
+  if (line === undefined) return;
+  let oldLine = 1;
+  let newLine = 1;
+  for (const change of changes) {
+    const count = change.value.replace(/\n$/, "").split("\n").length;
+    if (!change.added) {
+      if (line < oldLine + count)
+        return change.removed
+          ? { side: "before", line }
+          : { side: "after", line: newLine + line - oldLine };
+      oldLine += count;
+    }
+    if (!change.removed) newLine += count;
+  }
 }
 
 // ---------------------------------------------------------------------------

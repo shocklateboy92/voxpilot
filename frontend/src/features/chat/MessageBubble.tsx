@@ -14,6 +14,7 @@ import { serverUrl } from "../../platform/connection";
 import { configuredServer } from "../../platform/connection-config";
 import { Badge } from "../../ui/Badge";
 import { MarkdownView } from "../../ui/MarkdownView";
+import { openReviewCitation } from "../review/review-citation";
 import { backgroundCompletion } from "../tools/background-tools";
 import { ToolCallRenderer } from "../tools/ToolCallRenderer";
 import { MessageAttachments } from "./attachments/MessageAttachments";
@@ -175,7 +176,11 @@ export function MessageBubble(props: Props) {
           </div>
         </Show>
         <Show when={role() !== "user" && textContent()}>
-          <MarkdownView text={textContent()} resolveLink={resolveLink} />
+          <MarkdownView
+            text={textContent()}
+            resolveLink={resolveLink}
+            onLinkClick={openReviewCitation}
+          />
         </Show>
         <Show when={role() === "user" && textContent()}>
           <p>{textContent()}</p>

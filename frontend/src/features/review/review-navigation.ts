@@ -1,3 +1,4 @@
+import type { ReviewLine } from "@plugin/rpc";
 import { createSignal } from "solid-js";
 import { activeSessionId } from "../../app/navigation";
 import type { rpc } from "../../platform/rpc";
@@ -25,6 +26,7 @@ interface ReviewRequest {
   fileIndex: number;
   positions: Map<string, ReviewPosition>;
   startAtEnd: boolean;
+  sourceLine?: ReviewLine;
 }
 
 // The snapshot is stored by the backend. Only navigation state lives here,
@@ -58,7 +60,11 @@ export function resumeReview(): boolean {
   return true;
 }
 
-export function openSnapshotFile(snapshot: ReviewSnapshot, filePath: string) {
+export function openSnapshotFile(
+  snapshot: ReviewSnapshot,
+  filePath: string,
+  sourceLine?: ReviewLine,
+) {
   const files = snapshot.files.map(({ filePath, additions, deletions }) => ({
     filePath,
     additions,
@@ -79,6 +85,7 @@ export function openSnapshotFile(snapshot: ReviewSnapshot, filePath: string) {
     positions:
       previous?.cacheId === snapshot.id ? previous.positions : new Map(),
     startAtEnd: false,
+    sourceLine,
   });
 }
 
@@ -92,5 +99,6 @@ export function selectReviewFile(fileIndex: number, edge?: "first" | "last") {
     filePath: file.filePath,
     fileIndex,
     startAtEnd: edge === "last",
+    sourceLine: undefined,
   });
 }

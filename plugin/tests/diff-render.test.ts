@@ -262,7 +262,7 @@ describe("renderFullFileHtml", () => {
     const html = renderFullFileHtml("f-1", "a.ts", fullText, [makeHunk()]);
     // Del rows have an empty line-num cell
     expect(html).toContain(
-      '<tr class="fulltext-line fulltext-line-del">' +
+      '<tr class="fulltext-line fulltext-line-del" data-review-before="2">' +
         '<td class="fulltext-line-num"></td>',
     );
   });

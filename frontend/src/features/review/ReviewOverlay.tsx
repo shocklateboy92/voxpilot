@@ -68,6 +68,8 @@ export function ReviewOverlay(props: {
   const [currentIndex, setCurrentIndex] = createSignal(-1);
   // Total number of change regions in the current file's rendered diff.
   const [regionCount, setRegionCount] = createSignal(0);
+  const [unlocated, setUnlocated] = createSignal(false);
+  const [showCurrentChange, setShowCurrentChange] = createSignal(true);
 
   // Cached regions array — rebuilt each time the diff HTML changes.
   let cachedRegions: HTMLElement[] = [];
@@ -86,8 +88,9 @@ export function ReviewOverlay(props: {
       filePath: req.filePath,
       printWidth,
       cacheId: req.cacheId,
+      ...(req.sourceLine ? { sourceLine: req.sourceLine } : {}),
     });
-    return { html: data.html, req, printWidth };
+    return { html: data.html, targetRow: data.targetRow, req, printWidth };
   });
   const rendered = createMemo(() => {
     if (diff.state !== "ready") return undefined;
@@ -96,6 +99,10 @@ export function ReviewOverlay(props: {
       return result;
   });
   let positioned: ReturnType<typeof rendered>;
+  const appliedCitations = new WeakMap<
+    NonNullable<ReturnType<typeof reviewFile>>,
+    number
+  >();
 
   // Restore pixel position at the same width, or fall back to the saved change.
   createEffect(() => {
@@ -105,6 +112,7 @@ export function ReviewOverlay(props: {
     cachedRegions = [];
     setCurrentIndex(-1);
     setRegionCount(0);
+    setUnlocated(false);
     if (!result || !pane) return;
 
     // Wait one frame for innerHTML to update the DOM.
@@ -113,14 +121,58 @@ export function ReviewOverlay(props: {
       setRegionCount(cachedRegions.length);
       const saved = result.req.positions.get(result.req.filePath);
       const last = cachedRegions.length - 1;
-      const idx = Math.min(
+      let idx = Math.min(
         saved?.changeIndex ?? (result.req.startAtEnd ? last : 0),
         last,
       );
+      const citation = result.req.sourceLine;
+      const target = result.targetRow;
+      const row =
+        target &&
+        pane.querySelector<HTMLElement>(
+          `[data-review-${target.side}="${target.line}"]`,
+        );
+      const jump =
+        citation && appliedCitations.get(result.req) !== result.printWidth;
+      setUnlocated(Boolean(citation && !row));
+      setShowCurrentChange(!citation);
+      if (jump) {
+        appliedCitations.set(result.req, result.printWidth);
+        idx = -1;
+        if (row) {
+          for (const [index, region] of cachedRegions.entries()) {
+            if (
+              !(
+                region.compareDocumentPosition(row) &
+                Node.DOCUMENT_POSITION_FOLLOWING
+              )
+            )
+              break;
+            idx = index;
+          }
+        }
+      }
       setCurrentIndex(idx);
-      applyHighlight(cachedRegions, idx);
+      applyHighlight(cachedRegions, citation ? -1 : idx);
       const region = cachedRegions[idx];
-      if (saved?.printWidth === result.printWidth)
+      if (jump && row) {
+        const viewport = pane.getBoundingClientRect();
+        const inset = Number.parseFloat(getComputedStyle(pane).paddingTop) || 0;
+        const available = Math.max(
+          0,
+          viewport.height - inset - props.composerHeight,
+        );
+        pane.scrollTo({
+          top:
+            pane.scrollTop +
+            row.getBoundingClientRect().top -
+            viewport.top -
+            inset -
+            available / 3,
+          behavior: "instant",
+        });
+      } else if (jump) pane.scrollTo({ top: 0, behavior: "instant" });
+      else if (saved?.printWidth === result.printWidth)
         pane.scrollTo({ top: saved.scrollTop, behavior: "instant" });
       else if (region) scrollToRegion(region, pane, "instant");
       else pane.scrollTo({ top: 0, behavior: "instant" });
@@ -143,8 +195,8 @@ export function ReviewOverlay(props: {
   // When currentIndex changes (via swipe), update the DOM highlight.
   createEffect(() => {
     const idx = currentIndex();
-    if (!paneRef || cachedRegions.length === 0 || idx < 0) return;
-    applyHighlight(cachedRegions, idx);
+    if (!paneRef || cachedRegions.length === 0) return;
+    applyHighlight(cachedRegions, showCurrentChange() ? idx : -1);
   });
 
   // Compute initial printWidth once the overlay is visible
@@ -200,6 +252,7 @@ export function ReviewOverlay(props: {
     }
 
     const nextIdx = idx + 1;
+    setShowCurrentChange(true);
     setCurrentIndex(nextIdx);
     const region = cachedRegions[nextIdx];
     if (region) {
@@ -223,6 +276,7 @@ export function ReviewOverlay(props: {
     }
 
     const prevIdx = idx - 1;
+    setShowCurrentChange(true);
     setCurrentIndex(prevIdx);
     const region = cachedRegions[prevIdx];
     if (region) {
@@ -278,8 +332,8 @@ export function ReviewOverlay(props: {
 
   const changeCounter = createMemo(() => {
     const total = regionCount();
-    if (total === 0) return null;
     const idx = currentIndex();
+    if (total === 0 || idx < 0 || !showCurrentChange()) return null;
     return `${idx + 1} of ${total}`;
   });
 
@@ -372,7 +426,12 @@ export function ReviewOverlay(props: {
                   </dt>
                   <dd>
                     File {req().fileIndex + 1} of {req().files.length}
-                    <Show when={changeCounter()} fallback=" · No changes">
+                    <Show
+                      when={changeCounter()}
+                      fallback={
+                        regionCount() === 0 ? " · No changes" : undefined
+                      }
+                    >
                       {(counter) => <> · Change {counter()}</>}
                     </Show>
                   </dd>
@@ -394,12 +453,19 @@ export function ReviewOverlay(props: {
               fallback={
                 <Show when={rendered()} fallback={<Spinner />}>
                   {(result) => (
-                    <div
-                      class="review-diff-container min-h-0"
-                      data-viewer-selection="review"
-                      // eslint-disable-next-line solid/no-innerhtml -- intentional: server-rendered diff HTML
-                      innerHTML={result().html}
-                    />
+                    <>
+                      <Show when={unlocated()}>
+                        <p role="status" class="mx-3 mb-2 text-sm text-muted">
+                          Exact line not located in this diff.
+                        </p>
+                      </Show>
+                      <div
+                        class="review-diff-container min-h-0"
+                        data-viewer-selection="review"
+                        // eslint-disable-next-line solid/no-innerhtml -- intentional: server-rendered diff HTML
+                        innerHTML={result().html}
+                      />
+                    </>
                   )}
                 </Show>
               }
