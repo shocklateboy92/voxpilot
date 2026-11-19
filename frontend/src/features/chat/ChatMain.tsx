@@ -2,11 +2,10 @@
  * Main chat area — messages list with scroll management.
  *
  * Scroll behaviour is driven by `useScrollAnchor` (a reactive primitive).
- * The anchor instance is created at module level and exported so ChatView
+ * The anchor instance is created at module level and exported so SessionChatPane
  * can wire `onPaneMount` / `onScroll` into ContentShell.
  *
- * The scroll-to-bottom button is exported as `ChatScrollButton` for
- * ContentShell's overlay slot.
+ * The scroll-to-bottom button is exported for the shared session composer.
  *
  * Scroll-position persistence across session switches is handled entirely
  * within this module via a single effect that tracks both activeSessionId
@@ -29,7 +28,7 @@ import { useScrollAnchor } from "./scroll-anchor";
 
 /**
  * Shared scroll-anchor instance for the chat pane.
- * ChatView wires `anchor.onPaneMount` and `anchor.onScroll` to ContentShell.
+ * SessionChatPane wires `chatPaneMount` and `anchor.onScroll` to ContentShell.
  *
  * Wrapped in createRoot so the effect and ResizeObserver inside
  * `useScrollAnchor` have an owner — without one, the `onCleanup` for the
@@ -55,7 +54,7 @@ export function chatPaneMount(el: HTMLDivElement): void {
   anchor.onPaneMount(el);
 }
 
-/** Scroll-to-bottom button — render in ContentShell's composer stack. */
+/** Scroll-to-bottom button — render in the shared session composer. */
 export function ChatScrollButton() {
   return (
     <Show when={!anchor.isAtBottom()}>
