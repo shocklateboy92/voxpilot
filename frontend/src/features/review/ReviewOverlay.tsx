@@ -2,8 +2,8 @@
  * Review overlay — fullscreen diff viewer for git ref-based diffs.
  *
  * Flow:
- * 1. User clicks a file in ChangesetCard -> setReviewFile() called
- * 2. Overlay opens with ContentShell (floating status bar + diff + input)
+ * 1. User opens or resumes a snapshot file
+ * 2. Overlay opens with ContentShell (floating status bar + diff)
  * 3. Measures container width -> calculates printWidth
  * 4. Plugin formatComparison RPC -> gets width-formatted HTML
  * 5. Renders HTML diff; resize re-renders at correct width
@@ -21,10 +21,8 @@ import {
   createMemo,
   createResource,
   createSignal,
-  ErrorBoundary,
   onCleanup,
   Show,
-  Suspense,
   untrack,
 } from "solid-js";
 import { ContentShell } from "../../app/ContentShell";
@@ -32,24 +30,7 @@ import { rpc } from "../../platform/rpc";
 import { IconButton } from "../../ui/IconButton";
 import { Spinner } from "../../ui/Spinner";
 import type { ReadingControls } from "../chat/reading-controls";
-
-/** What the overlay needs to display a single file diff. */
-export interface ReviewRequest {
-  fromRef: string;
-  toRef: string;
-  repoRoot: string;
-  filePath: string;
-  cacheId?: string;
-  /** All file paths in the changeset, in order. */
-  files: string[];
-  /** Index of the current file within `files`. */
-  fileIndex: number;
-}
-
-// Shared signal — set by ChangesetCard, consumed by this overlay
-export const [reviewFile, setReviewFile] = createSignal<ReviewRequest | null>(
-  null,
-);
+import { parkReview, reviewFile, selectReviewFile } from "./review-navigation";
 
 /** Padding (px) above a change region when it doesn't fit on screen. */
 const SCROLL_TOP_PADDING = 32;
@@ -91,25 +72,6 @@ export function ReviewOverlay(props: {
   // Cached regions array — rebuilt each time the diff HTML changes.
   let cachedRegions: HTMLElement[] = [];
 
-  // Direction to auto-scroll when a new file's diff renders.
-  // "first" → start at first change, "last" → start at last change.
-  let initialDirection: "first" | "last" = "first";
-
-  // Version counter — incremented each time the file changes so that
-  // in-flight rAF callbacks from a previous file can discard themselves.
-  let regionVersion = 0;
-
-  // Reset navigation state immediately when the file changes, before
-  // the new diff HTML arrives. This prevents stale regions from a
-  // previous file being used during the loading gap.
-  createEffect(() => {
-    reviewFile(); // track the signal
-    cachedRegions = [];
-    setCurrentIndex(-1);
-    setRegionCount(0);
-    regionVersion++;
-  });
-
   // Derive a stable fetch key from the review request + print width.
   // Returns undefined (skipping the fetch) until both are available.
   const fetchKey = () => {
@@ -119,49 +81,64 @@ export function ReviewOverlay(props: {
     return { req, printWidth: pw };
   };
 
-  const [diffHtml] = createResource(fetchKey, async ({ req, printWidth }) => {
-    if (!req.cacheId) throw new Error("A review snapshot is required");
+  const [diff] = createResource(fetchKey, async ({ req, printWidth }) => {
     const data = await rpc.formatComparison({
       filePath: req.filePath,
       printWidth,
       cacheId: req.cacheId,
     });
-    return data.html;
+    return { html: data.html, req, printWidth };
   });
+  const rendered = createMemo(() => {
+    if (diff.state !== "ready") return undefined;
+    const result = diff();
+    if (result?.req === reviewFile() && result?.printWidth === printWidth())
+      return result;
+  });
+  let positioned: ReturnType<typeof rendered>;
 
-  // After diff HTML renders, scan for change regions and navigate
-  // to the initial change (first or last).
+  // Restore pixel position at the same width, or fall back to the saved change.
   createEffect(() => {
-    const html = diffHtml();
-    if (!html || !paneRef) return;
-
+    const result = rendered();
     const pane = paneRef;
-    const direction = initialDirection;
-    initialDirection = "first";
-    const version = regionVersion;
+    positioned = undefined;
+    cachedRegions = [];
+    setCurrentIndex(-1);
+    setRegionCount(0);
+    if (!result || !pane) return;
 
     // Wait one frame for innerHTML to update the DOM.
-    requestAnimationFrame(() => {
-      // Discard if a newer file change has occurred since we scheduled.
-      if (version !== regionVersion) return;
-
+    const frame = requestAnimationFrame(() => {
       cachedRegions = getChangeRegions(pane);
       setRegionCount(cachedRegions.length);
-
-      if (cachedRegions.length === 0) {
-        setCurrentIndex(-1);
-        return;
-      }
-
-      const idx = direction === "first" ? 0 : cachedRegions.length - 1;
+      const saved = result.req.positions.get(result.req.filePath);
+      const last = cachedRegions.length - 1;
+      const idx = Math.min(
+        saved?.changeIndex ?? (result.req.startAtEnd ? last : 0),
+        last,
+      );
       setCurrentIndex(idx);
       applyHighlight(cachedRegions, idx);
       const region = cachedRegions[idx];
-      if (region) {
-        scrollToRegion(region, pane);
-      }
+      if (saved?.printWidth === result.printWidth)
+        pane.scrollTo({ top: saved.scrollTop, behavior: "instant" });
+      else if (region) scrollToRegion(region, pane, "instant");
+      else pane.scrollTo({ top: 0, behavior: "instant" });
+      positioned = result;
+      savePosition();
     });
+    onCleanup(() => cancelAnimationFrame(frame));
   });
+
+  function savePosition(): void {
+    const result = rendered();
+    if (!result || result !== positioned || !paneRef) return;
+    result.req.positions.set(result.req.filePath, {
+      changeIndex: currentIndex(),
+      printWidth: result.printWidth,
+      scrollTop: paneRef.scrollTop,
+    });
+  }
 
   // When currentIndex changes (via swipe), update the DOM highlight.
   createEffect(() => {
@@ -197,7 +174,10 @@ export function ReviewOverlay(props: {
     });
 
     observer.observe(containerRef);
-    onCleanup(() => observer.disconnect());
+    onCleanup(() => {
+      observer.disconnect();
+      clearTimeout(resizeTimer);
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -225,6 +205,7 @@ export function ReviewOverlay(props: {
     if (region) {
       scrollToRegion(region, paneRef);
     }
+    savePosition();
   }
 
   /**
@@ -247,6 +228,7 @@ export function ReviewOverlay(props: {
     if (region) {
       scrollToRegion(region, paneRef);
     }
+    savePosition();
   }
 
   /**
@@ -256,16 +238,8 @@ export function ReviewOverlay(props: {
     const req = reviewFile();
     if (!req) return;
 
-    const newIndex = req.fileIndex + delta;
-    const newPath = req.files[newIndex];
-    if (newPath === undefined) return;
-
-    initialDirection = scrollTo;
-    setReviewFile({
-      ...req,
-      filePath: newPath,
-      fileIndex: newIndex,
-    });
+    savePosition();
+    selectReviewFile(req.fileIndex + delta, scrollTo);
   }
 
   // ---------------------------------------------------------------------------
@@ -273,7 +247,7 @@ export function ReviewOverlay(props: {
   // ---------------------------------------------------------------------------
 
   function canSwipeLeft(): boolean {
-    if (diffHtml.loading || !diffHtml()) return false;
+    if (!rendered()) return false;
     const req = reviewFile();
     if (!req) return false;
 
@@ -288,7 +262,7 @@ export function ReviewOverlay(props: {
   }
 
   function canSwipeRight(): boolean {
-    if (diffHtml.loading || !diffHtml()) return false;
+    if (!rendered()) return false;
     const req = reviewFile();
     if (!req) return false;
 
@@ -318,10 +292,11 @@ export function ReviewOverlay(props: {
   // ---------------------------------------------------------------------------
 
   function close(): void {
+    savePosition();
     const focused = document.activeElement;
     if (focused instanceof HTMLElement && containerRef?.contains(focused))
       focused.blur();
-    setReviewFile(null);
+    parkReview();
   }
 
   return (
@@ -411,26 +386,29 @@ export function ReviewOverlay(props: {
             onPaneMount={(el) => {
               paneRef = el;
             }}
+            onScroll={savePosition}
             paneClass="review-pane min-h-0 flex-1 touch-pan-y overflow-x-clip overflow-y-auto pt-(--status-bar-clearance) text-left"
           >
-            <ErrorBoundary
-              fallback={(err) => (
-                <div class="review-diff-container min-h-0">
-                  <div class="text-error">
-                    Error:{" "}
-                    {err instanceof Error ? err.message : "Unknown error"}
-                  </div>
-                </div>
-              )}
+            <Show
+              when={diff.state === "errored"}
+              fallback={
+                <Show when={rendered()} fallback={<Spinner />}>
+                  {(result) => (
+                    <div
+                      class="review-diff-container min-h-0"
+                      // eslint-disable-next-line solid/no-innerhtml -- intentional: server-rendered diff HTML
+                      innerHTML={result().html}
+                    />
+                  )}
+                </Show>
+              }
             >
-              <Suspense fallback={<Spinner />}>
-                <div
-                  class="review-diff-container min-h-0"
-                  // eslint-disable-next-line solid/no-innerhtml -- intentional: server-rendered diff HTML
-                  innerHTML={diffHtml() ?? ""}
-                />
-              </Suspense>
-            </ErrorBoundary>
+              <div role="alert" class="text-error">
+                {diff.error instanceof Error
+                  ? diff.error.message
+                  : "Unable to open this review file."}
+              </div>
+            </Show>
           </ContentShell>
         </section>
       )}
@@ -472,7 +450,11 @@ function applyHighlight(regions: HTMLElement[], activeIndex: number): void {
  * - If the entire region fits on screen → center it vertically.
  * - If it doesn't fit → position it near the top with padding.
  */
-function scrollToRegion(region: HTMLElement, pane: HTMLElement): void {
+function scrollToRegion(
+  region: HTMLElement,
+  pane: HTMLElement,
+  behavior: ScrollBehavior = "smooth",
+): void {
   const rect = region.getBoundingClientRect();
   const paneRect = pane.getBoundingClientRect();
   const viewportHeight = paneRect.height;
@@ -483,7 +465,7 @@ function scrollToRegion(region: HTMLElement, pane: HTMLElement): void {
       rect.top - paneRect.top + pane.scrollTop + rect.height / 2;
     pane.scrollTo({
       top: regionCenter - viewportHeight / 2,
-      behavior: "smooth",
+      behavior,
     });
   } else {
     // Region too tall — position near the top
@@ -491,7 +473,7 @@ function scrollToRegion(region: HTMLElement, pane: HTMLElement): void {
       rect.top - paneRect.top + pane.scrollTop - SCROLL_TOP_PADDING;
     pane.scrollTo({
       top: targetTop,
-      behavior: "smooth",
+      behavior,
     });
   }
 }

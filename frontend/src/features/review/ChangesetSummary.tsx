@@ -1,28 +1,8 @@
 import ArrowRight from "lucide-solid/icons/arrow-right";
 import GitCompareArrows from "lucide-solid/icons/git-compare-arrows";
 import { For } from "solid-js";
-import type { rpc } from "../../platform/rpc";
 import { Panel } from "../../ui/Panel";
-import { setReviewFile } from "./ReviewOverlay";
-
-export type ReviewSnapshot = Awaited<ReturnType<typeof rpc.compare>>;
-
-export function openSnapshotFile(
-  snapshot: ReviewSnapshot,
-  filePath: string,
-): void {
-  const files = snapshot.files.map((file) => file.filePath);
-  const fileIndex = files.indexOf(filePath);
-  setReviewFile({
-    cacheId: snapshot.id,
-    fromRef: snapshot.resolvedFrom,
-    toRef: snapshot.resolvedTo,
-    repoRoot: snapshot.repoRoot,
-    filePath,
-    files,
-    fileIndex: fileIndex >= 0 ? fileIndex : 0,
-  });
-}
+import { openSnapshotFile, type ReviewSnapshot } from "./review-navigation";
 
 export function ChangesetSummary(props: {
   snapshot: ReviewSnapshot;

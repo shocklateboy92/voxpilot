@@ -1,15 +1,22 @@
 /** Session layout — chat, review, and Markdown share one composer footer. */
 
+import GitCompare from "lucide-solid/icons/git-compare-arrows";
+import List from "lucide-solid/icons/list";
 import { createEffect, createSignal, on, Show } from "solid-js";
 import { createAttachmentDrop } from "../features/chat/attachments/attachment-input";
 import { composerDraft } from "../features/chat/create-composer-draft";
 import { NewSessionPage } from "../features/chat/NewSessionPage";
 import { MarkdownViewer } from "../features/files/MarkdownViewer";
+import { ReviewFiles } from "../features/review/ReviewFiles";
+import { ReviewOverlay } from "../features/review/ReviewOverlay";
+import { ReviewPicker } from "../features/review/ReviewPicker";
 import {
-  ReviewOverlay,
+  parkedReview,
+  parkReview,
+  resumeReview,
   reviewFile,
-  setReviewFile,
-} from "../features/review/ReviewOverlay";
+} from "../features/review/review-navigation";
+import { Button } from "../ui/Button";
 import { BottomNav } from "./BottomNav";
 import { createComposerKeyboard } from "./create-composer-keyboard";
 import { activeSessionId, isNewSessionPage } from "./navigation";
@@ -33,13 +40,50 @@ export function ChatView() {
   };
   const keyboard = createComposerKeyboard();
   const [composerHeight, setComposerHeight] = createSignal(0);
+  const [reviewPanel, setReviewPanel] = createSignal<"files" | "comparison">();
   const viewing = () => Boolean(reviewFile() || currentFile());
   const closeView = () => {
     if (currentFile()) closeFile();
-    else setReviewFile(null);
+    else parkReview();
   };
-  createEffect(on(activeSessionId, () => setReviewFile(null), { defer: true }));
+  createEffect(on(activeSessionId, parkReview, { defer: true }));
+  createEffect(() => {
+    if (!reviewFile() || currentFile()) setReviewPanel(undefined);
+  });
   const drop = createAttachmentDrop(() => composerDraft(activeSessionId()));
+
+  const navigationAction = (
+    <Button
+      size="sm"
+      class="min-h-11"
+      classList={{ "shadow-floating": reading() }}
+      variant={reading() ? "neutral" : "ghost"}
+      aria-haspopup={reviewFile() ? "dialog" : undefined}
+      onClick={() => {
+        if (reviewFile()) setReviewPanel("files");
+        else resumeReview();
+      }}
+    >
+      <Show
+        when={reviewFile()}
+        fallback={
+          <>
+            <GitCompare size={18} aria-hidden="true" />
+            Resume review
+          </>
+        }
+      >
+        {(review) => (
+          <>
+            <List size={18} aria-hidden="true" />
+            <span>
+              Files · {review().fileIndex + 1}/{review().files.length}
+            </span>
+          </>
+        )}
+      </Show>
+    </Button>
+  );
 
   return (
     <main
@@ -108,7 +152,28 @@ export function ChatView() {
           onResize={setComposerHeight}
           readingControls={readingControls}
           onSend={closeView}
+          navigationAction={
+            !currentFile() && (reviewFile() || (reading() && parkedReview()))
+              ? navigationAction
+              : undefined
+          }
         />
+      </Show>
+      <Show when={reviewFile()}>
+        {(review) => (
+          <>
+            <Show when={reviewPanel() === "files"}>
+              <ReviewFiles
+                review={review()}
+                onClose={() => setReviewPanel(undefined)}
+                onChangeComparison={() => setReviewPanel("comparison")}
+              />
+            </Show>
+            <Show when={reviewPanel() === "comparison"}>
+              <ReviewPicker onClose={() => setReviewPanel(undefined)} />
+            </Show>
+          </>
+        )}
       </Show>
     </main>
   );

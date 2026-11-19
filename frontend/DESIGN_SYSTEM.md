@@ -143,6 +143,11 @@ its compact recorder uses the same recording lifecycle as the expanded controls.
 Chat, diff review and the Markdown viewer share a single session footer, including
 the server, model and thinking selectors. Switching panes preserves the current
 mode, draft and recorder; only the background content becomes inert.
+Keep review navigation reachable in the footer: show Resume review in chat
+reading mode when there is a parked review, and Files in the review itself.
+In expanded review, place Files beside the server selector (or model selector
+when no server selector is shown), not in its own row. The review status bar
+still summarizes the current file and change.
 If the agent resumes while dictation is active or microphone permission is pending,
 keep recording with Finish and Cancel available. Finishing transcribes and submits
 with `steer` delivery even while the agent is busy; generation must not discard audio.

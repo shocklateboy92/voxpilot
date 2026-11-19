@@ -8,6 +8,10 @@ import Plus from "lucide-solid/icons/plus";
 import Settings from "lucide-solid/icons/settings";
 import { createSignal, Show } from "solid-js";
 import { ReviewPicker } from "../features/review/ReviewPicker";
+import {
+  parkedReview,
+  resumeReview,
+} from "../features/review/review-navigation";
 import { ForkOverlay } from "../features/sessions/ForkOverlay";
 import { SessionPicker } from "../features/sessions/SessionPicker";
 import { changeServer } from "../platform/connection";
@@ -66,10 +70,12 @@ export function BottomNav() {
       </Show>
       <IconButton
         type="button"
-        aria-label="Review changes"
-        title="Review changes"
+        aria-label={parkedReview() ? "Resume review" : "Review changes"}
+        title={parkedReview() ? "Resume review" : "Review changes"}
         disabled={isNewSessionPage()}
-        onClick={() => setReviewOpen(true)}
+        onClick={() => {
+          if (!resumeReview()) setReviewOpen(true);
+        }}
       >
         <GitCompare size={20} />
       </IconButton>

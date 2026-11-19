@@ -1,5 +1,5 @@
 import SlidersHorizontal from "lucide-solid/icons/sliders-horizontal";
-import { Show } from "solid-js";
+import { type JSX, Show } from "solid-js";
 import {
   activeSession,
   activeSessionId,
@@ -17,6 +17,7 @@ import type { ReadingControls } from "./reading-controls";
 export interface ChatInputProps {
   onSend?: () => void;
   readingControls?: ReadingControls;
+  navigationAction?: JSX.Element;
 }
 
 export function ChatInput(props: ChatInputProps) {
@@ -43,7 +44,8 @@ export function ChatInput(props: ChatInputProps) {
       classList={{ "w-full flex-col": !reading() }}
     >
       <Show when={reading()}>
-        <div class="flex items-center gap-2">
+        <div class="flex min-w-0 flex-wrap items-center justify-end gap-2">
+          {props.navigationAction}
           <Show when={hasDraft()}>
             <span class="rounded-lg bg-surface px-2 py-1 text-xs text-muted">
               Draft

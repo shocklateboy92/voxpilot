@@ -22,7 +22,7 @@ export const test = base.extend<{
     if (baseURL === undefined) throw new Error("Missing browser test baseURL");
     const cdp = process.env.VOXPILOT_E2E_CDP;
     const browser = cdp
-      ? await chromium.connectOverCDP(cdp)
+      ? await chromium.connectOverCDP(cdp, { noDefaults: true })
       : await chromium.launch({
           executablePath:
             process.env.VOXPILOT_E2E_CHROMIUM ?? "/usr/bin/chromium",

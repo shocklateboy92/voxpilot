@@ -1,16 +1,20 @@
-import { onCleanup, onMount, Show } from "solid-js";
+import { type JSX, onCleanup, onMount, Show } from "solid-js";
 import { ChatInput } from "../features/chat/ChatInput";
 import { ChatScrollButton } from "../features/chat/ChatMain";
 import { ModelPicker } from "../features/chat/ModelPicker";
 import type { ReadingControls } from "../features/chat/reading-controls";
 import { ServerPicker } from "../features/connection/ServerPicker";
+import { configuredServer } from "../platform/connection-config";
 
 export function SessionComposer(props: {
   chatVisible: boolean;
   onResize: (height: number) => void;
   readingControls: ReadingControls;
   onSend: () => void;
+  navigationAction?: JSX.Element;
 }) {
+  const withAction = () => Boolean(props.navigationAction);
+  const actionBesideServer = () => withAction() && Boolean(configuredServer);
   let stack: HTMLElement | undefined;
   onMount(() => {
     if (!stack) return;
@@ -34,14 +38,43 @@ export function SessionComposer(props: {
         <ChatScrollButton />
       </Show>
       <Show when={!props.readingControls.reading}>
-        <div class="flex w-full max-w-[66rem] flex-wrap items-end gap-2">
-          <ServerPicker />
-          <ModelPicker />
+        <div
+          class="w-full max-w-[66rem] gap-2"
+          classList={{
+            "flex flex-wrap items-end": !withAction(),
+            "grid grid-cols-[minmax(0,1fr)_auto] items-center": withAction(),
+          }}
+        >
+          <div
+            classList={{
+              contents: !actionBesideServer(),
+              "min-w-0 overflow-x-auto": actionBesideServer(),
+            }}
+          >
+            <ServerPicker />
+          </div>
+          <div
+            classList={{
+              contents: !withAction(),
+              "min-w-0": withAction(),
+              "col-span-2": actionBesideServer(),
+            }}
+          >
+            <ModelPicker fullWidth={withAction()} />
+          </div>
+          <Show when={withAction()}>
+            <div class="col-start-2 row-start-1 justify-self-end">
+              {props.navigationAction}
+            </div>
+          </Show>
         </div>
       </Show>
       <ChatInput
         readingControls={props.readingControls}
         onSend={props.onSend}
+        navigationAction={
+          props.readingControls.reading ? props.navigationAction : undefined
+        }
       />
     </footer>
   );
