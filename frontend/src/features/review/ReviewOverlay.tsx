@@ -396,6 +396,7 @@ export function ReviewOverlay(props: {
                   {(result) => (
                     <div
                       class="review-diff-container min-h-0"
+                      data-viewer-selection="review"
                       // eslint-disable-next-line solid/no-innerhtml -- intentional: server-rendered diff HTML
                       innerHTML={result().html}
                     />

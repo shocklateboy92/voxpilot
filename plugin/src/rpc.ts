@@ -32,6 +32,13 @@ export const Snapshot = z.object({
   ),
 });
 
+export const ReviewReference = z.object({
+  snapshotId: z.uuid(),
+  filePath: z.string().min(1),
+});
+
+export type ReviewReference = z.infer<typeof ReviewReference>;
+
 export const VOCABULARY_MAX_TERMS = 100;
 export const VocabularyFile = z.array(VocabularyTerm).max(VOCABULARY_MAX_TERMS);
 

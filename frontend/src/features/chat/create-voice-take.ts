@@ -1,5 +1,5 @@
 import { createSignal, untrack } from "solid-js";
-import type { PromptDraft } from "../../platform/prompt-files";
+import type { PromptDraft, ViewerContext } from "../../platform/prompt-files";
 import {
   cancelTranscription,
   SpeechRequestError,
@@ -91,6 +91,7 @@ export function createVoiceTake(
       signal: AbortSignal,
     ) => Promise<Awaited<ReturnType<typeof fetchVocabulary>> | undefined>;
     send: (content: PromptDraft) => Promise<boolean>;
+    viewer?: ViewerContext;
   },
 ) {
   const backend = speechBackendGeneration();
@@ -146,13 +147,23 @@ export function createVoiceTake(
     setState({ ...current, phase: "sending" });
     draft.setSending(true);
     try {
-      const submitted =
+      const original =
         source.kind === "draft" ? draft.snapshot() : source.snapshot;
+      // Removing a selection must also remove it from an already transcribed take.
+      const submitted = {
+        ...original,
+        selection:
+          original.selection === draft.selection()
+            ? original.selection
+            : undefined,
+      };
       const text =
         source.kind === "draft"
           ? submitted.text
           : [submitted.text, source.transcript].filter(Boolean).join("\n\n");
-      const accepted = await capture.send(composerPrompt(submitted, text));
+      const accepted = await capture.send(
+        composerPrompt(submitted, text, capture.viewer),
+      );
       if (accepted) {
         draft.consume(submitted);
         if (draft.recording()?.voice === take) draft.setRecording(undefined);

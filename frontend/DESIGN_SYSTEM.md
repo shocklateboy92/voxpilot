@@ -111,6 +111,8 @@ backdrop dismissal. Its header uses an accessible close button.
 Composer action buttons prevent pointer-driven focus transfer so keyboard/nav
 layout changes cannot move a button between pointer-down and click. Keyboard
 activation still works normally.
+When composing from a viewer, capture its selection before focus moves. Show the
+excerpt as a previewable, removable draft chip, including in compact voice mode.
 Enter inserts a newline in the composer on all devices; use Send to submit.
 
 Async event errors go through the global rejection handler. Do not add per-control

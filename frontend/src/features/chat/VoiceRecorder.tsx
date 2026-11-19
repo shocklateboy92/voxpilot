@@ -21,6 +21,7 @@ export function VoiceRecorder(props: {
   compact?: boolean;
   disabled: boolean;
   onActiveChange: (active: boolean) => void;
+  onStartPointerDown?: () => void;
   captureRecording: () => (audio: RecordedAudio) => void;
 }) {
   const [state, setState] = createSignal<
@@ -228,7 +229,10 @@ export function VoiceRecorder(props: {
                 ? props.disabled || !supported
                 : state() !== "recording"
             }
-            onPointerDown={(event) => event.preventDefault()}
+            onPointerDown={(event) => {
+              if (state() === "idle") props.onStartPointerDown?.();
+              event.preventDefault();
+            }}
             onClick={() => (state() === "idle" ? void start() : finish())}
           >
             <Show when={state() === "idle"} fallback={<Square size={18} />}>
@@ -245,7 +249,10 @@ export function VoiceRecorder(props: {
             <Button
               variant="primary"
               disabled={props.disabled || !supported}
-              onPointerDown={(event) => event.preventDefault()}
+              onPointerDown={(event) => {
+                props.onStartPointerDown?.();
+                event.preventDefault();
+              }}
               onClick={() => void start()}
             >
               <Mic size={20} />

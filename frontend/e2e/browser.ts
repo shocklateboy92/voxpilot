@@ -154,7 +154,7 @@ export { expect };
 export async function send(
   page: Page,
   prompt: string,
-  options: { reading?: boolean } = {},
+  options: { reading?: boolean; expectedText?: string | RegExp } = {},
 ) {
   const expand = page.getByRole("button", {
     name: "Expand controls",
@@ -176,7 +176,7 @@ export async function send(
   await page.getByRole("button", { name: "Send", exact: true }).click();
   expect((await admitted).ok(), "Prompt admission succeeded").toBe(true);
   await expect(userMessages).toHaveCount(previousCount + 1);
-  await expect(userMessages.last()).toHaveText(prompt);
+  await expect(userMessages.last()).toHaveText(options.expectedText ?? prompt);
   // Most existing scenarios exercise the full controls after admission.
   if (!options.reading) await expand.click();
 }

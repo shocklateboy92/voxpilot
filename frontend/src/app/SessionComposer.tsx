@@ -5,12 +5,14 @@ import { ModelPicker } from "../features/chat/ModelPicker";
 import type { ReadingControls } from "../features/chat/reading-controls";
 import { ServerPicker } from "../features/connection/ServerPicker";
 import { configuredServer } from "../platform/connection-config";
+import type { ViewerContext } from "../platform/prompt-files";
 
 export function SessionComposer(props: {
   chatVisible: boolean;
   onResize: (height: number) => void;
   readingControls: ReadingControls;
   onSend: () => void;
+  viewerContext?: ViewerContext;
   navigationAction?: JSX.Element;
 }) {
   const withAction = () => Boolean(props.navigationAction);
@@ -72,6 +74,7 @@ export function SessionComposer(props: {
       <ChatInput
         readingControls={props.readingControls}
         onSend={props.onSend}
+        viewerContext={props.viewerContext}
         navigationAction={
           props.readingControls.reading ? props.navigationAction : undefined
         }

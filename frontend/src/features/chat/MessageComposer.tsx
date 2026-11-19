@@ -16,7 +16,7 @@ import {
   Show,
   untrack,
 } from "solid-js";
-import type { PromptDraft } from "../../platform/prompt-files";
+import type { PromptDraft, ViewerContext } from "../../platform/prompt-files";
 import { speechConnection } from "../../platform/speech";
 import {
   type fetchVocabulary,
@@ -35,6 +35,7 @@ import { defaultModelData, modelData } from "./model-utils";
 import { PastedReferences, PasteReferenceButton } from "./PastedReferences";
 import { composerMode, selectedModel, setComposerMode } from "./preferences";
 import type { ReadingControls } from "./reading-controls";
+import { SelectionReference } from "./SelectionReference";
 import { type RecordedAudio, VoiceRecorder } from "./VoiceRecorder";
 import { VoiceTranscription } from "./VoiceTranscription";
 
@@ -48,6 +49,9 @@ export function MessageComposer(props: {
     sessionID: string | undefined,
   ) => Promise<boolean>;
   onStop?: () => void;
+  viewerContext?: ViewerContext;
+  onSelectionPointerDown?: () => void;
+  onCaptureSelection?: () => void;
   voiceDirectory?: string;
   readVoiceVocabulary?: (
     directory: string,
@@ -89,6 +93,7 @@ export function MessageComposer(props: {
     mounted = false;
   });
   function captureRecording() {
+    props.onCaptureSelection?.();
     const current = draft();
     current.setRecording(undefined);
     const sessionID = props.sessionID;
@@ -110,6 +115,7 @@ export function MessageComposer(props: {
           setVocabularyError(vocabularyBudgetError(vocabulary.terms));
         return vocabulary;
       },
+      viewer: props.viewerContext,
       send: (content) => send(content, sessionID),
     });
     return (audio: RecordedAudio) => {
@@ -171,9 +177,14 @@ export function MessageComposer(props: {
       return;
     const sessionID = props.sessionID;
     const send = props.onSend;
+    const content = composerPrompt(
+      submitted,
+      submitted.text,
+      props.viewerContext,
+    );
     current.setSending(true);
     try {
-      const accepted = await send(composerPrompt(submitted), sessionID);
+      const accepted = await send(content, sessionID);
       if (accepted !== false) {
         current.consume(submitted);
         if (recording && current.recording() === recording)
@@ -190,6 +201,7 @@ export function MessageComposer(props: {
       data-composer-mode={composerMode()}
       onSubmit={(event) => void submit(event)}
     >
+      <SelectionReference draft={draft()} disabled={busy()} />
       <Show
         when={
           compact() &&
@@ -271,6 +283,7 @@ export function MessageComposer(props: {
                     if (active && compact()) setComposerMode("voice");
                   }}
                   captureRecording={captureRecording}
+                  onStartPointerDown={props.onSelectionPointerDown}
                 />
               </Show>
             )}
@@ -345,6 +358,9 @@ export function MessageComposer(props: {
               autofocus={!compact()}
               rows={1}
               disabled={props.disabled}
+              onPointerDown={() => props.onSelectionPointerDown?.()}
+              onFocus={() => props.onCaptureSelection?.()}
+              onClick={() => props.onCaptureSelection?.()}
               onInput={(event) => draft().setText(event.currentTarget.value)}
               onPaste={(event) => {
                 const files = clipboardFiles(event);
@@ -395,8 +411,12 @@ export function MessageComposer(props: {
             variant="ghost"
             size="sm"
             disabled={recordingActive()}
-            onPointerDown={(event) => event.preventDefault()}
+            onPointerDown={(event) => {
+              props.onSelectionPointerDown?.();
+              event.preventDefault();
+            }}
             onClick={() => {
+              if (composerMode() === "voice") props.onCaptureSelection?.();
               setComposerMode(composerMode() === "voice" ? "text" : "voice");
               if (composerMode() === "text")
                 queueMicrotask(() => input?.focus());

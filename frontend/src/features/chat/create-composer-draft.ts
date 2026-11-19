@@ -1,5 +1,10 @@
 import { batch, createSignal } from "solid-js";
-import type { PromptDraft } from "../../platform/prompt-files";
+import {
+  formatViewerContext,
+  type PromptDraft,
+  type ViewerContext,
+  type ViewerSelection,
+} from "../../platform/prompt-files";
 import { attachmentError } from "./attachments/attachment-policy";
 import type { VoiceTake } from "./create-voice-take";
 
@@ -27,6 +32,7 @@ function createComposerDraft() {
   const [sending, setSending] = createSignal(false);
   const [references, setReferences] = createSignal<DraftReference[]>([]);
   const [recording, updateRecording] = createSignal<DraftRecording>();
+  const [selection, setSelection] = createSignal<ViewerSelection>();
   let nextReferenceNumber = 1;
   let textRevision = 0;
   // IDs are draft-local and never sent to the server. Avoid secure-context-only
@@ -97,6 +103,7 @@ function createComposerDraft() {
       textRevision,
       attachments: [...attachments()],
       references: [...references()],
+      selection: selection(),
     };
   }
 
@@ -106,6 +113,7 @@ function createComposerDraft() {
       for (const entry of submitted.attachments) removeAttachment(entry.id);
       for (const entry of submitted.references) removeReference(entry.number);
       if (references().length === 0) nextReferenceNumber = 1;
+      if (selection() === submitted.selection) setSelection(undefined);
     });
   }
 
@@ -113,6 +121,7 @@ function createComposerDraft() {
     for (const entry of attachments()) URL.revokeObjectURL(entry.previewUrl);
     setAttachments([]);
     setReferences([]);
+    setSelection(undefined);
     setRecording(undefined);
   }
 
@@ -130,6 +139,8 @@ function createComposerDraft() {
     removeReference,
     recording,
     setRecording,
+    selection,
+    setSelection,
     snapshot,
     consume,
     dispose,
@@ -141,6 +152,7 @@ export type ComposerDraft = ReturnType<typeof createComposerDraft>;
 export function composerPrompt(
   snapshot: ReturnType<ComposerDraft["snapshot"]>,
   text = snapshot.text,
+  viewer?: ViewerContext,
 ): PromptDraft {
   return {
     text: [
@@ -148,6 +160,7 @@ export function composerPrompt(
       ...snapshot.references.map(
         (entry) => `Pasted item ${entry.number}:\n${entry.text}`,
       ),
+      formatViewerContext(viewer, snapshot.selection),
     ]
       .filter(Boolean)
       .join("\n\n"),

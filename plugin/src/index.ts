@@ -3,6 +3,7 @@ import { ComparisonInput, Snapshot, VoxPilotRpc } from "./rpc";
 import { captureComparison } from "./services/comparison";
 import { formatAndDiff } from "./services/format-diff";
 import { shouldInhibitIdle } from "./services/idle";
+import { ReviewSourceInput, readReviewSource } from "./services/review-source";
 import {
   createVocabularyReader,
   vocabularyInstructions,
@@ -59,6 +60,30 @@ export default Plugin.define({
       },
     });
     await ctx.tool.transform((editor) => {
+      editor.add({
+        name: "voxpilot_read_review_source",
+        options: { codemode: false },
+        description:
+          "Read original, unformatted source from one side of an immutable VoxPilot review snapshot. When a message's 'User was viewing' or 'Selected from' context includes a Snapshot, use that ID and file path instead of reading the current working tree. Line numbers are original source lines, starting at 1. Read before and after to see what changed.",
+        input: {
+          type: "object",
+          properties: {
+            snapshotId: { type: "string" },
+            filePath: { type: "string" },
+            side: { type: "string", enum: ["before", "after"] },
+            startLine: { type: "integer", minimum: 1 },
+            endLine: { type: "integer", minimum: 1 },
+          },
+          required: ["snapshotId", "filePath", "side"],
+          additionalProperties: false,
+        },
+        execute: async (raw) => {
+          const input = ReviewSourceInput.parse(raw);
+          const entry = await snapshot(input.snapshotId);
+          if (!entry) throw new Error("Review snapshot not found.");
+          return { content: readReviewSource(entry, input) };
+        },
+      });
       editor.add({
         name: "voxpilot_show_diff",
         options: { codemode: false },

@@ -7,22 +7,30 @@ import {
 } from "../../app/navigation";
 import { abortCurrentSession, sendUserMessage } from "../../app/streaming";
 import { client } from "../../platform/connection";
-import type { PromptDraft } from "../../platform/prompt-files";
+import type { PromptDraft, ViewerContext } from "../../platform/prompt-files";
 import { fetchVocabulary } from "../../platform/vocabulary";
 import { IconButton } from "../../ui/IconButton";
 import { composerDraft } from "./create-composer-draft";
 import { MessageComposer } from "./MessageComposer";
 import type { ReadingControls } from "./reading-controls";
+import { createViewerSelection } from "./viewer-selection";
 
 export interface ChatInputProps {
   onSend?: () => void;
   readingControls?: ReadingControls;
+  viewerContext?: ViewerContext;
   navigationAction?: JSX.Element;
 }
 
 export function ChatInput(props: ChatInputProps) {
   const reading = () => props.readingControls?.reading ?? false;
   const draft = () => composerDraft(activeSessionId());
+  const selection = createViewerSelection(() => props.viewerContext);
+  function attachSelection() {
+    if (draft().sending()) return;
+    const excerpt = selection.take();
+    if (excerpt) draft().setSelection(excerpt);
+  }
   const hasDraft = () =>
     Boolean(
       draft().text() ||
@@ -56,8 +64,14 @@ export function ChatInput(props: ChatInputProps) {
             class="shadow-floating"
             aria-label="Expand controls"
             aria-expanded={false}
-            onPointerDown={(event) => event.preventDefault()}
-            onClick={() => props.readingControls?.expand()}
+            onPointerDown={(event) => {
+              selection.freeze();
+              event.preventDefault();
+            }}
+            onClick={() => {
+              attachSelection();
+              props.readingControls?.expand();
+            }}
           >
             <SlidersHorizontal size={20} />
           </IconButton>
@@ -69,6 +83,9 @@ export function ChatInput(props: ChatInputProps) {
         streaming={isStreaming()}
         onStop={() => void abortCurrentSession()}
         onSend={send}
+        viewerContext={props.viewerContext}
+        onSelectionPointerDown={selection.freeze}
+        onCaptureSelection={attachSelection}
         voiceDirectory={activeSession()?.location.directory}
         readVoiceVocabulary={(directory, signal) =>
           fetchVocabulary(directory, client, signal)

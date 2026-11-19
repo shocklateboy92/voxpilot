@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { expect, test } from "./browser";
+import { expect, send, test } from "./browser";
 import { assistant, history, openSession } from "./data";
 import { password } from "./dev";
 import {
@@ -45,6 +45,9 @@ test("a recording started while reading a file stays live across pane changes", 
   });
   const link = app.getByRole("link", { name: "Notes", exact: true });
   await link.click();
+  await app.getByRole("heading", { name: "Notes" }).evaluate((element) => {
+    document.getSelection()?.selectAllChildren(element);
+  });
   await app.getByRole("button", { name: "Record a message" }).click();
   const finish = app.getByRole("button", { name: "Finish recording" });
   await expect(finish).toBeEnabled();
@@ -55,10 +58,60 @@ test("a recording started while reading a file stays live across pane changes", 
   await app.getByRole("button", { name: "Close viewer" }).click();
   await expect(app.getByLabel("Recording status")).not.toHaveText("0:00");
   await finish.click();
-  await expect(app.locator(".message.user")).toHaveText(transcript);
+  await expect(
+    app.getByRole("button", { name: "Preview selection" }),
+  ).toBeVisible();
+  await app.getByRole("button", { name: "Send transcript" }).click();
+  const message = app.locator(".message.user");
+  await expect(message).toContainText(transcript);
+  await expect(message).toContainText("User was viewing:");
+  await expect(message).toContainText("Selected text:");
+  await expect(message).toContainText("Notes");
   await expect(
     app.getByRole("button", { name: "Expand controls" }),
   ).toBeVisible();
+});
+
+test("selected Markdown can be previewed and removed without losing file context", async ({
+  app,
+  workspace,
+}) => {
+  const path = join(workspace.directory, "notes.md");
+  await writeFile(path, "# Notes\n\nSelect this passage.\n");
+  const session = await history(workspace.directory, "Discuss a selection", [
+    assistant([{ type: "text", text: "[Notes](notes.md)" }]),
+  ]);
+  await openSession(app, session.id, { reading: true });
+  await app.getByRole("link", { name: "Notes" }).click();
+  await app
+    .getByText("Select this passage.", { exact: true })
+    .evaluate((element) => {
+      document.getSelection()?.selectAllChildren(element);
+    });
+  const expand = app.getByRole("button", { name: "Expand controls" });
+  const bounds = await expand.boundingBox();
+  if (!bounds) throw new Error("Missing expand controls");
+  await app.mouse.move(
+    bounds.x + bounds.width / 2,
+    bounds.y + bounds.height / 2,
+  );
+  await app.mouse.down();
+  // Model a browser clearing the document selection before click/focus.
+  await app.evaluate(() => document.getSelection()?.removeAllRanges());
+  await app.mouse.up();
+  await app.getByRole("button", { name: "Preview selection" }).click();
+  const preview = app.getByRole("dialog", { name: "Selected passage" });
+  await expect(preview.locator("pre")).toHaveText("Select this passage.");
+  await preview.press("Escape");
+  await app.getByRole("button", { name: "Remove selection" }).click();
+  await send(app, "What am I viewing?", {
+    reading: true,
+    expectedText:
+      /What am I viewing\?.*User was viewing: .*\/notes\.md.*Workspace:/s,
+  });
+  await expect(app.locator(".message.user")).not.toContainText(
+    "Selected text:",
+  );
 });
 
 test("Markdown files render, follow links, refresh and share the session's reading controls", async ({
@@ -287,7 +340,9 @@ test("growing the composer keeps Markdown pinned only if already at the bottom",
   const footer = app.locator("[data-composer-stack]");
   const input = app.getByRole("textbox", { name: "Message", exact: true });
   const padding = () =>
-    pane.evaluate((el) => Number.parseFloat(getComputedStyle(el).paddingBottom));
+    pane.evaluate((el) =>
+      Number.parseFloat(getComputedStyle(el).paddingBottom),
+    );
   const gap = async () => {
     const [paragraph, composer] = await Promise.all([
       last.boundingBox(),
@@ -297,7 +352,9 @@ test("growing the composer keeps Markdown pinned only if already at the bottom",
       ? composer.y - paragraph.y - paragraph.height
       : -1;
   };
-  const multiline = Array.from({ length: 12 }, (_, i) => `Line ${i}`).join("\n");
+  const multiline = Array.from({ length: 12 }, (_, i) => `Line ${i}`).join(
+    "\n",
+  );
 
   await expect(last).toBeAttached();
   await input.focus();

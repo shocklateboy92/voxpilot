@@ -2,7 +2,7 @@
 
 import GitCompare from "lucide-solid/icons/git-compare-arrows";
 import List from "lucide-solid/icons/list";
-import { createEffect, createSignal, on, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, on, Show } from "solid-js";
 import { createAttachmentDrop } from "../features/chat/attachments/attachment-input";
 import { composerDraft } from "../features/chat/create-composer-draft";
 import { NewSessionPage } from "../features/chat/NewSessionPage";
@@ -16,6 +16,7 @@ import {
   resumeReview,
   reviewFile,
 } from "../features/review/review-navigation";
+import type { ViewerContext } from "../platform/prompt-files";
 import { Button } from "../ui/Button";
 import { BottomNav } from "./BottomNav";
 import { createComposerKeyboard } from "./create-composer-keyboard";
@@ -42,6 +43,14 @@ export function ChatView() {
   const [composerHeight, setComposerHeight] = createSignal(0);
   const [reviewPanel, setReviewPanel] = createSignal<"files" | "comparison">();
   const viewing = () => Boolean(reviewFile() || currentFile());
+  const viewerContext = createMemo<ViewerContext | undefined>(() => {
+    const file = currentFile();
+    if (file)
+      return { filePath: file.path, workspace: file.location?.directory };
+    const request = reviewFile();
+    if (request)
+      return { snapshotId: request.cacheId, filePath: request.filePath };
+  });
   const closeView = () => {
     if (currentFile()) closeFile();
     else parkReview();
@@ -153,6 +162,7 @@ export function ChatView() {
           onResize={setComposerHeight}
           readingControls={readingControls}
           onSend={closeView}
+          viewerContext={viewerContext()}
           navigationAction={
             !currentFile() && (reviewFile() || (reading() && parkedReview()))
               ? navigationAction

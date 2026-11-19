@@ -78,7 +78,28 @@ test("review shares the live composer, its modes, and its selectors with chat", 
   await app.getByRole("button", { name: "Resume review", exact: true }).click();
   await expect(review).toBeVisible();
   await expect(review.locator(".review-file-path")).toContainText("sample.txt");
-  await send(app, "Reply with one sentence about the diff.", { reading: true });
+  await review
+    .locator(".fulltext-line-del code")
+    .first()
+    .evaluate((element) => {
+      const selection = document.getSelection();
+      if (!selection) throw new Error("Missing document selection");
+      selection.selectAllChildren(element);
+    });
+  await message.click();
+  await app.getByRole("button", { name: "Preview selection" }).click();
+  const excerpt = app.getByRole("dialog", { name: "Selected passage" });
+  await expect(excerpt).toContainText("sample.txt · before");
+  await expect(excerpt.locator("pre")).toHaveText("old baseline line");
+  await excerpt.press("Escape");
+  await send(app, "Reply with one sentence about the diff.", {
+    reading: true,
+    expectedText:
+      /^Reply with one sentence about the diff\.\s+User was viewing: sample\.txt\s+Snapshot: [a-f0-9-]+\s+Selected text \(before\):\s+old baseline line\s*$/,
+  });
+  await expect(
+    app.getByRole("button", { name: "Preview selection" }),
+  ).toHaveCount(0);
   await expect(review).toHaveCount(0);
   await expect(
     app.getByRole("button", { name: "Expand controls" }),

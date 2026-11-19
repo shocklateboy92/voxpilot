@@ -70,6 +70,13 @@ function OpenMarkdownViewer(props: MarkdownViewerProps) {
   });
   let content: HTMLDivElement | undefined;
   let pane: HTMLDivElement | undefined;
+  const isCurrent = (request: NonNullable<ReturnType<typeof currentFile>>) => {
+    const active = currentFile();
+    return (
+      active?.path === request.path &&
+      active.location?.directory === request.location?.directory
+    );
+  };
   const [loaded, { refetch }] = createResource(currentFile, async (request) => {
     try {
       if (!isMarkdownPath(request.path))
@@ -246,7 +253,12 @@ function OpenMarkdownViewer(props: MarkdownViewerProps) {
                   }
                 >
                   {(text) => (
-                    <div class="px-3">
+                    <div
+                      class="px-3"
+                      data-viewer-selection={
+                        isCurrent(value.request) ? "file" : undefined
+                      }
+                    >
                       <div class="mx-auto w-full max-w-[66rem] px-[3vw]">
                         <MarkdownView
                           text={text()}
