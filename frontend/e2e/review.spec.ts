@@ -34,7 +34,8 @@ test("review shares the live composer, its modes, and its selectors with chat", 
       exact: true,
     });
     await picker.getByRole("button", { name: "Load changes" }).click();
-    await picker.getByRole("button", { name: /sample\.txt/ }).click();
+    const files = picker.getByRole("list", { name: "Changed files" });
+    await files.getByRole("button", { name: /sample\.txt/ }).click();
   }
   await openReview();
   const review = app.getByRole("region", { name: "File review" });
@@ -150,7 +151,18 @@ test("code review reformats on resize, navigates regions both ways, and reopens 
   await openSession(app, session.id);
   const chatHeader = await app.locator("[data-status-bar]").boundingBox();
   if (!chatHeader) throw new Error("Missing chat status bar");
-  await app.locator(".changeset-file-row", { hasText: fileName }).click();
+  const chatFiles = app.getByRole("list", { name: "Changed files" });
+  const longPath = chatFiles.getByText(fileName, { exact: true });
+  await expect(longPath).toBeVisible();
+  expect(
+    await longPath.evaluate(
+      (element) =>
+        element.clientHeight >
+          Number.parseFloat(getComputedStyle(element).lineHeight) &&
+        element.scrollWidth <= element.clientWidth,
+    ),
+  ).toBe(true);
+  await chatFiles.getByRole("button", { name: fileName }).click();
   const review = app.getByRole("region", { name: "File review" });
   await expect(review.locator(".change-region")).toHaveCount(2);
   const trigger = review.getByRole("button", {
@@ -364,7 +376,9 @@ test("review comparison modes select merge-base changes, exclude uncommitted fil
   await picker.getByLabel("Comparison").selectOption("branch");
   await picker.getByLabel("Base branch").fill("main");
   await picker.getByRole("button", { name: "Load changes" }).click();
-  await expect(picker.locator(".changeset-file-row")).toHaveCount(3);
+  const files = picker.getByRole("list", { name: "Changed files" });
+  await expect(files.getByRole("listitem")).toHaveCount(3);
+  await expect(picker.locator(".changeset-card")).toHaveCount(0);
   await picker.getByLabel("Comparison").selectOption("committed");
   await picker.getByRole("button", { name: "Load changes" }).click();
   await expect(picker.locator(".changeset-file-row")).toHaveCount(1);

@@ -6,7 +6,7 @@ import stores, features, or API clients. ESLint enforces the import boundary.
 
 | Primitive | API / purpose |
 | --- | --- |
-| `Button` | `variant`: neutral, primary, success, reject, stop, ghost; `size`: md, sm, icon-sm, icon, icon-lg. Defaults to `type="button"`. |
+| `Button` | `variant`: neutral, primary, success, reject, stop, ghost; `size`: md, sm, icon-sm, icon, icon-lg; optional `pill` shape. Defaults to `type="button"`. |
 | `IconButton` | Button with required `aria-label`; `size`: sm (compact status-bar action), md, or lg. |
 | `TextInput` | Native input; normal/compact `density`, optional `mono`. |
 | `Textarea` | Native textarea; field/composer `variant`. |

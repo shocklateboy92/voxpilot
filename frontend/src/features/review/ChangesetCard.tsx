@@ -68,7 +68,7 @@ export function ChangesetCard(props: Props) {
     <Show
       when={cache()}
       fallback={
-        <Panel class="changeset-card my-1 w-full max-w-[90%] self-start">
+        <Panel class="changeset-card my-1 w-full self-start">
           <div class="mb-2 flex items-center gap-2 text-[0.9rem] font-semibold">
             <Switch>
               <Match when={isActive()}>

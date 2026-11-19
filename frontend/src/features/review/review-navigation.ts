@@ -3,7 +3,7 @@ import { activeSessionId } from "../../app/navigation";
 import type { rpc } from "../../platform/rpc";
 
 export type ReviewSnapshot = Awaited<ReturnType<typeof rpc.compare>>;
-type ReviewFile = Pick<
+export type ReviewFile = Pick<
   ReviewSnapshot["files"][number],
   "filePath" | "additions" | "deletions"
 >;

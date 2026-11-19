@@ -55,6 +55,7 @@ export function ChatView() {
   const navigationAction = (
     <Button
       size="sm"
+      pill={reading()}
       class="min-h-11"
       classList={{ "shadow-floating": reading() }}
       variant={reading() ? "neutral" : "ghost"}

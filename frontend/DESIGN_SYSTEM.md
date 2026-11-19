@@ -148,6 +148,8 @@ reading mode when there is a parked review, and Files in the review itself.
 In expanded review, place Files beside the server selector (or model selector
 when no server selector is shown), not in its own row. The review status bar
 still summarizes the current file and change.
+The review sheet, comparison picker, and inline diff card share changed-file
+rows: wrap long paths rather than truncating, and keep change counts aligned.
 If the agent resumes while dictation is active or microphone permission is pending,
 keep recording with Finish and Cancel available. Finishing transcribes and submits
 with `steer` delivery even while the agent is busy; generation must not discard audio.

@@ -9,7 +9,8 @@ import { Overlay } from "../../ui/Overlay";
 import { OverlayHeader } from "../../ui/OverlayHeader";
 import { Select } from "../../ui/Select";
 import { TextInput } from "../../ui/TextInput";
-import { ChangesetSummary } from "./ChangesetSummary";
+import { ChangedFileList } from "./ChangedFileList";
+import { openSnapshotFile } from "./review-navigation";
 
 export function ReviewPicker(props: { onClose: () => void }) {
   const [base, setBase] = createSignal("main");
@@ -56,7 +57,10 @@ export function ReviewPicker(props: { onClose: () => void }) {
       onClose={props.onClose}
     >
       <OverlayHeader title="Review changes" onClose={props.onClose} />
-      <form class="flex flex-col gap-3 overflow-y-auto p-6" onSubmit={compare}>
+      <form
+        class="flex min-h-0 flex-col gap-3 overflow-y-auto overscroll-contain px-4 py-6"
+        onSubmit={compare}
+      >
         <FormField label="Comparison">
           {(attributes) => (
             <Select {...attributes} value={mode()} onChange={selectMode}>
@@ -83,15 +87,18 @@ export function ReviewPicker(props: { onClose: () => void }) {
         </Button>
         <Show when={entry()}>
           {(snapshot) => (
-            <>
-              <Show when={snapshot().files.length === 0}>
-                <EmptyState>No changes.</EmptyState>
-              </Show>
-              <ChangesetSummary
-                snapshot={snapshot()}
-                onOpen={() => props.onClose()}
+            <Show
+              when={snapshot().files.length > 0}
+              fallback={<EmptyState>No changes.</EmptyState>}
+            >
+              <ChangedFileList
+                files={snapshot().files}
+                onSelect={(file) => {
+                  openSnapshotFile(snapshot(), file.filePath);
+                  props.onClose();
+                }}
               />
-            </>
+            </Show>
           )}
         </Show>
       </form>
