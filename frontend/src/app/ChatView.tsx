@@ -11,6 +11,7 @@ import { ReviewFiles } from "../features/review/ReviewFiles";
 import { ReviewOverlay } from "../features/review/ReviewOverlay";
 import { ReviewPicker } from "../features/review/ReviewPicker";
 import {
+  finishReview,
   parkedReview,
   parkReview,
   resumeReview,
@@ -178,6 +179,7 @@ export function ChatView() {
                 review={review()}
                 onClose={() => setReviewPanel(undefined)}
                 onChangeComparison={() => setReviewPanel("comparison")}
+                onFinish={finishReview}
               />
             </Show>
             <Show when={reviewPanel() === "comparison"}>

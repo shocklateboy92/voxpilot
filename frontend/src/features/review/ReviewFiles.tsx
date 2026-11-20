@@ -9,6 +9,7 @@ export function ReviewFiles(props: {
   review: NonNullable<ReturnType<typeof reviewFile>>;
   onClose: () => void;
   onChangeComparison: () => void;
+  onFinish: () => void;
 }) {
   let list: HTMLUListElement | undefined;
   onMount(() => {
@@ -40,6 +41,11 @@ export function ReviewFiles(props: {
           props.onClose();
         }}
       />
+      <div class="flex shrink-0 justify-end border-t border-border px-4 py-2">
+        <Button size="sm" class="min-h-11" onClick={props.onFinish}>
+          Finish review
+        </Button>
+      </div>
     </Overlay>
   );
 }

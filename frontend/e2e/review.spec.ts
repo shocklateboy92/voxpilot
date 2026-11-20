@@ -54,6 +54,18 @@ test("review citations scroll to the original snapshot line without highlighting
   await expect(review.locator(".current-change")).toHaveCount(0);
   await expect(review).not.toContainText("newer working copy");
   await review.getByRole("button", { name: "Close review" }).click();
+  const resume = app.getByRole("button", { name: "Resume review" });
+  await expect(resume).toBeVisible();
+  await resume.click();
+  await app.getByRole("button", { name: /^Files ·/ }).click();
+  const files = app.getByRole("dialog", { name: "Changed files" });
+  await files.getByRole("button", { name: "Finish review" }).click();
+  await expect(review).toHaveCount(0);
+  await expect(files).toHaveCount(0);
+  await expect(resume).toHaveCount(0);
+  await app.getByRole("link", { name: "Removed call" }).click();
+  await expect(deleted).toBeInViewport();
+  await review.getByRole("button", { name: "Close review" }).click();
   await app.getByRole("link", { name: "Unavailable line" }).click();
   await expect(review.getByRole("status")).toHaveText(
     "Exact line not located in this diff.",

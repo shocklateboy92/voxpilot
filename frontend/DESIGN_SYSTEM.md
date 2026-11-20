@@ -152,6 +152,8 @@ when no server selector is shown), not in its own row. The review status bar
 still summarizes the current file and change.
 The review sheet, comparison picker, and inline diff card share changed-file
 rows: wrap long paths rather than truncating, and keep change counts aligned.
+Closing a review parks it. Finish review in the file sheet clears the resume
+position without deleting the snapshot or invalidating links to it.
 If the agent resumes while dictation is active or microphone permission is pending,
 keep recording with Finish and Cancel available. Finishing transcribes and submits
 with `steer` delivery even while the agent is busy; generation must not discard audio.

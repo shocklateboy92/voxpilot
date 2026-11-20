@@ -1,5 +1,5 @@
 import type { ReviewLine } from "@plugin/rpc";
-import { createSignal } from "solid-js";
+import { batch, createSignal } from "solid-js";
 import { activeSessionId } from "../../app/navigation";
 import type { rpc } from "../../platform/rpc";
 
@@ -52,6 +52,20 @@ function showReview(request: ReviewRequest) {
 
 export function parkReview() {
   setVisibleSession(undefined);
+}
+
+/** Forget this conversation's review position, not the backend snapshot. */
+export function finishReview() {
+  const session = activeSessionId();
+  if (!session || !reviewFile()) return;
+  batch(() => {
+    parkReview();
+    setReviews((previous) => {
+      const next = new Map(previous);
+      next.delete(session);
+      return next;
+    });
+  });
 }
 
 export function resumeReview(): boolean {
