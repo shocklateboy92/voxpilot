@@ -15,8 +15,6 @@ export function SessionComposer(props: {
   viewerContext?: ViewerContext;
   renderNavigationAction?: () => JSX.Element;
 }) {
-  const withAction = () => Boolean(props.renderNavigationAction);
-  const actionBesideServer = () => withAction() && Boolean(configuredServer);
   let stack: HTMLElement | undefined;
   onMount(() => {
     if (!stack) return;
@@ -40,36 +38,34 @@ export function SessionComposer(props: {
         <ChatScrollButton />
       </Show>
       <Show when={!props.readingControls.reading}>
-        <div
-          class="w-full max-w-[66rem] gap-2"
-          classList={{
-            "flex flex-wrap items-end": !withAction(),
-            "grid grid-cols-[minmax(0,1fr)_auto] items-center": withAction(),
-          }}
-        >
-          <div
-            classList={{
-              contents: !actionBesideServer(),
-              "min-w-0 overflow-x-auto": actionBesideServer(),
-            }}
-          >
-            <ServerPicker />
-          </div>
-          <div
-            classList={{
-              contents: !withAction(),
-              "min-w-0": withAction(),
-              "col-span-2": actionBesideServer(),
-            }}
-          >
-            <ModelPicker fullWidth={withAction()} />
-          </div>
-          <Show when={withAction()}>
-            <div class="col-start-2 row-start-1 justify-self-end">
-              {props.renderNavigationAction?.()}
+        <Show
+          when={props.renderNavigationAction}
+          fallback={
+            <div class="flex w-full max-w-[66rem] flex-wrap items-end gap-2">
+              <ServerPicker />
+              <ModelPicker />
             </div>
-          </Show>
-        </div>
+          }
+        >
+          {(renderAction) => (
+            <div class="grid w-full max-w-[66rem] grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+              <Show when={configuredServer}>
+                <div class="min-w-0 overflow-x-auto">
+                  <ServerPicker />
+                </div>
+              </Show>
+              <div
+                class="min-w-0"
+                classList={{ "col-span-2": Boolean(configuredServer) }}
+              >
+                <ModelPicker fullWidth />
+              </div>
+              <div class="col-start-2 row-start-1 justify-self-end">
+                {renderAction()()}
+              </div>
+            </div>
+          )}
+        </Show>
       </Show>
       <ChatInput
         readingControls={props.readingControls}

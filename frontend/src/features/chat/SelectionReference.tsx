@@ -6,6 +6,7 @@ import { IconButton } from "../../ui/IconButton";
 import { Overlay } from "../../ui/Overlay";
 import { OverlayHeader } from "../../ui/OverlayHeader";
 import type { ComposerDraft } from "./create-composer-draft";
+import { MAX_EXCERPT } from "./viewer-selection";
 
 export function SelectionReference(props: {
   draft: ComposerDraft;
@@ -56,7 +57,8 @@ export function SelectionReference(props: {
                   </pre>
                   <Show when={excerpt().truncated}>
                     <p class="mt-2 text-xs text-muted">
-                      Selection shortened to 8,000 characters.
+                      Selection shortened to {MAX_EXCERPT.toLocaleString()}{" "}
+                      characters.
                     </p>
                   </Show>
                 </div>

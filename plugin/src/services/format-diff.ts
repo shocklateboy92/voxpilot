@@ -104,7 +104,7 @@ function locateRow(
   let oldLine = 1;
   let newLine = 1;
   for (const change of changes) {
-    const count = change.value.replace(/\n$/, "").split("\n").length;
+    const count = change.count;
     if (!change.added) {
       if (line < oldLine + count)
         return change.removed

@@ -1,8 +1,9 @@
 import { z } from "zod";
-import { ReviewReference, type Snapshot } from "../rpc";
+import { ReviewLine, ReviewReference, type Snapshot } from "../rpc";
+import { sourceLines } from "./source-line-map";
 
 export const ReviewSourceInput = ReviewReference.extend({
-  side: z.enum(["before", "after"]),
+  side: ReviewLine.shape.side,
   startLine: z.number().int().positive().default(1),
   endLine: z.number().int().positive().optional(),
 }).strict();
@@ -23,8 +24,7 @@ export function readReviewSource(
   const heading = `${input.filePath} (${input.side}, snapshot ${snapshot.id})`;
   if (!source) return `${heading}\nNo source text on this side.`;
 
-  const lines = source.split(/\r\n|\n|\r/);
-  if (lines.at(-1) === "") lines.pop();
+  const lines = sourceLines(source);
   const start = input.startLine;
   const end = input.endLine ?? lines.length;
   if (start > end || start > lines.length)

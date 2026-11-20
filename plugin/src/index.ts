@@ -1,4 +1,5 @@
 import { Plugin } from "@opencode/plugin";
+import { z } from "zod";
 import { ComparisonInput, Snapshot, VoxPilotRpc } from "./rpc";
 import { captureComparison } from "./services/comparison";
 import { formatAndDiff } from "./services/format-diff";
@@ -69,18 +70,7 @@ export default Plugin.define({
         options: { codemode: false },
         description:
           "Read original, unformatted source from one side of an immutable VoxPilot review snapshot. When a message's 'User was viewing' or 'Selected from' context includes a Snapshot, use that ID and file path instead of reading the current working tree. Line numbers are original source lines, starting at 1. Read before and after to see what changed. To cite a verified line in your reply, use a Markdown link like [the removed check](voxpilot-review:SNAPSHOT_UUID?file=src%2Fexample.ts&side=before&line=42). URL-encode the file path; use the before side for deleted code and the after side for current code. Use original source line numbers, never displayed diff line numbers.",
-        input: {
-          type: "object",
-          properties: {
-            snapshotId: { type: "string" },
-            filePath: { type: "string" },
-            side: { type: "string", enum: ["before", "after"] },
-            startLine: { type: "integer", minimum: 1 },
-            endLine: { type: "integer", minimum: 1 },
-          },
-          required: ["snapshotId", "filePath", "side"],
-          additionalProperties: false,
-        },
+        input: z.toJSONSchema(ReviewSourceInput, { io: "input" }),
         execute: async (raw) => {
           const input = ReviewSourceInput.parse(raw);
           const entry = await snapshot(input.snapshotId);

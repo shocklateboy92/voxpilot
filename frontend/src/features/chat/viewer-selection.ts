@@ -4,7 +4,7 @@ import type {
   ViewerSelection,
 } from "../../platform/prompt-files";
 
-const MAX_EXCERPT = 8_000;
+export const MAX_EXCERPT = 8_000;
 
 function readSelection(viewer: ViewerContext): ViewerSelection | undefined {
   const selection = document.getSelection();
@@ -70,6 +70,7 @@ export function createViewerSelection(viewer: () => ViewerContext | undefined) {
     },
     take: () => {
       const live = read();
+      // ChatView memoizes the context, so identity means the same viewer.
       const result = frozen?.viewer === viewer() ? frozen : live;
       clear();
       if (result && live) document.getSelection()?.removeAllRanges();

@@ -3,6 +3,13 @@ import { diffChars } from "diff";
 const MAX_CHARS = 100_000;
 const WHITESPACE = /\s/u;
 
+/** Split source into lines, ignoring a trailing line terminator. */
+export function sourceLines(text: string): string[] {
+  const lines = text.split(/\r\n|\n|\r/);
+  if (lines.at(-1) === "") lines.pop();
+  return lines;
+}
+
 /** Index only visible characters, retaining their original line numbers. */
 function indexText(text: string) {
   const chars: string[] = [];
@@ -37,9 +44,7 @@ function matchingOffsets(source: string, display: string, size: number) {
 /** Map a raw source line to its first visible character after reformatting. */
 export function mapSourceLine(source: string, display: string, line: number) {
   if (source === display) {
-    const lines = source.split(/\r\n|\n|\r/);
-    if (lines.at(-1) === "") lines.pop();
-    return line >= 1 && line <= lines.length ? line : undefined;
+    return line >= 1 && line <= sourceLines(source).length ? line : undefined;
   }
   if (Math.max(source.length, display.length) > MAX_CHARS) return undefined;
   const original = indexText(source);
@@ -58,8 +63,8 @@ export function mapSourceLine(source: string, display: string, line: number) {
   );
   if (!forward) return undefined;
   const backward = matchingOffsets(
-    original.chars.reverse().join(""),
-    formatted.chars.reverse().join(""),
+    original.chars.toReversed().join(""),
+    formatted.chars.toReversed().join(""),
     original.chars.length,
   );
   if (!backward) return undefined;

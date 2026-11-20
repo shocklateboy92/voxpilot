@@ -12,8 +12,8 @@ export function ChangedFileList(props: {
     <ul
       aria-label="Changed files"
       ref={(element) => props.listRef?.(element)}
-      class="m-0 list-none"
-      classList={{ [props.class ?? ""]: Boolean(props.class) }}
+      class={props.class}
+      classList={{ "m-0 list-none": true }}
     >
       <For each={props.files}>
         {(file, index) => {

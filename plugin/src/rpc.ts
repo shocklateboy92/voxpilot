@@ -84,7 +84,7 @@ export const VoxPilotRpc = Rpc.define({
     },
     formatComparison: {
       input: z.object({
-        cacheId: z.string(),
+        cacheId: z.uuid(),
         filePath: z.string(),
         printWidth: z.number().int().min(10).max(500),
         sourceLine: ReviewLine.optional(),

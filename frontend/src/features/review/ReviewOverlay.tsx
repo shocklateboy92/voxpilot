@@ -101,7 +101,7 @@ export function ReviewOverlay(props: {
   const rendered = createMemo(() => {
     if (diff.state !== "ready") return undefined;
     const result = diff();
-    if (result?.req === reviewFile() && result?.printWidth === printWidth())
+    if (result.req === reviewFile() && result.printWidth === printWidth())
       return result;
   });
   let positioned: ReturnType<typeof rendered>;
