@@ -133,10 +133,11 @@ try/catch blocks just to display error toasts.
 
 Keep `--safe-top`, `--safe-bottom`, `--bottom-nav-height`, and
 `--status-bar-clearance` coordinated between the shell and composer.
-On initial load, existing conversations start in explicit reading mode. The chosen
-reading or composing mode persists across in-app conversation switches; navigation
-does not reset it. In reading mode, hide the bottom navigation and selector rows,
-set `--bottom-nav-height` to zero, and retain floating expand and voice/Stop controls.
+On initial load, existing conversations start in reading mode below 400 CSS pixels
+and with the composer expanded at wider widths. The chosen mode persists across
+in-app conversation switches and viewport resizes. In reading mode, hide the
+bottom navigation and selector rows, set `--bottom-nav-height` to zero, and
+retain floating expand and voice/Stop controls.
 Never switch modes based on scroll direction or blur.
 Reading content extends to the bottom edge without a bottom fade or reserved
 safe-area band; floating controls still respect `--safe-bottom`.
@@ -160,8 +161,9 @@ with `steer` delivery even while the agent is busy; generation must not discard 
 Idle reading controls still replace the microphone with Stop during generation.
 Reading-mode state and expand/collapse callbacks travel together in the optional
 `ReadingControls` capability.
-Sending returns to reading, while finishing a recording reveals transcription
-progress/recovery. New conversations retain their full setup form.
+Sending returns to reading on narrow screens and leaves the current mode unchanged
+on wider screens. Finishing a recording reveals transcription progress/recovery.
+New conversations retain their full setup form.
 `ReviewOverlay` measures `--code-font-size`, `--code-line-height`,
 `--line-num-width`, `--cell-padding`, and `--font-mono` to calculate print width.
 Review citations scroll to the mapped row without highlighting it. If the row

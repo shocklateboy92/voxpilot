@@ -2,6 +2,31 @@ import { expect, send, test } from "./browser";
 import { assistant, history, openSession, swipe, user } from "./data";
 import { client } from "./dev";
 
+test("the composer defaults to reading on an iPhone mini and opens on an iPad mini", async ({
+  app,
+  workspace,
+}) => {
+  await app.setViewportSize({ width: 375, height: 812 });
+  const session = await history(workspace.directory, "Responsive composer");
+  await openSession(app, session.id, { reading: true });
+  const expand = app.getByRole("button", { name: "Expand controls" });
+  const collapse = app.getByRole("button", { name: "Return to reading" });
+  const input = app.getByRole("textbox", { name: "Message", exact: true });
+
+  await expect(expand).toBeVisible();
+  await expect(input).toBeHidden();
+  await app.setViewportSize({ width: 744, height: 1133 });
+  await expect(expand).toBeVisible();
+  await app.reload({ waitUntil: "domcontentloaded" });
+  await expect(input).toBeVisible();
+  await expect(app.locator("[data-bottom-nav]")).toBeVisible();
+
+  await collapse.click();
+  await expect(input).toBeHidden();
+  await expand.click();
+  await expect(input).toBeVisible();
+});
+
 test("collapse shares the voice action row between Paste and Type", async ({
   app,
   workspace,

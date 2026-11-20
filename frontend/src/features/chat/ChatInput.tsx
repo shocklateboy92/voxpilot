@@ -40,10 +40,7 @@ export function ChatInput(props: ChatInputProps) {
     );
   async function send(content: PromptDraft, sessionID: string | undefined) {
     const accepted = await sendUserMessage(content, sessionID);
-    if (accepted && activeSessionId() === sessionID) {
-      props.readingControls?.collapse();
-      props.onSend?.();
-    }
+    if (accepted && activeSessionId() === sessionID) props.onSend?.();
     return accepted;
   }
   return (

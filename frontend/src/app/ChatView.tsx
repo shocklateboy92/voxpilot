@@ -24,7 +24,8 @@ import { SessionChatPane } from "./SessionChatPane";
 import { SessionComposer } from "./SessionComposer";
 
 export function ChatView() {
-  const [composing, setComposing] = createSignal(false);
+  const narrowViewport = window.matchMedia("(width < 400px)");
+  const [composing, setComposing] = createSignal(!narrowViewport.matches);
   const reading = () => !isNewSessionPage() && !composing();
   const readingControls = {
     get reading() {
@@ -52,6 +53,9 @@ export function ChatView() {
   const closeView = () => {
     if (currentFile()) closeFile();
     else parkReview();
+  };
+  const afterSend = () => {
+    if (narrowViewport.matches) readingControls.collapse();
   };
   createEffect(on(activeSessionId, parkReview, { defer: true }));
   createEffect(() => {
@@ -100,7 +104,7 @@ export function ChatView() {
           fallback={
             <NewSessionPage
               onCompose={readingControls.expand}
-              onSend={readingControls.collapse}
+              onSend={afterSend}
             />
           }
         >
@@ -132,7 +136,10 @@ export function ChatView() {
           chatVisible={!viewing()}
           onResize={setComposerHeight}
           readingControls={readingControls}
-          onSend={closeView}
+          onSend={() => {
+            afterSend();
+            closeView();
+          }}
           viewerContext={viewerContext()}
           renderNavigationAction={
             !currentFile() && (reviewFile() || (reading() && parkedReview()))
