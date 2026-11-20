@@ -14,6 +14,25 @@ let url = "";
 const remote = () =>
   OpenCode.make({ baseUrl: url, headers: { authorization } });
 
+// OpenCode loads plugins per location in the background, so a location's first
+// RPC (or the first after a reload) can briefly report the plugin unavailable.
+async function whenLoaded<T>(call: () => Promise<T>, timeout = 15_000) {
+  const deadline = Date.now() + timeout;
+  for (;;) {
+    try {
+      return await call();
+    } catch (error) {
+      const unavailable =
+        typeof error === "object" &&
+        error !== null &&
+        "type" in error &&
+        error.type === "rpc.unavailable";
+      if (!unavailable || Date.now() >= deadline) throw error;
+      await Bun.sleep(100);
+    }
+  }
+}
+
 async function git(args: string[]) {
   const process = Bun.spawn(["git", ...args], {
     cwd: workdir,
@@ -120,16 +139,7 @@ beforeAll(async () => {
     clearTimeout(timer);
     reader.releaseLock();
   }
-  const deadline = Date.now() + 15_000;
-  for (;;) {
-    try {
-      await remote().rpc(VoxPilotRpc).config({});
-      break;
-    } catch (error) {
-      if (Date.now() >= deadline) throw error;
-      await Bun.sleep(100);
-    }
-  }
+  await whenLoaded(() => remote().rpc(VoxPilotRpc).config({}));
 }, 40_000);
 
 afterAll(async () => {
@@ -170,7 +180,7 @@ test("vocabulary RPC resolves active and canonical checkouts, even from nested d
       '["BranchWord","name"]',
     );
     const options = { location: { directory: resolve(current, "nested") } };
-    const result = await rpc.vocabulary({}, options);
+    const result = await whenLoaded(() => rpc.vocabulary({}, options));
     expect(result.terms).toEqual([
       "UserWord",
       "NAME",
@@ -198,7 +208,11 @@ test("vocabulary RPC resolves active and canonical checkouts, even from nested d
     const other = resolve(root, "other-vocabulary-project");
     await mkdir(other);
     expect(
-      (await rpc.vocabulary({}, { location: { directory: other } })).terms,
+      (
+        await whenLoaded(() =>
+          rpc.vocabulary({}, { location: { directory: other } }),
+        )
+      ).terms,
     ).toEqual(["UserWord", "Name"]);
   } finally {
     await remote().debug.location.evict({
@@ -297,26 +311,16 @@ test("bundled plugin loads, authenticates and reformats stable snapshots at phon
   expect(narrow.formattedBefore).toContain("44444444");
   expect(narrow.html).toContain("fulltext-line-add");
   await client.location.reload();
-  expect(await rpc.snapshot({ id: entry.id })).toEqual(entry);
+  expect(await whenLoaded(() => rpc.snapshot({ id: entry.id }))).toEqual(entry);
   // Service-scoped configuration also loads the plugin in unrelated locations.
   const other = resolve(root, "other");
   await mkdir(other);
   await client.agent.list({ location: { directory: other } });
-  const deadline = Date.now() + 5000;
-  for (;;) {
-    try {
-      expect(
-        await rpc.snapshot(
-          { id: entry.id },
-          { location: { directory: other } },
-        ),
-      ).toEqual(entry);
-      break;
-    } catch (error) {
-      if (Date.now() >= deadline) throw error;
-      await Bun.sleep(100);
-    }
-  }
+  expect(
+    await whenLoaded(() =>
+      rpc.snapshot({ id: entry.id }, { location: { directory: other } }),
+    ),
+  ).toEqual(entry);
   const unauthorized = await fetch(`${url}/api/rpc/voxpilot/config`, {
     method: "POST",
     headers: { "content-type": "application/json" },
