@@ -122,63 +122,35 @@ export function ReviewOverlay(props: {
       cachedRegions = getChangeRegions(pane);
       setRegionCount(cachedRegions.length);
       const saved = getReviewPosition(result.req);
-      const last = cachedRegions.length - 1;
-      let idx = Math.min(
-        saved?.changeIndex ?? (result.req.startAtEnd ? last : 0),
-        last,
-      );
       const citation = result.req.citation;
-      const target = result.targetRow;
-      const row =
-        target &&
-        pane.querySelector<HTMLElement>(
-          `[data-review-${target.side}="${target.line}"]`,
-        );
+      const row = findCitationRow(pane, result.targetRow);
       const jump =
         citation &&
         (saved?.citationId !== citation.id ||
           saved.printWidth !== result.printWidth);
+      const idx = jump
+        ? regionIndexBefore(cachedRegions, row)
+        : initialChangeIndex(
+            cachedRegions.length,
+            result.req.startAtEnd,
+            saved?.changeIndex,
+          );
+
       setUnlocated(Boolean(citation && !row));
       setShowCurrentChange(!citation);
-      if (jump) {
-        idx = -1;
-        if (row) {
-          for (const [index, region] of cachedRegions.entries()) {
-            if (
-              !(
-                region.compareDocumentPosition(row) &
-                Node.DOCUMENT_POSITION_FOLLOWING
-              )
-            )
-              break;
-            idx = index;
-          }
-        }
-      }
       setCurrentIndex(idx);
       applyHighlight(cachedRegions, citation ? -1 : idx);
-      const region = cachedRegions[idx];
-      if (jump && row) {
-        const viewport = pane.getBoundingClientRect();
-        const inset = Number.parseFloat(getComputedStyle(pane).paddingTop) || 0;
-        const available = Math.max(
-          0,
-          viewport.height - inset - props.composerHeight,
-        );
-        pane.scrollTo({
-          top:
-            pane.scrollTop +
-            row.getBoundingClientRect().top -
-            viewport.top -
-            inset -
-            available / 3,
-          behavior: "instant",
-        });
-      } else if (jump) pane.scrollTo({ top: 0, behavior: "instant" });
-      else if (saved?.printWidth === result.printWidth)
+
+      if (jump) {
+        if (row) scrollRowToThird(pane, row, props.composerHeight);
+        else pane.scrollTo({ top: 0, behavior: "instant" });
+      } else if (saved?.printWidth === result.printWidth) {
         pane.scrollTo({ top: saved.scrollTop, behavior: "instant" });
-      else if (region) scrollToRegion(region, pane, "instant");
-      else pane.scrollTo({ top: 0, behavior: "instant" });
+      } else {
+        const region = cachedRegions[idx];
+        if (region) scrollToRegion(region, pane, "instant");
+        else pane.scrollTo({ top: 0, behavior: "instant" });
+      }
       positioned = result;
       savePosition();
     });
@@ -501,6 +473,62 @@ export function ReviewOverlay(props: {
  */
 function getChangeRegions(pane: HTMLElement): HTMLElement[] {
   return Array.from(pane.querySelectorAll<HTMLElement>(".change-region"));
+}
+
+function initialChangeIndex(
+  regionCount: number,
+  startAtEnd: boolean,
+  savedIndex?: number,
+): number {
+  const last = regionCount - 1;
+  return Math.min(savedIndex ?? (startAtEnd ? last : 0), last);
+}
+
+function findCitationRow(
+  pane: HTMLElement,
+  target: Awaited<ReturnType<typeof rpc.formatComparison>>["targetRow"],
+): HTMLElement | null {
+  return target
+    ? pane.querySelector<HTMLElement>(
+        `[data-review-${target.side}="${target.line}"]`,
+      )
+    : null;
+}
+
+/** The last change region containing the row or preceding it in DOM order. */
+function regionIndexBefore(
+  regions: readonly HTMLElement[],
+  row: HTMLElement | null,
+): number {
+  if (!row) return -1;
+  let preceding = -1;
+  for (const [index, region] of regions.entries()) {
+    if (
+      !(region.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING)
+    )
+      break;
+    preceding = index;
+  }
+  return preceding;
+}
+
+function scrollRowToThird(
+  pane: HTMLElement,
+  row: HTMLElement,
+  composerHeight: number,
+): void {
+  const viewport = pane.getBoundingClientRect();
+  const inset = Number.parseFloat(getComputedStyle(pane).paddingTop) || 0;
+  const available = Math.max(0, viewport.height - inset - composerHeight);
+  pane.scrollTo({
+    top:
+      pane.scrollTop +
+      row.getBoundingClientRect().top -
+      viewport.top -
+      inset -
+      available / 3,
+    behavior: "instant",
+  });
 }
 
 /**
