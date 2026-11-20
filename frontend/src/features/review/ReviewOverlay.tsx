@@ -30,7 +30,13 @@ import { rpc } from "../../platform/rpc";
 import { IconButton } from "../../ui/IconButton";
 import { Spinner } from "../../ui/Spinner";
 import type { ReadingControls } from "../chat/reading-controls";
-import { parkReview, reviewFile, selectReviewFile } from "./review-navigation";
+import {
+  getReviewPosition,
+  parkReview,
+  reviewFile,
+  saveReviewPosition,
+  selectReviewFile,
+} from "./review-navigation";
 
 /** Padding (px) above a change region when it doesn't fit on screen. */
 const SCROLL_TOP_PADDING = 32;
@@ -119,7 +125,7 @@ export function ReviewOverlay(props: {
     const frame = requestAnimationFrame(() => {
       cachedRegions = getChangeRegions(pane);
       setRegionCount(cachedRegions.length);
-      const saved = result.req.positions.get(result.req.filePath);
+      const saved = getReviewPosition(result.req);
       const last = cachedRegions.length - 1;
       let idx = Math.min(
         saved?.changeIndex ?? (result.req.startAtEnd ? last : 0),
@@ -185,7 +191,7 @@ export function ReviewOverlay(props: {
   function savePosition(): void {
     const result = rendered();
     if (!result || result !== positioned || !paneRef) return;
-    result.req.positions.set(result.req.filePath, {
+    saveReviewPosition(result.req, {
       changeIndex: currentIndex(),
       printWidth: result.printWidth,
       scrollTop: paneRef.scrollTop,

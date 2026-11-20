@@ -10,9 +10,9 @@ export type ReviewFile = Pick<
 >;
 
 interface ReviewPosition {
-  printWidth: number;
-  changeIndex: number;
-  scrollTop: number;
+  readonly printWidth: number;
+  readonly changeIndex: number;
+  readonly scrollTop: number;
 }
 
 interface ReviewRequest {
@@ -24,7 +24,6 @@ interface ReviewRequest {
   filePath: string;
   files: ReviewFile[];
   fileIndex: number;
-  positions: Map<string, ReviewPosition>;
   startAtEnd: boolean;
   sourceLine?: ReviewLine;
 }
@@ -33,6 +32,25 @@ interface ReviewRequest {
 // scoped to a conversation in this browser document.
 const [reviews, setReviews] = createSignal(new Map<string, ReviewRequest>());
 const [visibleSession, setVisibleSession] = createSignal<string>();
+
+// Positions are read when a diff is laid out, not observed while it scrolls.
+// Only requests for the same snapshot in this conversation share a cache.
+const positionsByRequest = new WeakMap<
+  ReviewRequest,
+  Map<string, ReviewPosition>
+>();
+
+export function getReviewPosition(request: ReviewRequest) {
+  return positionsByRequest.get(request)?.get(request.filePath);
+}
+
+export function saveReviewPosition(
+  request: ReviewRequest,
+  position: ReviewPosition,
+) {
+  if (reviewFile() !== request) return;
+  positionsByRequest.get(request)?.set(request.filePath, position);
+}
 
 export function parkedReview() {
   const session = activeSessionId();
@@ -46,6 +64,12 @@ export function reviewFile() {
 function showReview(request: ReviewRequest) {
   const session = activeSessionId();
   if (!session) return;
+  const previous = parkedReview();
+  const positions =
+    previous?.cacheId === request.cacheId
+      ? positionsByRequest.get(previous)
+      : undefined;
+  positionsByRequest.set(request, positions ?? new Map());
   setReviews((previous) => new Map(previous).set(session, request));
   setVisibleSession(session);
 }
@@ -86,7 +110,6 @@ export function openSnapshotFile(
   }));
   const fileIndex = files.findIndex((file) => file.filePath === filePath);
   if (fileIndex < 0) return;
-  const previous = parkedReview();
   showReview({
     cacheId: snapshot.id,
     fromRef: snapshot.resolvedFrom,
@@ -96,8 +119,6 @@ export function openSnapshotFile(
     filePath,
     files,
     fileIndex,
-    positions:
-      previous?.cacheId === snapshot.id ? previous.positions : new Map(),
     startAtEnd: false,
     sourceLine,
   });
@@ -107,7 +128,7 @@ export function selectReviewFile(fileIndex: number, edge?: "first" | "last") {
   const request = reviewFile();
   const file = request?.files[fileIndex];
   if (!request || !file || fileIndex === request.fileIndex) return;
-  if (edge) request.positions.delete(file.filePath);
+  if (edge) positionsByRequest.get(request)?.delete(file.filePath);
   showReview({
     ...request,
     filePath: file.filePath,
