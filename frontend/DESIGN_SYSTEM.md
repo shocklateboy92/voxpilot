@@ -166,6 +166,9 @@ on wider screens. Finishing a recording reveals transcription progress/recovery.
 New conversations retain their full setup form.
 `ReviewOverlay` measures `--code-font-size`, `--code-line-height`,
 `--line-num-width`, `--cell-padding`, and `--font-mono` to calculate print width.
+Below `40rem`, the review hides line numbers and uses the reclaimed width for
+formatting. A muted dot in the existing left padding marks each formatted row,
+including blank rows; browser-wrapped continuations have no dot.
 Review citations scroll to the mapped row without highlighting it. If the row
 cannot be located, open the snapshot file and show a notice rather than guessing.
 

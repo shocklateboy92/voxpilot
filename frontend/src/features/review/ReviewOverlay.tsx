@@ -634,9 +634,8 @@ function measureCharWidth(container: HTMLElement): number {
  * container's pixel width, accounting for the line-number gutter and
  * cell padding.
  *
- * All layout values are read from CSS custom properties defined in
- * styles/theme.css (:root), so CSS and JS stay in sync automatically:
- *   --line-num-width, --cell-padding
+ * Read the overlay's CSS custom properties so narrow layouts that hide
+ * the line numbers also give that space back to the formatter.
  */
 function computePrintWidth(container: HTMLElement): number {
   const charWidth = measureCharWidth(container);
@@ -644,19 +643,18 @@ function computePrintWidth(container: HTMLElement): number {
   const rootFontSize = parseFloat(
     getComputedStyle(document.documentElement).fontSize,
   );
-  const rootStyles = getComputedStyle(document.documentElement);
+  const styles = getComputedStyle(container);
 
   const lineNumWidth = cssToPx(
-    rootStyles.getPropertyValue("--line-num-width").trim() || "2.5rem",
+    styles.getPropertyValue("--line-num-width").trim() || "2.5rem",
     rootFontSize,
   );
   const cellPadding = cssToPx(
-    rootStyles.getPropertyValue("--cell-padding").trim() || "0.4rem",
+    styles.getPropertyValue("--cell-padding").trim() || "0.4rem",
     rootFontSize,
   );
 
-  // Line-number column: fixed width + padding on each side
-  const gutterWidth = lineNumWidth + 2 * cellPadding;
+  const gutterWidth = lineNumWidth > 0 ? lineNumWidth + 2 * cellPadding : 0;
   // Code-content cell: padding on each side
   const contentPadding = 2 * cellPadding;
 

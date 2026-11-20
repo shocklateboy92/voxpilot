@@ -202,11 +202,16 @@ test("code review reformats on resize, navigates regions both ways, and reopens 
 }, info) => {
   const fileName = `review-${"long-file-name-".repeat(7)}details.ts`;
   const path = join(workspace.directory, fileName);
-  const source = Array.from(
-    { length: 45 },
-    (_, i) =>
-      `export const value${i} = example(11111111, 22222222, 33333333, 44444444);`,
-  ).join("\n");
+  const longLiteral = `"${"unbroken".repeat(12)}"`;
+  const source = [
+    `export const browserWrap = ${longLiteral};`,
+    "",
+    ...Array.from(
+      { length: 45 },
+      (_, i) =>
+        `export const value${i} = example(11111111, 22222222, 33333333, 44444444);`,
+    ),
+  ].join("\n");
   await writeFile(path, source);
   await workspace.git("add", fileName);
   await workspace.git(
@@ -264,6 +269,22 @@ test("code review reformats on resize, navigates regions both ways, and reopens 
   await chatFiles.getByRole("button", { name: fileName }).click();
   const review = app.getByRole("region", { name: "File review" });
   await expect(review.locator(".change-region")).toHaveCount(2);
+  const lineNumber = review.locator(".fulltext-line-num").first();
+  const wrapped = review.locator(".fulltext-line-content", {
+    hasText: longLiteral,
+  });
+  const blank = review
+    .locator(".fulltext-line-content:has(> code:empty)")
+    .first();
+  const rowLayout = (element: Element) => {
+    const marker = getComputedStyle(element, "::before");
+    return {
+      marker: marker.content,
+      lines:
+        element.getBoundingClientRect().height /
+        parseFloat(getComputedStyle(element).lineHeight),
+    };
+  };
   const trigger = review.getByRole("button", {
     name: "Review status",
     exact: true,
@@ -343,6 +364,20 @@ test("code review reformats on resize, navigates regions both ways, and reopens 
       await expect(details).toHaveCount(0);
       await expect(trigger).toBeFocused();
       await expect(review).toBeVisible();
+      if (width === 390) {
+        await expect(lineNumber).toHaveCSS("display", "none");
+        const layout = await wrapped.evaluate(rowLayout);
+        expect(layout.marker).toBe('""');
+        expect(layout.lines).toBeGreaterThan(1);
+        expect(await blank.evaluate(rowLayout)).toEqual({
+          marker: '""',
+          lines: 1,
+        });
+        await info.attach(`review-lines-${scheme}-${width}`, {
+          body: await app.screenshot(),
+          contentType: "image/png",
+        });
+      }
     }
   }
   expect(keywordColors.size).toBe(2);
@@ -374,6 +409,8 @@ test("code review reformats on resize, navigates regions both ways, and reopens 
   await expect
     .poll(() => review.locator(".fulltext-line").count())
     .toBeLessThan(narrowLines);
+  await expect(lineNumber).toBeVisible();
+  expect((await wrapped.evaluate(rowLayout)).marker).toBe("none");
   expect(await readFile(path, "utf8")).toBe(after);
   await writeFile(path, "// changed after snapshot capture\n");
   await app.getByRole("button", { name: "Return to reading" }).click();

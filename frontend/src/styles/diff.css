@@ -96,4 +96,27 @@
   .current-change > .fulltext-line {
     border-left: 3px solid var(--color-accent);
   }
+  @media (width < 40rem) {
+    .review-overlay {
+      --line-num-width: 0px;
+    }
+    .review-overlay .fulltext-line-num {
+      display: none;
+    }
+    .review-overlay .fulltext-line-content {
+      position: relative;
+      height: 1lh; /* Preserve blank rows without a line-number cell. */
+    }
+    .review-overlay .fulltext-line-content::before {
+      content: "";
+      position: absolute;
+      inset-inline-start: calc((var(--cell-padding) - 2px) / 2);
+      inset-block-start: calc(0.5lh - 1px);
+      width: 2px;
+      height: 2px;
+      border-radius: 50%;
+      background: var(--color-muted);
+      pointer-events: none;
+    }
+  }
 }
