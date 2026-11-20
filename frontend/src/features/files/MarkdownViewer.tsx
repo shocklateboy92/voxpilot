@@ -188,33 +188,36 @@ function OpenMarkdownViewer(props: MarkdownViewerProps) {
             {currentFile()?.path}
           </span>
         }
-        statusBarRight={
+        statusBarRight={null}
+        statusBarActions={
           <>
+            <IconButton
+              variant="ghost"
+              aria-label="Close viewer"
+              onClick={closeFile}
+            >
+              <X size={14} />
+            </IconButton>
             <Show when={hasPreviousFile()}>
               <IconButton
                 variant="ghost"
+                size="sm"
                 aria-label="Previous document"
                 onClick={() => navigateApp(-1)}
               >
-                <ArrowLeft size={18} />
+                <ArrowLeft size={14} />
               </IconButton>
             </Show>
             <IconButton
               variant="ghost"
+              size="sm"
               aria-label="Refresh file"
               disabled={loaded.loading}
               onClick={() => {
                 void refetch();
               }}
             >
-              <RefreshCw size={18} />
-            </IconButton>
-            <IconButton
-              variant="ghost"
-              aria-label="Close viewer"
-              onClick={closeFile}
-            >
-              <X size={18} />
+              <RefreshCw size={14} />
             </IconButton>
           </>
         }

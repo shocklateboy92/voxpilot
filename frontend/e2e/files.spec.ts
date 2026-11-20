@@ -216,7 +216,9 @@ ${"wide code ".repeat(60)}
     "src",
     /^blob:/,
   );
-  const header = await viewer.locator("[data-status-bar]").boundingBox();
+  const statusBar = viewer.locator("[data-status-bar]");
+  await expect(statusBar).toHaveCSS("height", "32px");
+  const header = await statusBar.boundingBox();
   const heading = await viewer
     .getByRole("heading", { name: "File preview", exact: true })
     .boundingBox();
@@ -240,6 +242,11 @@ ${"wide code ".repeat(60)}
     .click();
   await expect(viewer).toContainText("Linked document content.");
   await expect(viewer.locator("#details")).toHaveText("Details");
+  await app.setViewportSize({ width: 280, height: 844 });
+  await expect(statusBar).toHaveCSS("height", "32px");
+  await expect(
+    viewer.getByRole("button", { name: "Close viewer" }),
+  ).toBeInViewport();
   await viewer.getByRole("button", { name: "Previous document" }).click();
   await expect(
     viewer.getByRole("heading", { name: "File preview", exact: true }),
