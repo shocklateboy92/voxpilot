@@ -11,15 +11,15 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@opencode/plugin": "2.0.22",
-    "diff": "^8.0.3",
-    "prettier": "^3.8.1",
+    "@opencode/plugin": "2.3.2",
+    "diff": "^8.0.4",
+    "prettier": "^3.10.1",
     "shiki": "^4.6.0",
-    "zod": "4.6.5"
+    "zod": "4.6.7"
   },
   "devDependencies": {
-    "@opencode/client": "2.0.22",
-    "@biomejs/biome": "^2.4.4",
+    "@opencode/client": "2.3.2",
+    "@biomejs/biome": "^2.6.8",
     "@types/bun": "latest",
     "@types/diff": "^8.0.0",
     "typescript": "^5.9.3"

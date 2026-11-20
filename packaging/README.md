@@ -8,7 +8,7 @@ Voice transcription additionally uses the independent service described in
 
 ## API host prerequisites
 
-- Native `opencode` 2.0.22 on the systemd user's PATH.
+- Native `opencode` 2.3.2 on the systemd user's PATH.
 - Git; Ruff for Python; clang-format for C/C++; stable rustfmt with Rust 2024
   support for Rust. These executables must be on the service user's PATH.
   Prettier is bundled. Missing formatters fall back to unformatted code.

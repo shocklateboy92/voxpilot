@@ -15,6 +15,7 @@ test("renders markdown, persists on reload, forks, and deletes through the UI", 
     "Second item",
   ]);
   await expect(response.locator("pre code")).toContainText("baseline code");
+  // biome-ignore lint/performance/useDomNodeTextContent: Compare the rendered transcript, not raw DOM text.
   const transcript = await response.innerText();
   const original = app.url();
   await app.reload({ waitUntil: "domcontentloaded" });

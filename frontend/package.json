@@ -12,25 +12,25 @@
     "clean": "rm -rf dist"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0",
-    "@tailwindcss/vite": "^4.3.3",
-    "@types/bun": "^1.3.10",
-    "@types/markdown-it": "^14.1.2",
-    "@typescript-eslint/parser": "^8.56.1",
-    "eslint": "^9.39.3",
+    "@playwright/test": "^1.65.1",
+    "@tailwindcss/vite": "^4.3.5",
+    "@types/bun": "^1.4.5",
+    "@types/markdown-it": "^14.2.0",
+    "@typescript-eslint/parser": "^8.73.0",
+    "eslint": "^9.39.5",
     "eslint-plugin-solid": "^0.14.5",
     "tailwindcss": "^4.3.3",
-    "typescript": "^5.7.0",
-    "vite": "^7.3.1",
-    "vite-plugin-solid": "^2.11.10"
+    "typescript": "^5.9.3",
+    "vite": "^7.3.8",
+    "vite-plugin-solid": "^2.11.17"
   },
   "dependencies": {
-    "@opencode/client": "^2.0.22",
-    "@solidjs/meta": "^0.29.4",
-    "@solidjs/router": "^1.0.1",
+    "@opencode/client": "^2.3.2",
+    "@solidjs/meta": "^0.29.8",
+    "@solidjs/router": "^1.0.3",
     "lucide-solid": "^0.575.0",
-    "markdown-it": "^14.1.1",
+    "markdown-it": "^14.3.3",
     "mermaid": "^12.3.0",
-    "solid-js": "^1.9.0"
+    "solid-js": "^1.9.20"
   }
 }
