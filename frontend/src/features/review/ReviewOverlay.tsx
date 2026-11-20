@@ -94,7 +94,7 @@ export function ReviewOverlay(props: {
       filePath: req.filePath,
       printWidth,
       cacheId: req.cacheId,
-      ...(req.sourceLine ? { sourceLine: req.sourceLine } : {}),
+      ...(req.citation ? { sourceLine: req.citation.sourceLine } : {}),
     });
     return { html: data.html, targetRow: data.targetRow, req, printWidth };
   });
@@ -105,10 +105,6 @@ export function ReviewOverlay(props: {
       return result;
   });
   let positioned: ReturnType<typeof rendered>;
-  const appliedCitations = new WeakMap<
-    NonNullable<ReturnType<typeof reviewFile>>,
-    number
-  >();
 
   // Restore pixel position at the same width, or fall back to the saved change.
   createEffect(() => {
@@ -131,7 +127,7 @@ export function ReviewOverlay(props: {
         saved?.changeIndex ?? (result.req.startAtEnd ? last : 0),
         last,
       );
-      const citation = result.req.sourceLine;
+      const citation = result.req.citation;
       const target = result.targetRow;
       const row =
         target &&
@@ -139,11 +135,12 @@ export function ReviewOverlay(props: {
           `[data-review-${target.side}="${target.line}"]`,
         );
       const jump =
-        citation && appliedCitations.get(result.req) !== result.printWidth;
+        citation &&
+        (saved?.citationId !== citation.id ||
+          saved.printWidth !== result.printWidth);
       setUnlocated(Boolean(citation && !row));
       setShowCurrentChange(!citation);
       if (jump) {
-        appliedCitations.set(result.req, result.printWidth);
         idx = -1;
         if (row) {
           for (const [index, region] of cachedRegions.entries()) {
@@ -192,6 +189,7 @@ export function ReviewOverlay(props: {
     const result = rendered();
     if (!result || result !== positioned || !paneRef) return;
     saveReviewPosition(result.req, {
+      citationId: result.req.citation?.id,
       changeIndex: currentIndex(),
       printWidth: result.printWidth,
       scrollTop: paneRef.scrollTop,

@@ -1,24 +1,21 @@
 /** Session layout — chat, review, and Markdown share one composer footer. */
 
-import GitCompare from "lucide-solid/icons/git-compare-arrows";
-import List from "lucide-solid/icons/list";
 import { createEffect, createMemo, createSignal, on, Show } from "solid-js";
 import { createAttachmentDrop } from "../features/chat/attachments/attachment-input";
 import { composerDraft } from "../features/chat/create-composer-draft";
 import { NewSessionPage } from "../features/chat/NewSessionPage";
 import { MarkdownViewer } from "../features/files/MarkdownViewer";
 import { ReviewFiles } from "../features/review/ReviewFiles";
+import { ReviewNavigationAction } from "../features/review/ReviewNavigationAction";
 import { ReviewOverlay } from "../features/review/ReviewOverlay";
 import { ReviewPicker } from "../features/review/ReviewPicker";
 import {
   finishReview,
   parkedReview,
   parkReview,
-  resumeReview,
   reviewFile,
 } from "../features/review/review-navigation";
 import type { ViewerContext } from "../platform/prompt-files";
-import { Button } from "../ui/Button";
 import { BottomNav } from "./BottomNav";
 import { createComposerKeyboard } from "./create-composer-keyboard";
 import { activeSessionId, isNewSessionPage } from "./navigation";
@@ -62,38 +59,11 @@ export function ChatView() {
   });
   const drop = createAttachmentDrop(() => composerDraft(activeSessionId()));
 
-  const navigationAction = (
-    <Button
-      size="sm"
-      pill={reading()}
-      class="min-h-11"
-      classList={{ "shadow-floating": reading() }}
-      variant={reading() ? "neutral" : "ghost"}
-      aria-haspopup={reviewFile() ? "dialog" : undefined}
-      onClick={() => {
-        if (reviewFile()) setReviewPanel("files");
-        else resumeReview();
-      }}
-    >
-      <Show
-        when={reviewFile()}
-        fallback={
-          <>
-            <GitCompare size={18} aria-hidden="true" />
-            Resume review
-          </>
-        }
-      >
-        {(review) => (
-          <>
-            <List size={18} aria-hidden="true" />
-            <span>
-              Files · {review().fileIndex + 1}/{review().files.length}
-            </span>
-          </>
-        )}
-      </Show>
-    </Button>
+  const renderNavigationAction = () => (
+    <ReviewNavigationAction
+      reading={reading()}
+      onOpenFiles={() => setReviewPanel("files")}
+    />
   );
 
   return (
@@ -164,9 +134,9 @@ export function ChatView() {
           readingControls={readingControls}
           onSend={closeView}
           viewerContext={viewerContext()}
-          navigationAction={
+          renderNavigationAction={
             !currentFile() && (reviewFile() || (reading() && parkedReview()))
-              ? navigationAction
+              ? renderNavigationAction
               : undefined
           }
         />

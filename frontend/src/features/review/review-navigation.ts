@@ -13,6 +13,7 @@ interface ReviewPosition {
   readonly printWidth: number;
   readonly changeIndex: number;
   readonly scrollTop: number;
+  readonly citationId?: number;
 }
 
 interface ReviewRequest {
@@ -25,13 +26,14 @@ interface ReviewRequest {
   files: ReviewFile[];
   fileIndex: number;
   startAtEnd: boolean;
-  sourceLine?: ReviewLine;
+  citation?: { readonly id: number; readonly sourceLine: ReviewLine };
 }
 
 // The snapshot is stored by the backend. Only navigation state lives here,
 // scoped to a conversation in this browser document.
 const [reviews, setReviews] = createSignal(new Map<string, ReviewRequest>());
 const [visibleSession, setVisibleSession] = createSignal<string>();
+let lastCitationId = 0;
 
 // Positions are read when a diff is laid out, not observed while it scrolls.
 // Only requests for the same snapshot in this conversation share a cache.
@@ -120,7 +122,7 @@ export function openSnapshotFile(
     files,
     fileIndex,
     startAtEnd: false,
-    sourceLine,
+    citation: sourceLine ? { id: ++lastCitationId, sourceLine } : undefined,
   });
 }
 
@@ -134,6 +136,6 @@ export function selectReviewFile(fileIndex: number, edge?: "first" | "last") {
     filePath: file.filePath,
     fileIndex,
     startAtEnd: edge === "last",
-    sourceLine: undefined,
+    citation: undefined,
   });
 }

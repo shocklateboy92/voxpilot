@@ -13,9 +13,9 @@ export function SessionComposer(props: {
   readingControls: ReadingControls;
   onSend: () => void;
   viewerContext?: ViewerContext;
-  navigationAction?: JSX.Element;
+  renderNavigationAction?: () => JSX.Element;
 }) {
-  const withAction = () => Boolean(props.navigationAction);
+  const withAction = () => Boolean(props.renderNavigationAction);
   const actionBesideServer = () => withAction() && Boolean(configuredServer);
   let stack: HTMLElement | undefined;
   onMount(() => {
@@ -66,7 +66,7 @@ export function SessionComposer(props: {
           </div>
           <Show when={withAction()}>
             <div class="col-start-2 row-start-1 justify-self-end">
-              {props.navigationAction}
+              {props.renderNavigationAction?.()}
             </div>
           </Show>
         </div>
@@ -75,9 +75,7 @@ export function SessionComposer(props: {
         readingControls={props.readingControls}
         onSend={props.onSend}
         viewerContext={props.viewerContext}
-        navigationAction={
-          props.readingControls.reading ? props.navigationAction : undefined
-        }
+        renderNavigationAction={props.renderNavigationAction}
       />
     </footer>
   );

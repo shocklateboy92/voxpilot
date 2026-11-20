@@ -53,10 +53,20 @@ test("review citations scroll to the original snapshot line without highlighting
   await expect(deleted).toBeInViewport();
   await expect(review.locator(".current-change")).toHaveCount(0);
   await expect(review).not.toContainText("newer working copy");
-  await review.getByRole("button", { name: "Close review" }).click();
+  const close = review.getByRole("button", { name: "Close review" });
+  await review.locator(".review-pane").evaluate((pane) => {
+    pane.scrollTo({ top: 0, behavior: "instant" });
+  });
+  await expect(deleted).not.toBeInViewport();
+  await close.click();
   const resume = app.getByRole("button", { name: "Resume review" });
   await expect(resume).toBeVisible();
   await resume.click();
+  await expect(deleted).toBeAttached();
+  await expect(deleted).not.toBeInViewport();
+  await close.click();
+  await app.getByRole("link", { name: "Removed call" }).click();
+  await expect(deleted).toBeInViewport();
   await app.getByRole("button", { name: /^Files ·/ }).click();
   const files = app.getByRole("dialog", { name: "Changed files" });
   await files.getByRole("button", { name: "Finish review" }).click();
