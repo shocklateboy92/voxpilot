@@ -160,6 +160,18 @@ test("missing config retains the manual connection flow", async ({
   baseURL,
 }) => {
   await page.route("**/config.json", (route) => route.fulfill({ status: 404 }));
+  await page.route(
+    "**/api/rpc/voxpilot/config",
+    (route) =>
+      route.fulfill({
+        status: 400,
+        json: {
+          type: "rpc.unavailable",
+          message: "RPC is unavailable: voxpilot",
+        },
+      }),
+    { times: 1 },
+  );
   await page.goto("/");
   await page.getByLabel("Server URL").fill(baseURL ?? "");
   await page.getByLabel("Server password").fill(password);

@@ -275,6 +275,18 @@ test("code review reformats on resize, navigates regions both ways, and reopens 
       hasText: /^const$/,
     })
     .first();
+  async function resizeReview(width: number) {
+    const formatted = app.waitForResponse(
+      (response) =>
+        response.url().endsWith("/formatComparison") && response.ok(),
+    );
+    await app.setViewportSize({ width, height: 844 });
+    await formatted;
+    // A resize replaces the diff asynchronously. Touch input must hit the new rows.
+    await expect(review.locator(".current-change").first()).toContainText(
+      "changed2",
+    );
+  }
   const keywordColors = new Set<string>();
   for (const scheme of ["dark", "light"] as const) {
     await app.emulateMedia({ colorScheme: scheme });
@@ -282,7 +294,7 @@ test("code review reformats on resize, navigates regions both ways, and reopens 
       await keyword.evaluate((token) => getComputedStyle(token).color),
     );
     for (const width of [280, 390, 480]) {
-      await app.setViewportSize({ width, height: 844 });
+      await resizeReview(width);
       const header = await review.locator("[data-status-bar]").boundingBox();
       if (!header) throw new Error("Missing review status bar");
       expect(header.height).toBe(chatHeader.height);
@@ -334,7 +346,7 @@ test("code review reformats on resize, navigates regions both ways, and reopens 
     }
   }
   expect(keywordColors.size).toBe(2);
-  await app.setViewportSize({ width: 390, height: 844 });
+  await resizeReview(390);
   await trigger.press("Enter");
   await expect(details).toBeVisible();
   await review.locator(".review-diff-container").click();

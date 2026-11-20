@@ -59,7 +59,8 @@ export async function waitForPlugin(remote = client) {
     } catch (error) {
       if (
         Date.now() >= deadline ||
-        !(error instanceof Error) ||
+        typeof error !== "object" ||
+        error === null ||
         !("type" in error) ||
         error.type !== "rpc.unavailable"
       )

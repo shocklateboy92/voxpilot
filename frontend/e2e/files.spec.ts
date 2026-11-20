@@ -61,8 +61,8 @@ test("a recording started while reading a file stays live across pane changes", 
   await expect(
     app.getByRole("button", { name: "Preview selection" }),
   ).toBeVisible();
-  await app.getByRole("button", { name: "Send transcript" }).click();
   const message = app.locator(".message.user");
+  await expect(message).toHaveCount(1);
   await expect(message).toContainText(transcript);
   await expect(message).toContainText("User was viewing:");
   await expect(message).toContainText("Selected text:");
