@@ -59,7 +59,10 @@ export function SessionChatPane(props: {
                 fallback={
                   <>
                     <span class="hidden min-[300px]:inline">·</span>
-                    <Check size={14} class="hidden text-ok min-[300px]:inline" />
+                    <Check
+                      size={14}
+                      class="hidden text-ok min-[300px]:inline"
+                    />
                     <span class="hidden min-[370px]:inline">clean</span>
                   </>
                 }

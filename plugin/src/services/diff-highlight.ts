@@ -90,18 +90,19 @@ export async function highlightDiff(
 ): Promise<DiffHighlight | undefined> {
   if (Math.max(before.length, after.length) > MAX_FILE_LENGTH) return;
 
-  const extension = /\.([^.\/]+)$/.exec(filePath.toLowerCase())?.[1];
+  const extension = /\.([^./]+)$/.exec(filePath.toLowerCase())?.[1];
   const grammar =
     extension &&
     grammars.find(({ extensions }) => extensions.includes(extension));
   if (!grammar) return;
 
   try {
-    const instance = await (highlighter ??= createHighlighterCore({
+    highlighter ??= createHighlighterCore({
       engine: createJavaScriptRegexEngine({ forgiving: true }),
       themes: [githubDark, githubLight],
       langs: [],
-    }));
+    });
+    const instance = await highlighter;
     if (!instance.getLoadedLanguages().includes(grammar.lang)) {
       await instance.loadLanguage(grammar.load);
     }
