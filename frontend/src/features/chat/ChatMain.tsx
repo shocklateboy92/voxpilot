@@ -61,7 +61,8 @@ export function ChatScrollButton() {
       <IconButton
         type="button"
         size="lg"
-        class="scroll-to-bottom animate-scroll-in self-center shadow-floating active:scale-95"
+        variant="floating"
+        class="scroll-to-bottom animate-scroll-in self-center active:scale-95"
         onClick={anchor.scrollToBottom}
         aria-label="Scroll to bottom"
       >

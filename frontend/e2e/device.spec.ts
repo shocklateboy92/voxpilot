@@ -136,6 +136,10 @@ test("Wake Devbox sends only the configured wake request while the backend is un
   await expect(
     app.getByRole("heading", { name: "Devbox is offline" }),
   ).toBeVisible({ timeout: 15_000 });
+  const settings = app
+    .getByRole("button", { name: "Connection settings", exact: true })
+    .filter({ hasText: "Connection settings" });
+  await expect(settings).toHaveCSS("backdrop-filter", /blur\(/);
   const wake = app.waitForRequest((request) =>
     request.url().endsWith("/e2e-wake"),
   );

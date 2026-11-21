@@ -25,7 +25,7 @@ export function ReviewFiles(props: {
         <span class="min-w-0 font-mono text-xs text-muted [overflow-wrap:anywhere]">
           {props.review.comparison}
         </span>
-        <Button size="sm" onClick={props.onChangeComparison}>
+        <Button size="sm" radius="lg" onClick={props.onChangeComparison}>
           Change comparison
         </Button>
       </div>
@@ -41,8 +41,12 @@ export function ReviewFiles(props: {
           props.onClose();
         }}
       />
-      <div class="flex shrink-0 justify-end border-t border-border px-4 py-2">
-        <Button size="sm" class="min-h-11" onClick={props.onFinish}>
+      <div class="shrink-0 border-t border-border px-4 py-2">
+        <Button
+          variant="primary"
+          class="min-h-11 w-full"
+          onClick={props.onFinish}
+        >
           Finish review
         </Button>
       </div>

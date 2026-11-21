@@ -192,7 +192,7 @@ export function VoiceRecorder(props: {
           <Show when={state() !== "idle"}>
             <IconButton
               size="lg"
-              class="shadow-floating"
+              variant="floating"
               aria-label="Cancel recording"
               disabled={state() === "stopping"}
               onPointerDown={(event) => event.preventDefault()}

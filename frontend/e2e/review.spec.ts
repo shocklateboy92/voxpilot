@@ -124,6 +124,21 @@ test("review shares the live composer, its modes, and its selectors with chat", 
   const filesButton = app.getByRole("button", { name: /^Files ·/ });
   await expect(server).toBeVisible();
   await expect(filesButton).toBeInViewport();
+  const glassTint = await review.locator("[data-status-bar]").evaluate(
+    (element) => getComputedStyle(element).backgroundColor,
+  );
+  await expect(filesButton).toHaveCSS("background-color", glassTint);
+  await expect(filesButton).toHaveCSS("backdrop-filter", /blur\(/);
+  const selectorEdge = await server.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { border: style.borderTop, radius: style.borderTopLeftRadius };
+  });
+  await expect(filesButton).toHaveCSS("border-top", selectorEdge.border);
+  await expect(filesButton).toHaveCSS(
+    "border-top-left-radius",
+    selectorEdge.radius,
+  );
+  await expect(filesButton).toHaveCSS("box-shadow", "none");
   const serverBounds = await server.boundingBox();
   const filesBounds = await filesButton.boundingBox();
   if (!serverBounds || !filesBounds) throw new Error("Missing selector bounds");
@@ -141,6 +156,10 @@ test("review shares the live composer, its modes, and its selectors with chat", 
   await expect(input).toBeHidden();
   await expect(model).toBeHidden();
   await expect(server).toBeHidden();
+  await expect(filesButton).toHaveCSS("background-color", glassTint);
+  await expect(filesButton).toHaveCSS("backdrop-filter", /blur\(/);
+  await expect(filesButton).toHaveCSS("border-top-width", "0px");
+  await expect(filesButton).not.toHaveCSS("box-shadow", "none");
   await expect(app.getByText("Draft", { exact: true })).toBeVisible();
   await app.getByRole("button", { name: "Expand controls" }).click();
   await expect(input).toHaveValue(

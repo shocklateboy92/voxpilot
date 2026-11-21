@@ -3,6 +3,50 @@ import { expect, test } from "./browser";
 import { assistant, history, openSession, user } from "./data";
 import { markdownResponse, password } from "./dev";
 
+test("floating reading controls share the status bar glass over scrolling code", async ({
+  app,
+  workspace,
+}, info) => {
+  await app.setViewportSize({ width: 390, height: 844 });
+  const code = Array.from(
+    { length: 140 },
+    (_, i) => `const row${i} = "Dense scrolling content";`,
+  ).join("\n");
+  const session = await history(workspace.directory, "Floating controls", [
+    assistant([{ type: "text", text: `\`\`\`ts\n${code}\n\`\`\`` }]),
+  ]);
+  await openSession(app, session.id, { reading: true });
+  const pane = app.locator(".messages");
+  await expect(pane.locator("pre")).toBeVisible();
+  const expand = app.getByRole("button", { name: "Expand controls" });
+  const scroll = app.getByRole("button", { name: "Scroll to bottom" });
+  const status = app.locator("[data-status-bar]");
+  await expect(expand).toBeVisible();
+  await expect(scroll).toBeHidden();
+  await pane.evaluate((element) => element.scrollBy(0, -450));
+  await expect(scroll).toBeVisible();
+
+  for (const scheme of ["dark", "light"] as const) {
+    await app.emulateMedia({ colorScheme: scheme });
+    await expect(app.locator("html")).toHaveCSS("color-scheme", scheme);
+    const material = await status.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { tint: style.backgroundColor, filter: style.backdropFilter };
+    });
+    expect(material.filter).toContain("blur(");
+    for (const button of [expand, scroll]) {
+      await expect(button).toHaveCSS("background-color", material.tint);
+      await expect(button).toHaveCSS("backdrop-filter", material.filter);
+    }
+    await info.attach(`floating-controls-${scheme}`, {
+      body: await app.screenshot({ animations: "disabled" }),
+      contentType: "image/png",
+    });
+  }
+  await scroll.click();
+  await expect(scroll).toBeHidden();
+});
+
 test("status summary reveals full details without moving the conversation", async ({
   app,
   workspace,

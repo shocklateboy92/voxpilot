@@ -66,12 +66,17 @@ fallback styles would override Tailwind's layered theme styling.
 </IconButton>
 ```
 
-`Button` variants are `neutral` (default), `primary`, `success`, `reject`, `stop`,
-and `ghost`. Sizes are `md`, `sm`, `icon-sm`, `icon`, and `icon-lg`; prefer `IconButton` for
+`Button` variants are `neutral` (default), `floating`, `glass`, `primary`, `success`,
+`reject`, `stop`, and `ghost`. Sizes are `md`, `sm`, `icon-sm`, `icon`, and `icon-lg`; prefer `IconButton` for
 icon-only actions because it requires an accessible label. Button type defaults
 to `button`; submit actions must explicitly use `type="submit"`.
 Use `IconButton size="sm"` for compact status-bar actions; keep these in the
 status bar's independent actions slot, never inside its disclosure button.
+Use `floating` for neutral actions that sit directly over scrolling content.
+It shares the status bar's tint and blur on each button, not on the row around
+them. Keep solid semantic fills for colored actions such as Record and Stop.
+Use `glass` for actions alongside composer selectors: the same tint and blur,
+with the selectors' border and corner radius instead of a floating shadow.
 
 `TextInput`, `Textarea`, and `Select` preserve native controls, refs, events, and
 validation. `FormField` connects labels and optional help/error text to a control:
@@ -149,7 +154,8 @@ mode, draft and recorder; only the background content becomes inert.
 Keep review navigation reachable in the footer: show Resume review in chat
 reading mode when there is a parked review, and Files in the review itself.
 In expanded review, place Files beside the server selector (or model selector
-when no server selector is shown), not in its own row. The review status bar
+when no server selector is shown), not in its own row. Use the `glass` button
+variant there and keep the floating pill in reading mode. The review status bar
 still summarizes the current file and change.
 The review sheet, comparison picker, and inline diff card share changed-file
 rows: wrap long paths rather than truncating, and keep change counts aligned.

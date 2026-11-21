@@ -58,7 +58,7 @@ export function ChatInput(props: ChatInputProps) {
           </Show>
           <IconButton
             size="lg"
-            class="shadow-floating"
+            variant="floating"
             aria-label="Expand controls"
             aria-expanded={false}
             onPointerDown={(event) => {

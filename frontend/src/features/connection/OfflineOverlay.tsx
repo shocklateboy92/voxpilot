@@ -149,7 +149,9 @@ export function OfflineOverlay(props: { children: JSX.Element }) {
       {props.children}
       <Show when={offline() && !dismissed()}>
         <div class="fixed inset-0 z-300 flex flex-col items-center justify-center gap-3 bg-overlay p-4">
-          <Button onClick={changeServer}>Connection settings</Button>
+          <Button variant="floating" onClick={changeServer}>
+            Connection settings
+          </Button>
           <OfflineCard
             wakeUrl={wakeUrl()}
             onDismiss={() => setDismissed(true)}

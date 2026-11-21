@@ -13,8 +13,7 @@ export function ReviewNavigationAction(props: {
       size="sm"
       pill={props.reading}
       class="min-h-11"
-      classList={{ "shadow-floating": props.reading }}
-      variant={props.reading ? "neutral" : "ghost"}
+      variant={props.reading ? "floating" : "glass"}
       aria-haspopup={reviewFile() ? "dialog" : undefined}
       onClick={() => {
         if (reviewFile()) props.onOpenFiles();
