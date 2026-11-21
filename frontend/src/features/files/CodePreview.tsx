@@ -1,3 +1,5 @@
+import { errorMessage } from "@plugin/file-preview";
+import { MIN_PRINT_WIDTH } from "@plugin/rpc";
 import {
   createEffect,
   createResource,
@@ -23,7 +25,8 @@ export function CodePreview(props: { request: FileRequest; text: string }) {
   };
   const [width, setWidth] = createSignal<number>();
   onMount(() => {
-    if (container) onCleanup(observePrintWidth(container, setWidth, 10));
+    if (container)
+      onCleanup(observePrintWidth(container, setWidth, MIN_PRINT_WIDTH));
   });
   onCleanup(() => pending?.abort());
 
@@ -44,12 +47,9 @@ export function CodePreview(props: { request: FileRequest; text: string }) {
     try {
       return await rpc.formatCodePreview(input, { signal: controller.signal });
     } catch (error) {
-      return {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unable to format this file.",
-      };
+      // A superseded request is ignored by the resource; never show its abort.
+      controller.signal.throwIfAborted();
+      return { error: errorMessage(error, "Unable to format this file.") };
     }
   });
   const formatted = () => {

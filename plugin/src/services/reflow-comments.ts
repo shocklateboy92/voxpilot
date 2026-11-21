@@ -18,6 +18,8 @@
  *  - JSDoc / Doxygen tags (@param, @returns, etc.)
  */
 
+import { fileExtension } from "../file-preview";
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -176,7 +178,7 @@ const EXT_TO_LANGUAGE: Record<string, LanguageKey> = {
  * Returns `undefined` if no comment reflow is supported for this file type.
  */
 export function languageForFile(filePath: string): CommentLanguage | undefined {
-  const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
+  const ext = fileExtension(filePath);
   const langKey = EXT_TO_LANGUAGE[ext];
   if (!langKey) return undefined;
   return LANGUAGES[langKey];

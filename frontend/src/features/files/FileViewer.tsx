@@ -1,4 +1,4 @@
-import { isMarkdownPath } from "@plugin/file-preview";
+import { errorMessage, isMarkdownPath } from "@plugin/file-preview";
 import ArrowLeft from "lucide-solid/icons/arrow-left";
 import RefreshCw from "lucide-solid/icons/refresh-cw";
 import X from "lucide-solid/icons/x";
@@ -66,7 +66,6 @@ function OpenFileViewer(props: FileViewerProps) {
   let pane: HTMLDivElement | undefined;
   let pendingRead: AbortController | undefined;
   onCleanup(() => pendingRead?.abort());
-  const isMarkdown = () => isMarkdownPath(currentFile()?.path ?? "");
   const isCurrent = (request: NonNullable<ReturnType<typeof currentFile>>) => {
     const active = currentFile();
     return (
@@ -83,28 +82,39 @@ function OpenFileViewer(props: FileViewerProps) {
         { path: request.path },
         { signal: controller.signal },
       );
+      if ("error" in result)
+        return { kind: "error" as const, request, error: result.error };
       if ("image" in result) {
         const blob = await readImageBlob(
           request.path,
           result.image,
           controller.signal,
         );
-        return { request, blob };
+        return { kind: "image" as const, request, blob };
       }
-      return { request, ...result };
+      return {
+        kind: isMarkdownPath(request.path)
+          ? ("markdown" as const)
+          : ("code" as const),
+        request,
+        text: result.text,
+      };
     } catch (error) {
       // Loading failures stay inside the viewer, leaving navigation and refresh usable.
       return {
+        kind: "error" as const,
         request,
-        error:
-          error instanceof Error ? error.message : "Unable to load this file.",
+        error: errorMessage(error, "Unable to load this file."),
       };
     }
   });
   const viewerLabel = () => {
     const value = loaded.latest;
-    if (value?.blob && isCurrent(value.request)) return "Image viewer";
-    return isMarkdown() ? "Markdown viewer" : "Code viewer";
+    if (value?.kind === "image" && isCurrent(value.request))
+      return "Image viewer";
+    return isMarkdownPath(currentFile()?.path ?? "")
+      ? "Markdown viewer"
+      : "Code viewer";
   };
   const fileLinkContext = () => {
     const request = loaded()?.request ?? currentFile();
@@ -130,8 +140,7 @@ function OpenFileViewer(props: FileViewerProps) {
     const value = loaded();
     if (!value) return;
     pane?.scrollTo({ top: 0 });
-    if (!("text" in value) || !isMarkdownPath(value.request.path) || !content)
-      return;
+    if (value.kind !== "markdown" || !content) return;
     const element = content;
     const base = fileUrl(value.request);
     const controller = new AbortController();
@@ -173,7 +182,7 @@ function OpenFileViewer(props: FileViewerProps) {
           if (!controller.signal.aborted)
             image.setAttribute(
               "title",
-              error instanceof Error ? error.message : "Unable to load image",
+              errorMessage(error, "Unable to load image"),
             );
         });
     }
@@ -242,15 +251,18 @@ function OpenFileViewer(props: FileViewerProps) {
           <Show when={loaded()} keyed>
             {(value) => (
               <div class="text-[0.9rem] wrap-break-word">
-                <Show when={value.blob}>
-                  {(blob) => (
-                    <ImagePreview blob={blob()} path={value.request.path} />
+                <Show when={value.kind === "image" && value}>
+                  {(image) => (
+                    <ImagePreview
+                      blob={image().blob}
+                      path={image().request.path}
+                    />
                   )}
                 </Show>
-                <Show when={"error" in value ? value.error : undefined}>
-                  {(message) => (
+                <Show when={value.kind === "error" && value}>
+                  {(failed) => (
                     <div role="alert" class="p-4 text-error">
-                      {message()}
+                      {failed().error}
                       <Button
                         class="mt-4 block"
                         onClick={() => {
@@ -263,37 +275,45 @@ function OpenFileViewer(props: FileViewerProps) {
                   )}
                 </Show>
                 <Show
-                  when={"text" in value ? value.text : undefined}
-                  fallback={
-                    <Show when={"text" in value}>
-                      <EmptyState>This file is empty.</EmptyState>
-                    </Show>
+                  when={
+                    (value.kind === "markdown" || value.kind === "code") &&
+                    value
                   }
                 >
-                  {(text) => (
-                    <div
-                      classList={{ "px-3": isMarkdownPath(value.request.path) }}
-                      data-viewer-selection={
-                        isCurrent(value.request) ? "file" : undefined
-                      }
+                  {(file) => (
+                    <Show
+                      when={file().text}
+                      fallback={<EmptyState>This file is empty.</EmptyState>}
                     >
-                      <Show
-                        when={isMarkdownPath(value.request.path)}
-                        fallback={
-                          <CodePreview request={value.request} text={text()} />
-                        }
-                      >
-                        <div class="mx-auto w-full max-w-[66rem] px-[3vw]">
-                          <MarkdownView
-                            text={text()}
-                            resolveLink={resolveLink}
-                            onMount={(element) => {
-                              content = element;
-                            }}
-                          />
+                      {(text) => (
+                        <div
+                          classList={{ "px-3": file().kind === "markdown" }}
+                          data-viewer-selection={
+                            isCurrent(file().request) ? "file" : undefined
+                          }
+                        >
+                          <Show
+                            when={file().kind === "markdown"}
+                            fallback={
+                              <CodePreview
+                                request={file().request}
+                                text={text()}
+                              />
+                            }
+                          >
+                            <div class="mx-auto w-full max-w-[66rem] px-[3vw]">
+                              <MarkdownView
+                                text={text()}
+                                resolveLink={resolveLink}
+                                onMount={(element) => {
+                                  content = element;
+                                }}
+                              />
+                            </div>
+                          </Show>
                         </div>
-                      </Show>
-                    </div>
+                      )}
+                    </Show>
                   )}
                 </Show>
               </div>

@@ -1,12 +1,12 @@
 import { Plugin } from "@opencode/plugin";
 import { z } from "zod";
+import { errorMessage } from "./file-preview";
 import { ComparisonInput, Snapshot, VoxPilotRpc } from "./rpc";
 import { captureComparison } from "./services/comparison";
 import { formatCodePreview } from "./services/format-code-preview";
 import { formatAndDiff } from "./services/format-diff";
 import { shouldInhibitIdle } from "./services/idle";
-import { inspectImagePreview } from "./services/inspect-image-preview";
-import { readTextPreview } from "./services/read-text-preview";
+import { readFilePreview } from "./services/read-file-preview";
 import { ReviewSourceInput, readReviewSource } from "./services/review-source";
 import {
   createVocabularyReader,
@@ -49,34 +49,12 @@ export default Plugin.define({
       vocabulary: (_, context) => vocabulary.read(context.signal),
       compare: (input, context) => compare(input, context.signal),
       snapshot: ({ id }) => snapshot(id),
-      readTextPreview: async ({ path }, { signal }) => {
-        try {
-          return { text: await readTextPreview(path, signal) };
-        } catch (error) {
-          signal.throwIfAborted();
-          return {
-            error:
-              error instanceof Error
-                ? error.message
-                : "Unable to read this file.",
-          };
-        }
-      },
       readFilePreview: async ({ path, imageOnly }, { signal }) => {
         try {
-          const image = await inspectImagePreview(path, signal);
-          if (image) return { image };
-          if (imageOnly)
-            return { error: "This file was not recognized as an image." };
-          return { text: await readTextPreview(path, signal) };
+          return await readFilePreview(path, { imageOnly }, signal);
         } catch (error) {
           signal.throwIfAborted();
-          return {
-            error:
-              error instanceof Error
-                ? error.message
-                : "Unable to read this file.",
-          };
+          return { error: errorMessage(error, "Unable to read this file.") };
         }
       },
       formatCodePreview: (input, context) =>

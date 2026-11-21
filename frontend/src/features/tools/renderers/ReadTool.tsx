@@ -8,6 +8,7 @@ import { openFile } from "../../../app/routing";
 import { Button } from "../../../ui/Button";
 import { Disclosure, DisclosureSummary } from "../../../ui/Disclosure";
 import {
+  getOutput,
   getTitle,
   inputString,
   isActive,
@@ -28,6 +29,10 @@ export function ReadTool(props: { part: ToolPart }): JSX.Element {
       inputString(props.part.state, "filePath");
     return fp ? stripProjectRoot(fp) : "read";
   };
+
+  // OpenCode reports directory listings only in the tool's text output.
+  const isDirectory = () =>
+    getOutput(props.part.state)?.startsWith("Read directory ") === true;
 
   const range = () => {
     const state = props.part.state;
@@ -51,7 +56,11 @@ export function ReadTool(props: { part: ToolPart }): JSX.Element {
         </span>
         <StatusIcon state={props.part.state} />
       </DisclosureSummary>
-      <Show when={sourcePath() && activeSession()?.location.directory}>
+      <Show
+        when={
+          sourcePath() && !isDirectory() && activeSession()?.location.directory
+        }
+      >
         {(directory) => (
           <div class="px-3 py-2">
             <Button

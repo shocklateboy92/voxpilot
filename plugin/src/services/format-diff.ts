@@ -1,5 +1,6 @@
 import { diffLines } from "diff";
 import * as prettier from "prettier";
+import { fileExtension } from "../file-preview";
 import type { ReviewLine } from "../rpc";
 import { highlightDiff } from "./diff-highlight";
 import { renderFullFileHtml } from "./diff-render";
@@ -158,7 +159,7 @@ const clangFormatExtensions = new Set([
 ]);
 
 function detectFormatter(filePath: string): FormatterKind {
-  const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
+  const ext = fileExtension(filePath);
 
   const prettierParser = prettierExtensions[ext];
   if (prettierParser) {

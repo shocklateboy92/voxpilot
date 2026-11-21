@@ -49,7 +49,11 @@ const serverPassword =
 
 export const client = makeClient(serverUrl, serverPassword);
 
-/** Use the native byte route without the SDK's eager arrayBuffer() decode. */
+/**
+ * Use the native byte route without the SDK's eager arrayBuffer() decode.
+ * This mirrors the SDK's `file.read` URL; recheck it on OpenCode upgrades
+ * (the image preview E2E tests exercise it).
+ */
 export function fetchPreviewFile(
   input: FileReadInput,
   size: number,

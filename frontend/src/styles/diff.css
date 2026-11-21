@@ -109,6 +109,7 @@
   }
   .code-preview [data-code-line]::before {
     content: attr(data-code-line);
+    /* biome-ignore lint/suspicious/noDuplicateProperties: Fallback for browsers without alt text in content. */
     content: attr(data-code-line) / "";
     position: absolute;
     inset-inline-end: calc(100% + var(--cell-padding));

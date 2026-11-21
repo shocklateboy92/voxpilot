@@ -1,22 +1,31 @@
+import { MAX_PRINT_WIDTH } from "@plugin/rpc";
+
+/** Typical monospace advance at the default code size, if canvas is unavailable. */
+const FALLBACK_CHAR_WIDTH = 7.2;
+/** Review diffs stay readable by scrolling rather than wrapping below this. */
+const DEFAULT_MIN_COLUMNS = 40;
+
+let measureContext: CanvasRenderingContext2D | null | undefined;
+
 function cssToPx(value: string, rootFontSize: number): number {
   const num = parseFloat(value);
   return value.endsWith("rem") ? num * rootFontSize : num;
 }
 
 /** Use the same font and spacing as the rendered code. */
-function computePrintWidth(container: HTMLElement, minColumns = 40): number {
+function computePrintWidth(container: HTMLElement, minColumns: number): number {
   const probe = document.createElement("span");
   probe.style.cssText =
     "position:absolute;visibility:hidden;white-space:pre;" +
     "font-family:var(--font-mono);font-size:var(--code-font-size);";
   container.appendChild(probe);
   const font = getComputedStyle(probe);
-  const canvas = document.createElement("canvas");
-  const context = canvas.getContext("2d");
-  if (context)
-    context.font = `${font.fontWeight} ${font.fontSize} ${font.fontFamily}`;
+  measureContext ??= document.createElement("canvas").getContext("2d");
+  if (measureContext)
+    measureContext.font = `${font.fontWeight} ${font.fontSize} ${font.fontFamily}`;
   probe.remove();
-  const charWidth = context?.measureText("0").width || 7.2;
+  const charWidth =
+    measureContext?.measureText("0").width || FALLBACK_CHAR_WIDTH;
 
   const rootFontSize = parseFloat(
     getComputedStyle(document.documentElement).fontSize,
@@ -34,13 +43,13 @@ function computePrintWidth(container: HTMLElement, minColumns = 40): number {
   const columns = Math.floor(
     (container.clientWidth - gutterWidth - 2 * cellPadding) / charWidth,
   );
-  return Math.min(500, Math.max(minColumns, columns));
+  return Math.min(MAX_PRINT_WIDTH, Math.max(minColumns, columns));
 }
 
 export function observePrintWidth(
   container: HTMLElement,
   onWidth: (columns: number) => void,
-  minColumns?: number,
+  minColumns: number = DEFAULT_MIN_COLUMNS,
 ): () => void {
   const measure = () => onWidth(computePrintWidth(container, minColumns));
   measure();

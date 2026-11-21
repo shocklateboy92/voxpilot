@@ -3,6 +3,7 @@ import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
 import githubDark from "shiki/themes/github-dark-high-contrast.mjs";
 import githubLight from "shiki/themes/github-light-high-contrast.mjs";
 import type { ThemedTokenWithVariants } from "shiki/types";
+import { fileExtension } from "../file-preview";
 
 const grammars = [
   {
@@ -115,7 +116,7 @@ export async function highlightCode(
 }
 
 async function codeTokenizer(filePath: string) {
-  const extension = /\.([^./]+)$/.exec(filePath.toLowerCase())?.[1];
+  const extension = fileExtension(filePath);
   const grammar =
     extension &&
     grammars.find(({ extensions }) => extensions.includes(extension));

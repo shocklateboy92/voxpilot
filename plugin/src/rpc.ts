@@ -52,9 +52,9 @@ export const ReviewCitation = ReviewReference.extend(ReviewLine.shape);
 export type ReviewCitation = z.infer<typeof ReviewCitation>;
 export type ReviewLine = z.infer<typeof ReviewLine>;
 
-const PrintWidth = z.number().int().min(10).max(500);
-const TextPreview = z.object({ text: z.string() });
-const PreviewError = z.object({ error: z.string() });
+export const MIN_PRINT_WIDTH = 10;
+export const MAX_PRINT_WIDTH = 500;
+const PrintWidth = z.number().int().min(MIN_PRINT_WIDTH).max(MAX_PRINT_WIDTH);
 export const ImagePreviewInfo = z.object({
   mime: z.string().regex(/^image\/[a-z\d][a-z\d.+-]*$/i),
   size: z.number().int().positive().max(MAX_IMAGE_PREVIEW_BYTES),
@@ -95,19 +95,15 @@ export const VoxPilotRpc = Rpc.define({
       input: z.object({ id: z.string() }),
       output: Snapshot.nullable(),
     },
-    readTextPreview: {
-      input: z.object({ path: z.string().min(1) }),
-      output: z.union([TextPreview, PreviewError]),
-    },
     readFilePreview: {
       input: z.object({
         path: z.string().min(1),
         imageOnly: z.boolean().optional(),
       }),
       output: z.union([
-        TextPreview,
+        z.object({ text: z.string() }),
         z.object({ image: ImagePreviewInfo }),
-        PreviewError,
+        z.object({ error: z.string() }),
       ]),
     },
     formatCodePreview: {

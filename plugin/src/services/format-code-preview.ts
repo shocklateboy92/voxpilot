@@ -1,3 +1,4 @@
+import { fileExtension } from "../file-preview";
 import { highlightCode } from "./diff-highlight";
 import { renderCodeLine } from "./diff-render";
 import { formatCode } from "./format-diff";
@@ -14,8 +15,8 @@ export async function formatCodePreview(
 ) {
   const { text, printWidth, sourceLine } = input;
   // Format stdin as a standalone file; the requested path only selects a language.
-  const extension = /\.[a-z\d]+$/i.exec(input.filePath)?.[0] ?? "";
-  const fileName = `preview${extension}`;
+  const extension = fileExtension(input.filePath);
+  const fileName = extension ? `preview.${extension}` : "preview";
   const formatted = await formatCode(text, fileName, printWidth, signal);
   const display = formatted.replace(/\r\n?/g, "\n");
   const highlight = await highlightCode(fileName, display);
