@@ -28,34 +28,10 @@ export async function formatAndDiff(
   input: FormatDiffInput,
 ): Promise<FormatDiffResult> {
   input.signal?.throwIfAborted();
-  const formatter = detectFormatter(input.filePath);
-
-  const [formattedBefore, formattedAfter] = await Promise.all([
-    tryFormat(
-      input.before,
-      formatter,
-      input.printWidth,
-      input.filePath,
-      input.signal,
-    ),
-    tryFormat(
-      input.after,
-      formatter,
-      input.printWidth,
-      input.filePath,
-      input.signal,
-    ),
+  const [reflowedBefore, reflowedAfter] = await Promise.all([
+    formatCode(input.before, input.filePath, input.printWidth, input.signal),
+    formatCode(input.after, input.filePath, input.printWidth, input.signal),
   ]);
-  input.signal?.throwIfAborted();
-
-  // Reflow comments to fit printWidth (formatters don't touch comment prose)
-  const commentLang = languageForFile(input.filePath);
-  const reflowedBefore = commentLang
-    ? reflowComments(formattedBefore, commentLang, input.printWidth)
-    : formattedBefore;
-  const reflowedAfter = commentLang
-    ? reflowComments(formattedAfter, commentLang, input.printWidth)
-    : formattedAfter;
 
   const changes = diffLines(reflowedBefore, reflowedAfter);
   const targetRow = locateRow(input, reflowedBefore, reflowedAfter, changes);
@@ -84,6 +60,28 @@ export async function formatAndDiff(
     html,
     ...(targetRow ? { targetRow } : {}),
   };
+}
+
+/** Display-only formatting shared by single-file previews and reviews. */
+export async function formatCode(
+  text: string,
+  filePath: string,
+  printWidth: number,
+  signal?: AbortSignal,
+): Promise<string> {
+  signal?.throwIfAborted();
+  const formatted = await tryFormat(
+    text,
+    detectFormatter(filePath),
+    printWidth,
+    filePath,
+    signal,
+  );
+  signal?.throwIfAborted();
+  const commentLang = languageForFile(filePath);
+  return commentLang
+    ? reflowComments(formatted, commentLang, printWidth)
+    : formatted;
 }
 
 /** Context lines on the before side are rendered as ordinary after rows. */
@@ -130,11 +128,16 @@ type FormatterKind =
 const prettierExtensions: Record<string, string> = {
   ts: "typescript",
   tsx: "typescript",
+  mts: "typescript",
+  cts: "typescript",
   js: "babel",
   jsx: "babel",
+  mjs: "babel",
+  cjs: "babel",
   json: "json",
   css: "css",
   html: "html",
+  htm: "html",
   md: "markdown",
   yaml: "yaml",
   yml: "yaml",

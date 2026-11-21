@@ -1,10 +1,10 @@
-/** Session layout — chat, review, and Markdown share one composer footer. */
+/** Session layout — chat, review, and the file viewer share one composer footer. */
 
 import { createEffect, createMemo, createSignal, on, Show } from "solid-js";
 import { createAttachmentDrop } from "../features/chat/attachments/attachment-input";
 import { composerDraft } from "../features/chat/create-composer-draft";
 import { NewSessionPage } from "../features/chat/NewSessionPage";
-import { MarkdownViewer } from "../features/files/MarkdownViewer";
+import { FileViewer } from "../features/files/FileViewer";
 import { ReviewFiles } from "../features/review/ReviewFiles";
 import { ReviewNavigationAction } from "../features/review/ReviewNavigationAction";
 import { ReviewOverlay } from "../features/review/ReviewOverlay";
@@ -127,7 +127,7 @@ export function ChatView() {
           readingControls={readingControls}
         />
       </div>
-      <MarkdownViewer
+      <FileViewer
         composerHeight={composerHeight()}
         readingControls={readingControls}
       />

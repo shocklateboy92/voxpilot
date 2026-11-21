@@ -2,7 +2,7 @@
  * ContentShell — floating status bar and swipeable content pane, with scroll
  * clearance for the session footer owned by ChatView.
  *
- * Used by ChatView, ReviewOverlay, and the read-only Markdown viewer.
+ * Used by ChatView, ReviewOverlay, and the read-only file viewer.
  */
 
 import { createEffect, createSignal, type JSX } from "solid-js";

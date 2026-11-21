@@ -1,12 +1,12 @@
 import type { SessionMessageAssistantTool as ToolPart } from "@opencode/client";
+import { isMarkdownPath } from "@plugin/file-preview";
 import FileText from "lucide-solid/icons/file-text";
 import type { JSX } from "solid-js";
 import { Show } from "solid-js";
 import { activeSession } from "../../../app/navigation";
-import { openMarkdown } from "../../../app/routing";
+import { openFile } from "../../../app/routing";
 import { Button } from "../../../ui/Button";
 import { Disclosure, DisclosureSummary } from "../../../ui/Disclosure";
-import { isMarkdownPath } from "../../files/file-state";
 import {
   getTitle,
   inputString,
@@ -51,18 +51,14 @@ export function ReadTool(props: { part: ToolPart }): JSX.Element {
         </span>
         <StatusIcon state={props.part.state} />
       </DisclosureSummary>
-      <Show
-        when={
-          isMarkdownPath(sourcePath()) && activeSession()?.location.directory
-        }
-      >
+      <Show when={sourcePath() && activeSession()?.location.directory}>
         {(directory) => (
           <div class="px-3 py-2">
             <Button
               size="sm"
-              onClick={() => openMarkdown(sourcePath(), directory())}
+              onClick={() => openFile(sourcePath(), directory())}
             >
-              View Markdown
+              {isMarkdownPath(sourcePath()) ? "View Markdown" : "View file"}
             </Button>
           </div>
         )}

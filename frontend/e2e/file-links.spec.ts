@@ -113,6 +113,12 @@ test("chat file links open scoped previews, preserve anchors, reload, and suppor
     join(workspace.directory, "README.md"),
     "# Overview\n\nParent document.\n",
   );
+  await writeFile(
+    join(workspace.directory, "project.yml"),
+    Array.from({ length: 100 }, (_, index) => `entry${index + 1}: true\n`).join(
+      "",
+    ),
+  );
   const source =
     "[**Guide**](docs/guide%20%231.md#details) and [`project.yml:57`](project.yml#L57). [External](https://example.com/guide.md) [Email](mailto:a@example.com) [Section](#section) [API](/api/info).";
   const session = await history(workspace.directory, "Chat file links", [
@@ -161,11 +167,12 @@ test("chat file links open scoped previews, preserve anchors, reload, and suppor
   await viewer.getByRole("button", { name: "Close viewer" }).click();
   expect(new URL(app.url()).searchParams.has("file")).toBe(false);
   await app.getByRole("link", { name: "project.yml:57", exact: true }).click();
-  await expect(viewer).toContainText(
-    "This viewer currently supports Markdown files only.",
-  );
+  const codeViewer = app.getByRole("region", { name: "Code viewer" });
+  const target = codeViewer.locator("[data-code-target]");
+  await expect(target).toHaveText("entry57: true");
+  await expect(target).toBeInViewport();
   expect(new URL(app.url()).searchParams.get("fragment")).toBe("L57");
-  await viewer.getByRole("button", { name: "Close viewer" }).click();
+  await codeViewer.getByRole("button", { name: "Close viewer" }).click();
 
   // A fresh tab has no tab-scoped password; signing in must retain the file route.
   const tab = await app.context().newPage();

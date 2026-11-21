@@ -89,7 +89,32 @@ export async function highlightDiff(
   after: string,
 ): Promise<DiffHighlight | undefined> {
   if (Math.max(before.length, after.length) > MAX_FILE_LENGTH) return;
+  const tokenize = await codeTokenizer(filePath);
+  if (!tokenize) return;
+  try {
+    const afterTokens = tokenize(after);
+    return {
+      before: before === after ? afterTokens : tokenize(before),
+      after: afterTokens,
+    };
+  } catch {
+    return undefined;
+  }
+}
 
+export async function highlightCode(
+  filePath: string,
+  text: string,
+): Promise<ThemedTokenWithVariants[][] | undefined> {
+  if (text.length > MAX_FILE_LENGTH) return;
+  try {
+    return (await codeTokenizer(filePath))?.(text);
+  } catch {
+    return undefined;
+  }
+}
+
+async function codeTokenizer(filePath: string) {
   const extension = /\.([^./]+)$/.exec(filePath.toLowerCase())?.[1];
   const grammar =
     extension &&
@@ -107,20 +132,15 @@ export async function highlightDiff(
       await instance.loadLanguage(grammar.load);
     }
 
-    const tokenize = (source: string) =>
+    return (source: string) =>
       instance.codeToTokensWithThemes(source, {
         lang: grammar.lang,
         themes: { dark: githubDark.name, light: githubLight.name },
         tokenizeMaxLineLength: MAX_LINE_LENGTH,
         tokenizeTimeLimit: 20,
       });
-    const afterTokens = tokenize(after);
-    return {
-      before: before === after ? afterTokens : tokenize(before),
-      after: afterTokens,
-    };
   } catch {
-    // Highlighting is optional; a grammar or engine failure must not block review.
+    // Highlighting is optional; a grammar or engine failure must not block rendering.
     return undefined;
   }
 }

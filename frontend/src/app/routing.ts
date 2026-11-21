@@ -134,7 +134,7 @@ export function resolveViewerLink(
   };
 }
 
-export function openMarkdown(path: string, directory: string): void {
+export function openFile(path: string, directory: string): void {
   const request = { path, location: { directory } };
   const absolute = {
     ...request,

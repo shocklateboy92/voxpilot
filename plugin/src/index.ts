@@ -2,8 +2,10 @@ import { Plugin } from "@opencode/plugin";
 import { z } from "zod";
 import { ComparisonInput, Snapshot, VoxPilotRpc } from "./rpc";
 import { captureComparison } from "./services/comparison";
+import { formatCodePreview } from "./services/format-code-preview";
 import { formatAndDiff } from "./services/format-diff";
 import { shouldInhibitIdle } from "./services/idle";
+import { readTextPreview } from "./services/read-text-preview";
 import { ReviewSourceInput, readReviewSource } from "./services/review-source";
 import {
   createVocabularyReader,
@@ -46,6 +48,21 @@ export default Plugin.define({
       vocabulary: (_, context) => vocabulary.read(context.signal),
       compare: (input, context) => compare(input, context.signal),
       snapshot: ({ id }) => snapshot(id),
+      readTextPreview: async ({ path }, { signal }) => {
+        try {
+          return { text: await readTextPreview(path, signal) };
+        } catch (error) {
+          signal.throwIfAborted();
+          return {
+            error:
+              error instanceof Error
+                ? error.message
+                : "Unable to read this file.",
+          };
+        }
+      },
+      formatCodePreview: (input, context) =>
+        formatCodePreview(input, context.signal),
       formatComparison: async (
         { cacheId, filePath, printWidth, sourceLine },
         context,

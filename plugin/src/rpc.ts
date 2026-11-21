@@ -1,6 +1,7 @@
 /** Shared, browser-safe contract. All UI response types derive from this schema. */
 import { Rpc } from "@opencode/plugin/rpc";
 import { z } from "zod";
+import { MAX_CODE_PREVIEW_LENGTH } from "./file-preview";
 import { VocabularyTerm } from "./speech-contract";
 
 export { VocabularyTerm } from "./speech-contract";
@@ -48,6 +49,8 @@ export const ReviewCitation = ReviewReference.extend(ReviewLine.shape);
 export type ReviewCitation = z.infer<typeof ReviewCitation>;
 export type ReviewLine = z.infer<typeof ReviewLine>;
 
+const PrintWidth = z.number().int().min(10).max(500);
+
 export const VOCABULARY_MAX_TERMS = 100;
 export const VocabularyFile = z.array(VocabularyTerm).max(VOCABULARY_MAX_TERMS);
 
@@ -82,11 +85,27 @@ export const VoxPilotRpc = Rpc.define({
       input: z.object({ id: z.string() }),
       output: Snapshot.nullable(),
     },
+    readTextPreview: {
+      input: z.object({ path: z.string().min(1) }),
+      output: z.union([
+        z.object({ text: z.string() }),
+        z.object({ error: z.string() }),
+      ]),
+    },
+    formatCodePreview: {
+      input: z.object({
+        filePath: z.string().min(1),
+        text: z.string().max(MAX_CODE_PREVIEW_LENGTH),
+        printWidth: PrintWidth,
+        sourceLine: z.number().int().positive().optional(),
+      }),
+      output: z.object({ html: z.string(), targetFound: z.boolean() }),
+    },
     formatComparison: {
       input: z.object({
         cacheId: z.uuid(),
         filePath: z.string(),
-        printWidth: z.number().int().min(10).max(500),
+        printWidth: PrintWidth,
         sourceLine: ReviewLine.optional(),
       }),
       output: z.object({

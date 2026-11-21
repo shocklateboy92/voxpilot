@@ -23,7 +23,7 @@ function escapeHtml(text: string): string {
 
 const HEX_COLOR = /^#[\da-f]{6}(?:[\da-f]{2})?$/i;
 
-function renderCodeLine(
+export function renderCodeLine(
   text: string,
   tokens?: DiffHighlight["after"][number],
 ): string {

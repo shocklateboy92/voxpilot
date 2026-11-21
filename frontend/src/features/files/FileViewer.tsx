@@ -1,3 +1,4 @@
+import { isMarkdownPath } from "@plugin/file-preview";
 import ArrowLeft from "lucide-solid/icons/arrow-left";
 import RefreshCw from "lucide-solid/icons/refresh-cw";
 import X from "lucide-solid/icons/x";
@@ -22,16 +23,17 @@ import {
 } from "../../app/routing";
 import { client, serverUrl } from "../../platform/connection";
 import { configuredServer } from "../../platform/connection-config";
+import { rpc } from "../../platform/rpc";
 import { Button } from "../../ui/Button";
 import { EmptyState } from "../../ui/EmptyState";
 import { IconButton } from "../../ui/IconButton";
 import { MarkdownView } from "../../ui/MarkdownView";
 import { Spinner } from "../../ui/Spinner";
 import type { ReadingControls } from "../chat/reading-controls";
-import { fileReadRequest, fileUrl, isMarkdownPath } from "./file-state";
+import { CodePreview } from "./CodePreview";
+import { fileReadRequest, fileUrl } from "./file-state";
 
 const NO_SWIPE = () => false;
-const MAX_BYTES = 5 * 1024 * 1024;
 const imageTypes: Record<string, string> = {
   png: "image/png",
   jpg: "image/jpeg",
@@ -43,20 +45,20 @@ const imageTypes: Record<string, string> = {
   bmp: "image/bmp",
 };
 
-interface MarkdownViewerProps {
+interface FileViewerProps {
   composerHeight: number;
   readingControls: ReadingControls;
 }
 
-export function MarkdownViewer(props: MarkdownViewerProps) {
+export function FileViewer(props: FileViewerProps) {
   return (
     <Show when={currentFile()}>
-      <OpenMarkdownViewer {...props} />
+      <OpenFileViewer {...props} />
     </Show>
   );
 }
 
-function OpenMarkdownViewer(props: MarkdownViewerProps) {
+function OpenFileViewer(props: FileViewerProps) {
   let region: HTMLElement | undefined;
   onMount(() => {
     const previous = document.activeElement;
@@ -70,6 +72,9 @@ function OpenMarkdownViewer(props: MarkdownViewerProps) {
   });
   let content: HTMLDivElement | undefined;
   let pane: HTMLDivElement | undefined;
+  let pendingRead: AbortController | undefined;
+  onCleanup(() => pendingRead?.abort());
+  const isMarkdown = () => isMarkdownPath(currentFile()?.path ?? "");
   const isCurrent = (request: NonNullable<ReturnType<typeof currentFile>>) => {
     const active = currentFile();
     return (
@@ -78,18 +83,15 @@ function OpenMarkdownViewer(props: MarkdownViewerProps) {
     );
   };
   const [loaded, { refetch }] = createResource(currentFile, async (request) => {
+    pendingRead?.abort();
+    const controller = new AbortController();
+    pendingRead = controller;
     try {
-      if (!isMarkdownPath(request.path))
-        throw new Error("This viewer currently supports Markdown files only.");
-      const bytes = await client.file.read(fileReadRequest(request));
-      if (bytes.byteLength > MAX_BYTES)
-        throw new Error(
-          "This Markdown file is too large to preview (maximum 5 MiB).",
-        );
-      const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-      if (text.includes("\0"))
-        throw new Error("This file contains binary data.");
-      return { request, text };
+      const result = await rpc.readTextPreview(
+        { path: request.path },
+        { signal: controller.signal },
+      );
+      return { request, ...result };
     } catch (error) {
       // Loading failures stay inside the viewer, leaving navigation and refresh usable.
       return {
@@ -121,12 +123,13 @@ function OpenMarkdownViewer(props: MarkdownViewerProps) {
     // Link history metadata can re-render this body even at the same file URL.
     appLocation()?.state;
     const value = loaded();
-    if (!value || !("text" in value) || !content) return;
+    if (!value || !("text" in value)) return;
+    pane?.scrollTo({ top: 0 });
+    if (!isMarkdownPath(value.request.path) || !content) return;
     const element = content;
     const base = fileUrl(value.request);
     const controller = new AbortController();
     const objectUrls: string[] = [];
-    pane?.scrollTo({ top: 0 });
     const fragment = value.request.fragment;
     if (fragment)
       element.querySelectorAll("[id]").forEach((heading) => {
@@ -177,7 +180,7 @@ function OpenMarkdownViewer(props: MarkdownViewerProps) {
     <section
       ref={region}
       tabIndex={-1}
-      aria-label="Markdown viewer"
+      aria-label={isMarkdown() ? "Markdown viewer" : "Code viewer"}
       class="absolute inset-0 flex flex-col bg-bg text-left outline-none [--status-bar-clearance:calc(4.5rem+var(--safe-top))]"
     >
       <ContentShell
@@ -257,20 +260,27 @@ function OpenMarkdownViewer(props: MarkdownViewerProps) {
                 >
                   {(text) => (
                     <div
-                      class="px-3"
+                      classList={{ "px-3": isMarkdownPath(value.request.path) }}
                       data-viewer-selection={
                         isCurrent(value.request) ? "file" : undefined
                       }
                     >
-                      <div class="mx-auto w-full max-w-[66rem] px-[3vw]">
-                        <MarkdownView
-                          text={text()}
-                          resolveLink={resolveLink}
-                          onMount={(element) => {
-                            content = element;
-                          }}
-                        />
-                      </div>
+                      <Show
+                        when={isMarkdownPath(value.request.path)}
+                        fallback={
+                          <CodePreview request={value.request} text={text()} />
+                        }
+                      >
+                        <div class="mx-auto w-full max-w-[66rem] px-[3vw]">
+                          <MarkdownView
+                            text={text()}
+                            resolveLink={resolveLink}
+                            onMount={(element) => {
+                              content = element;
+                            }}
+                          />
+                        </div>
+                      </Show>
                     </div>
                   )}
                 </Show>

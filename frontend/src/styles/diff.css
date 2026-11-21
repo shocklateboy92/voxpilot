@@ -1,5 +1,5 @@
-/* Classes are the contract with plugin/src/services/diff-render.ts.
-   Keep measurement variables shared with ReviewOverlay's print-width logic. */
+/* Styles for formatted diff and code-preview HTML from the plugin.
+   Keep gutters and padding in sync with the shared print-width measurement. */
 @layer components {
   .diff-file {
     margin-bottom: 1rem;
@@ -96,9 +96,37 @@
   .current-change > .fulltext-line {
     border-left: 3px solid var(--color-accent);
   }
+  .code-preview pre {
+    padding-inline: calc(var(--line-num-width) + 3 * var(--cell-padding))
+      var(--cell-padding);
+  }
+  .code-preview [data-code-line] {
+    position: relative;
+    display: block;
+    min-height: 1lh;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .code-preview [data-code-line]::before {
+    content: attr(data-code-line);
+    content: attr(data-code-line) / "";
+    position: absolute;
+    inset-inline-end: calc(100% + var(--cell-padding));
+    inset-block-start: 0;
+    width: var(--line-num-width);
+    color: var(--color-muted);
+    opacity: 0.6;
+    text-align: right;
+    user-select: none;
+    pointer-events: none;
+  }
   @media (width < 40rem) {
-    .review-overlay {
+    .review-overlay,
+    .code-preview {
       --line-num-width: 0px;
+    }
+    .code-preview pre {
+      padding-inline: var(--cell-padding);
     }
     .review-overlay .fulltext-line-num {
       display: none;
@@ -108,9 +136,17 @@
       height: 1lh; /* Preserve blank rows without a line-number cell. */
     }
     .review-overlay .fulltext-line-content::before {
+      inset-inline-start: calc((var(--cell-padding) - 2px) / 2);
+    }
+    .code-preview [data-code-line]::before {
+      inset-inline-start: calc((-1 * var(--cell-padding) - 2px) / 2);
+      inset-inline-end: auto;
+      opacity: 1;
+    }
+    .review-overlay .fulltext-line-content::before,
+    .code-preview [data-code-line]::before {
       content: "";
       position: absolute;
-      inset-inline-start: calc((var(--cell-padding) - 2px) / 2);
       inset-block-start: calc(0.5lh - 1px);
       width: 2px;
       height: 2px;

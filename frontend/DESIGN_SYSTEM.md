@@ -143,7 +143,7 @@ Reading content extends to the bottom edge without a bottom fade or reserved
 safe-area band; floating controls still respect `--safe-bottom`.
 The composer stays mounted to preserve drafts and active microphone capture;
 its compact recorder uses the same recording lifecycle as the expanded controls.
-Chat, diff review and the Markdown viewer share a single session footer, including
+Chat, diff review and the file viewer share a single session footer, including
 the server, model and thinking selectors. Switching panes preserves the current
 mode, draft and recorder; only the background content becomes inert.
 Keep review navigation reachable in the footer: show Resume review in chat
@@ -171,6 +171,13 @@ formatting. A muted dot in the existing left padding marks each formatted row,
 including blank rows; browser-wrapped continuations have no dot.
 Review citations scroll to the mapped row without highlighting it. If the row
 cannot be located, open the snapshot file and show a notice rather than guessing.
+Code previews use the same breakpoint and gutter markers as review. Wide
+viewports show formatted line numbers; below `40rem`, a dot marks each formatted
+line, not soft-wrapped continuations. Always format and reflow supported code for
+the available width. `#L…` file links still refer to original source lines.
+Markdown still uses the rendered document view.
+The plugin checks preview size, the first 8,000 bytes for NULs, and UTF-8
+validity before returning file text. Do not gate Read-card previews on extensions.
 
 Some semantic classes remain as stable behavior/test hooks, not styling rules:
 `message`, `streaming`, `tool-block`, `changeset-card`, and picker/review hooks.

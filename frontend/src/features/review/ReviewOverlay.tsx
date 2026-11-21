@@ -27,6 +27,7 @@ import {
 } from "solid-js";
 import { ContentShell } from "../../app/ContentShell";
 import { rpc } from "../../platform/rpc";
+import { observePrintWidth } from "../../ui/code-print-width";
 import { IconButton } from "../../ui/IconButton";
 import { Spinner } from "../../ui/Spinner";
 import type { ReadingControls } from "../chat/reading-controls";
@@ -175,37 +176,9 @@ export function ReviewOverlay(props: {
     applyHighlight(cachedRegions, showCurrentChange() ? idx : -1);
   });
 
-  // Compute initial printWidth once the overlay is visible
   createEffect(() => {
-    if (!reviewFile() || !containerRef) return;
-    setPrintWidth(computePrintWidth(containerRef));
-  });
-
-  // Update printWidth on resize (only when width actually changes)
-  createEffect(() => {
-    if (!reviewFile() || !containerRef) return;
-
-    let lastWidth = containerRef.clientWidth;
-    let resizeTimer: ReturnType<typeof setTimeout> | undefined;
-    const observer = new ResizeObserver(() => {
-      if (!containerRef) return;
-      const newWidth = containerRef.clientWidth;
-      if (newWidth === lastWidth) return;
-      lastWidth = newWidth;
-
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => {
-        if (containerRef) {
-          setPrintWidth(computePrintWidth(containerRef));
-        }
-      }, 500);
-    });
-
-    observer.observe(containerRef);
-    onCleanup(() => {
-      observer.disconnect();
-      clearTimeout(resizeTimer);
-    });
+    if (!open() || !containerRef) return;
+    onCleanup(observePrintWidth(containerRef, setPrintWidth));
   });
 
   // ---------------------------------------------------------------------------
@@ -575,90 +548,4 @@ function scrollToRegion(
       behavior,
     });
   }
-}
-
-// ---------------------------------------------------------------------------
-// Helpers — print-width measurement
-// ---------------------------------------------------------------------------
-
-/**
- * Parse a CSS length value (e.g. "2.5rem", "40px") to pixels.
- * Supports rem and px units; falls back to parseFloat for unknown units.
- */
-function cssToPx(value: string, rootFontSize: number): number {
-  const num = parseFloat(value);
-  if (value.endsWith("rem")) return num * rootFontSize;
-  return num; // px or unitless
-}
-
-/**
- * Measure the width of a single monospace character in pixels using the
- * browser's own font metrics.  Uses a Canvas measureText() call with the
- * resolved font from getComputedStyle(), so it works regardless of which
- * font in the stack the browser actually picked.
- *
- * A hidden probe element styled with the same CSS custom properties as
- * `.fulltext-table` is temporarily inserted to obtain the correct
- * computed font.
- */
-function measureCharWidth(container: HTMLElement): number {
-  // Create a probe element that inherits the same font as .fulltext-table
-  const probe = document.createElement("span");
-  probe.style.cssText =
-    "position:absolute;visibility:hidden;white-space:pre;" +
-    "font-family:var(--font-mono);" +
-    "font-size:var(--code-font-size);" +
-    "line-height:var(--code-line-height);";
-  container.appendChild(probe);
-
-  const style = getComputedStyle(probe);
-  const font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-
-  container.removeChild(probe);
-
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-  if (!ctx) {
-    // Fallback: shouldn't happen in any real browser
-    return 7.2;
-  }
-  ctx.font = font;
-  // Measure a representative character — "M" is conventional but for
-  // monospace any character yields the same width.  Use "0" which is
-  // guaranteed present in every font.
-  return ctx.measureText("0").width;
-}
-
-/**
- * Compute how many characters fit on a single code line given the
- * container's pixel width, accounting for the line-number gutter and
- * cell padding.
- *
- * Read the overlay's CSS custom properties so narrow layouts that hide
- * the line numbers also give that space back to the formatter.
- */
-function computePrintWidth(container: HTMLElement): number {
-  const charWidth = measureCharWidth(container);
-
-  const rootFontSize = parseFloat(
-    getComputedStyle(document.documentElement).fontSize,
-  );
-  const styles = getComputedStyle(container);
-
-  const lineNumWidth = cssToPx(
-    styles.getPropertyValue("--line-num-width").trim() || "2.5rem",
-    rootFontSize,
-  );
-  const cellPadding = cssToPx(
-    styles.getPropertyValue("--cell-padding").trim() || "0.4rem",
-    rootFontSize,
-  );
-
-  const gutterWidth = lineNumWidth > 0 ? lineNumWidth + 2 * cellPadding : 0;
-  // Code-content cell: padding on each side
-  const contentPadding = 2 * cellPadding;
-
-  const availableWidth = container.clientWidth - gutterWidth - contentPadding;
-
-  return Math.max(40, Math.floor(availableWidth / charWidth));
 }

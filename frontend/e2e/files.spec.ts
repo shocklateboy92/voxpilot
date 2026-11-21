@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, send, test } from "./browser";
 import { assistant, history, openSession } from "./data";
@@ -283,6 +283,7 @@ test("Markdown file side insets match chat without padding the generic file pane
     join(workspace.directory, "README.md"),
     "# File document\n\nRendered file contents.\n",
   );
+  await writeFile(join(workspace.directory, "source.ts"), "const x = 1;\n");
   const session = await history(workspace.directory, "Markdown file insets", [
     assistant([
       { type: "text", text: "[Preview](README.md)\n\n[Code](source.ts#L1)" },
@@ -316,13 +317,14 @@ test("Markdown file side insets match chat without padding the generic file pane
     await expect(viewer).toHaveCount(0);
   }
   await app.getByRole("link", { name: "Code", exact: true }).click();
-  await expect(viewer.getByRole("alert")).toContainText("Markdown files only");
-  await expect(viewer.locator(".markdown-body")).toHaveCount(0);
-  await expect(viewer.locator(".markdown-pane")).toHaveCSS(
+  const codeViewer = app.getByRole("region", { name: "Code viewer" });
+  await expect(codeViewer.locator("pre code")).toHaveText("const x = 1;");
+  await expect(codeViewer.locator(".markdown-body")).toHaveCount(0);
+  await expect(codeViewer.locator(".markdown-pane")).toHaveCSS(
     "padding-left",
     "0px",
   );
-  await expect(viewer.locator(".markdown-pane")).toHaveCSS(
+  await expect(codeViewer.locator(".markdown-pane")).toHaveCSS(
     "padding-right",
     "0px",
   );
@@ -488,6 +490,140 @@ test("Read tool Markdown preview loads the complete file and recovers from missi
   await expect(
     viewer.getByRole("heading", { name: "Recovered" }),
   ).toBeVisible();
+});
+
+test("code previews format for the viewport without changing files on disk", async ({
+  app,
+  workspace,
+}) => {
+  const path = join(workspace.directory, "example.ts");
+  const comment =
+    "// This prose is long enough to reflow on a phone but fits comfortably on a wide screen.";
+  const call =
+    'const result=renderExample("first argument", "second argument", "third argument")';
+  const source = `${comment}\n${call}\n`;
+  await writeFile(path, source);
+  await writeFile(
+    join(workspace.directory, "binary.dat"),
+    Buffer.from([0x61, 0, 0x62]),
+  );
+  const session = await history(workspace.directory, "Read code", [
+    assistant([
+      { type: "text", text: "[Code](example.ts) [Binary](binary.dat)" },
+      {
+        type: "tool",
+        id: "read-code",
+        name: "read",
+        time: { created: Date.now(), completed: Date.now() },
+        state: {
+          status: "completed",
+          input: { path, limit: 1 },
+          content: [{ type: "text", text: `1: ${comment}` }],
+        },
+      },
+    ]),
+  ]);
+  await openSession(app, session.id, { reading: true });
+  await app.setViewportSize({ width: 375, height: 812 });
+  await app.locator(".tool-block summary").click();
+  await app.getByRole("button", { name: "View file", exact: true }).click();
+  const viewer = app.getByRole("region", { name: "Code viewer" });
+  const code = viewer.locator("pre code");
+  await expect
+    .poll(() => code.textContent())
+    .toMatch(/\n\/\/ .*\nconst result = renderExample\(\n/);
+  await expect(code.locator(".diff-syntax").first()).toBeVisible();
+  expect(
+    await viewer.evaluate((element) => element.scrollWidth),
+  ).toBeLessThanOrEqual(375);
+  await app.setViewportSize({ width: 1100, height: 844 });
+  await expect
+    .poll(() => code.textContent())
+    .toBe(
+      `${comment}\nconst result = renderExample("first argument", "second argument", "third argument");\n`,
+    );
+  expect(await readFile(path, "utf8")).toBe(source);
+
+  await viewer.getByRole("button", { name: "Close viewer" }).click();
+  await app.getByRole("link", { name: "Code", exact: true }).click();
+  await expect(code).toContainText("third argument");
+  const longValue = "x".repeat(120);
+  await writeFile(path, `const updated="${longValue}";\n\nconst next=42;\n`);
+  await viewer.getByRole("button", { name: "Refresh file" }).click();
+  await expect(code).toContainText("const next = 42;");
+
+  await app.setViewportSize({ width: 639, height: 812 });
+  const rows = code.locator("[data-code-line]");
+  await expect(rows).toHaveCount(3);
+  const blankRow = rows.filter({ hasText: /^$/ });
+  const longRow = rows.filter({ hasText: longValue });
+  const marker = () =>
+    blankRow.evaluate((element) => {
+      const style = getComputedStyle(element, "::before");
+      return { content: style.content, width: style.width };
+    });
+  await expect.poll(marker).toEqual({ content: '""', width: "2px" });
+  const insets = await blankRow.evaluate((row) => {
+    const pane = row.closest(".markdown-pane");
+    const pre = row.closest("pre");
+    if (!pane || !pre) throw new Error("Missing code preview layout");
+    const paneBounds = pane.getBoundingClientRect();
+    const rowBounds = row.getBoundingClientRect();
+    const left = rowBounds.left - paneBounds.left;
+    const padding = parseFloat(getComputedStyle(pre).paddingLeft);
+    const dot = getComputedStyle(row, "::before");
+    return {
+      padding,
+      left,
+      right: paneBounds.left + pane.clientWidth - rowBounds.right,
+      dotCenter: left + parseFloat(dot.left) + parseFloat(dot.width) / 2,
+    };
+  });
+  expect(insets.left).toBeCloseTo(insets.padding, 1);
+  expect(insets.right).toBeCloseTo(insets.padding, 1);
+  expect(insets.dotCenter).toBeCloseTo(insets.padding / 2, 1);
+  expect(
+    await longRow.evaluate(
+      (row) => row.clientHeight > parseFloat(getComputedStyle(row).lineHeight),
+    ),
+  ).toBe(true);
+  await app.setViewportSize({ width: 640, height: 812 });
+  await expect.poll(async () => (await marker()).width).toBe("40px");
+  expect((await marker()).content).toMatch(/attr\(data-code-line\)|"\d+"/);
+  await viewer.getByRole("button", { name: "Close viewer" }).click();
+  await app.getByRole("link", { name: "Binary", exact: true }).click();
+  await expect(viewer.getByRole("alert")).toContainText(
+    "This file contains binary data.",
+  );
+});
+
+test("Read tool previews extensionless text without filename allowlisting", async ({
+  app,
+  workspace,
+}) => {
+  const path = join(workspace.directory, "custom-config");
+  await writeFile(path, "A UTF-8 config with no extension: café\n");
+  const session = await history(workspace.directory, "Extensionless text", [
+    assistant([
+      {
+        type: "tool",
+        id: "read-extensionless",
+        name: "read",
+        time: { created: Date.now(), completed: Date.now() },
+        state: {
+          status: "completed",
+          input: { path },
+          content: [{ type: "text", text: "A UTF-8 config" }],
+        },
+      },
+    ]),
+  ]);
+  await openSession(app, session.id);
+  await app.locator(".tool-block summary").click();
+  await app.getByRole("button", { name: "View file", exact: true }).click();
+  await expect(
+    app.getByRole("region", { name: "Code viewer" }).locator("pre code"),
+  ).toHaveText("A UTF-8 config with no extension: café");
 });
 
 test("Read tool previews files outside the session with linked documents and images", async ({
