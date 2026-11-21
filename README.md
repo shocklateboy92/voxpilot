@@ -4,6 +4,9 @@ Mobile-first coding UI for [OpenCode 2](https://opencode.ai/v2/docs/). VoxPilot
 formats both versions of a file to the phone's character width **before**
 computing the diff, including comment reflow.
 
+**Deploying a release?** See [Personal deployment](#personal-deployment) for the
+GitHub release, homelab frontend, and local OpenCode host steps.
+
 ## Architecture
 
 - **Static frontend:** build once, serve on your Caddy host, connect to any host.
@@ -139,10 +142,25 @@ vocabulary** (or reload the project). Type remains usable. Vocabulary is checked
 again before upload to catch edits made during recording; no terms are silently
 dropped and there is no subset picker.
 
-## Personal frontend deployment
+## Personal deployment
+
+### Publish the release
+
+1. Commit the changes and push to GitHub, normally on `master` unless another
+   branch was requested. A push to `master` triggers the
+   [Release workflow](.github/workflows/release.yml) automatically. For another
+   branch, push it and dispatch the workflow with
+   `gh workflow run release.yml --ref <branch>`.
+2. Wait for the Release workflow for that commit to succeed. Check that the
+   [latest GitHub release](https://github.com/shocklateboy92/voxpilot/releases/latest)
+   was built from the intended commit before deploying; both default deploy
+   commands fetch `latest`, not the local checkout. A manually dispatched
+   release is also marked as `latest`.
+
+### Frontend (homelab)
 
 The frontend is deployed independently of the homelab tenant image. From a
-LAN-connected machine with Python 3.12+:
+LAN-connected machine with Python 3.12+, run from the VoxPilot checkout:
 
 ```sh
 just deploy-frontend                     # latest published GitHub release
@@ -174,5 +192,32 @@ updates, but OS rollback can restore an older frontend. There is no baked
 frontend fallback on a fresh installation; publish assets before enabling
 the route.
 
-See [deployment instructions](packaging/README.md),
+### Backend (local OpenCode host)
+
+On the machine running `voxpilot.service` (normally this machine), run the
+[dev-setup bootstrap](https://github.com/shocklateboy92/dev-setup#install) as the
+user that owns the service. No dev-setup checkout is required. This runs the
+full dev-setup profile, which installs the latest VoxPilot release and restarts
+`voxpilot.service`. If updating both components, do this last: the restart can
+terminate the OpenCode session that launched the deployment.
+
+Start the **entire pipeline** inside a detached systemd user service so it
+keeps running after the session is killed:
+
+```sh
+systemd-run --user --collect --unit=voxpilot-backend-deploy \
+  --property=SyslogIdentifier=voxpilot-backend-deploy \
+  /bin/bash -o pipefail -c 'curl -fsSL https://setup.lasath.dev | bash'
+```
+
+After reconnecting, check the installer log and verify that `voxpilot.service`
+is active and the installed version matches the intended release:
+
+```sh
+journalctl --user -t voxpilot-backend-deploy -n 100 --no-pager
+systemctl --user status voxpilot.service --no-pager
+cat ~/.local/share/voxpilot/VERSION  # adjust if VOXPILOT_ROOT is customized
+```
+
+See [host packaging and manual deployment](packaging/README.md),
 [architecture](ARCHITECTURE.md), and [browser tests](frontend/e2e/README.md).

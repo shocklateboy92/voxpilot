@@ -1,5 +1,13 @@
 # VoxPilot
 
+## Deployment
+
+When asked to deploy, follow the [personal deployment runbook](README.md#personal-deployment).
+Default to `master` unless the user specifies another branch. Wait for the
+intended GitHub release before deploying. Always launch the backend updater as
+a detached `systemd-run --user` service: it restarts OpenCode and can kill the
+session that launched it.
+
 ## TypeScript
 
 Never use the null forgiving operator (`!`). Never use `any`. Avoid casting and use type narrowing instead.
