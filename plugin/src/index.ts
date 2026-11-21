@@ -5,6 +5,7 @@ import { captureComparison } from "./services/comparison";
 import { formatCodePreview } from "./services/format-code-preview";
 import { formatAndDiff } from "./services/format-diff";
 import { shouldInhibitIdle } from "./services/idle";
+import { inspectImagePreview } from "./services/inspect-image-preview";
 import { readTextPreview } from "./services/read-text-preview";
 import { ReviewSourceInput, readReviewSource } from "./services/review-source";
 import {
@@ -50,6 +51,23 @@ export default Plugin.define({
       snapshot: ({ id }) => snapshot(id),
       readTextPreview: async ({ path }, { signal }) => {
         try {
+          return { text: await readTextPreview(path, signal) };
+        } catch (error) {
+          signal.throwIfAborted();
+          return {
+            error:
+              error instanceof Error
+                ? error.message
+                : "Unable to read this file.",
+          };
+        }
+      },
+      readFilePreview: async ({ path, imageOnly }, { signal }) => {
+        try {
+          const image = await inspectImagePreview(path, signal);
+          if (image) return { image };
+          if (imageOnly)
+            return { error: "This file was not recognized as an image." };
           return { text: await readTextPreview(path, signal) };
         } catch (error) {
           signal.throwIfAborted();

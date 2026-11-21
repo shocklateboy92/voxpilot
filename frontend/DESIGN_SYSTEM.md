@@ -178,6 +178,9 @@ the available width. `#L…` file links still refer to original source lines.
 Markdown still uses the rendered document view.
 The plugin checks preview size, the first 8,000 bytes for NULs, and UTF-8
 validity before returning file text. Do not gate Read-card previews on extensions.
+For images, the plugin identifies the MIME type with `file` and enforces a size
+limit before the browser fetches raw bytes from OpenCode. Fetch with `no-store`
+and show the result in `<img>` via a revocable object URL, never as inline SVG.
 
 Some semantic classes remain as stable behavior/test hooks, not styling rules:
 `message`, `streaming`, `tool-block`, `changeset-card`, and picker/review hooks.

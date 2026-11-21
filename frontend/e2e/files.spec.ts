@@ -1,5 +1,6 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, truncate, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { MAX_IMAGE_PREVIEW_BYTES } from "../../plugin/src/file-preview";
 import { expect, send, test } from "./browser";
 import { assistant, history, openSession } from "./data";
 import { password } from "./dev";
@@ -624,6 +625,61 @@ test("Read tool previews extensionless text without filename allowlisting", asyn
   await expect(
     app.getByRole("region", { name: "Code viewer" }).locator("pre code"),
   ).toHaveText("A UTF-8 config with no extension: café");
+});
+
+test("image previews sniff the type, refresh bytes, and show decode errors", async ({
+  app,
+  workspace,
+}) => {
+  const name = "drawing #1";
+  const path = join(workspace.directory, name);
+  const svg = (width: number) =>
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="30"><rect width="100%" height="100%" fill="red"/></svg>`;
+  await writeFile(path, svg(40));
+  const session = await history(workspace.directory, "Image previews", [
+    assistant([{ type: "text", text: "[Drawing](drawing%20%231)" }]),
+  ]);
+  await openSession(app, session.id, { reading: true });
+  await app.setViewportSize({ width: 375, height: 812 });
+  await app.getByRole("link", { name: "Drawing" }).click();
+  const viewer = app.getByRole("region", { name: "Image viewer" });
+  const image = viewer.getByRole("img", { name });
+  const width = () =>
+    image.evaluate(
+      (img) => img instanceof HTMLImageElement && img.naturalWidth,
+    );
+  await expect.poll(width).toBe(40);
+  const original = await image.getAttribute("src");
+  expect(original).toMatch(/^blob:/);
+  if (!original) throw new Error("Missing image object URL");
+
+  await writeFile(path, svg(70));
+  await viewer.getByRole("button", { name: "Refresh file" }).click();
+  await expect.poll(width).toBe(70);
+  await expect(image).not.toHaveAttribute("src", original);
+
+  await writeFile(
+    path,
+    Buffer.from(
+      "89504e470d0a1a0a0000000d4948445200000001000000010806000000",
+      "hex",
+    ),
+  );
+  await viewer.getByRole("button", { name: "Refresh file" }).click();
+  await expect(viewer.getByRole("alert")).toHaveText(
+    "This browser couldn’t display the image.",
+  );
+
+  // An oversized file should never reach the native byte route.
+  let downloads = 0;
+  await app.route("**/api/fs/read/**", (route) => {
+    downloads++;
+    return route.continue();
+  });
+  await truncate(path, MAX_IMAGE_PREVIEW_BYTES + 1);
+  await viewer.getByRole("button", { name: "Refresh file" }).click();
+  await expect(app.getByRole("alert")).toContainText("maximum 20 MiB");
+  expect(downloads).toBe(0);
 });
 
 test("Read tool previews files outside the session with linked documents and images", async ({

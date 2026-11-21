@@ -1,4 +1,4 @@
-import { OpenCode } from "@opencode/client";
+import { type FileReadInput, OpenCode } from "@opencode/client";
 import { VoxPilotRpc } from "@plugin/rpc";
 import { clearFileRoute } from "../features/files/file-links";
 import {
@@ -16,15 +16,19 @@ export const serverUrl =
   window.location.origin;
 export const wakeStorageKey = `voxpilot:wakeUrl:${serverUrl}`;
 
-export function makeClient(url: string, password: string) {
+function authorizationHeaders(password: string) {
   const headers: Record<string, string> = {};
   if (password) {
     const bytes = new TextEncoder().encode(`opencode:${password}`);
     headers.authorization = `Basic ${btoa(Array.from(bytes, (b) => String.fromCharCode(b)).join(""))}`;
   }
+  return headers;
+}
+
+export function makeClient(url: string, password: string) {
   return OpenCode.make({
     baseUrl: url,
-    headers,
+    headers: authorizationHeaders(password),
     fetch: Object.assign(
       (input: RequestInfo | URL, init?: RequestInit) =>
         fetch(input, {
@@ -36,14 +40,39 @@ export function makeClient(url: string, password: string) {
   });
 }
 
-export const client = makeClient(
-  serverUrl,
+const serverPassword =
   configuredServer?.password ??
-    (connectionConfig.servers.length === 0 && !connectionConfig.error
-      ? sessionStorage.getItem(`voxpilot:password:${serverUrl}`)
-      : undefined) ??
-    "",
-);
+  (connectionConfig.servers.length === 0 && !connectionConfig.error
+    ? sessionStorage.getItem(`voxpilot:password:${serverUrl}`)
+    : undefined) ??
+  "";
+
+export const client = makeClient(serverUrl, serverPassword);
+
+/** Use the native byte route without the SDK's eager arrayBuffer() decode. */
+export function fetchPreviewFile(
+  input: FileReadInput,
+  size: number,
+  signal: AbortSignal,
+) {
+  const path = input.path.split("/").map(encodeURIComponent).join("/");
+  const url = new URL(
+    `api/fs/read/${path}`,
+    `${serverUrl.replace(/\/$/, "")}/`,
+  );
+  if (input.location?.directory)
+    url.searchParams.set("location[directory]", input.location.directory);
+  return fetch(url, {
+    cache: "no-store",
+    credentials: serverPassword ? "omit" : "same-origin",
+    redirect: "error",
+    headers: {
+      ...authorizationHeaders(serverPassword),
+      Range: `bytes=0-${size - 1}`,
+    },
+    signal,
+  });
+}
 
 /** Local plugins activate asynchronously when a location is first requested. */
 export async function waitForPlugin(remote = client) {

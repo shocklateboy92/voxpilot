@@ -1,7 +1,10 @@
 /** Shared, browser-safe contract. All UI response types derive from this schema. */
 import { Rpc } from "@opencode/plugin/rpc";
 import { z } from "zod";
-import { MAX_CODE_PREVIEW_LENGTH } from "./file-preview";
+import {
+  MAX_CODE_PREVIEW_LENGTH,
+  MAX_IMAGE_PREVIEW_BYTES,
+} from "./file-preview";
 import { VocabularyTerm } from "./speech-contract";
 
 export { VocabularyTerm } from "./speech-contract";
@@ -50,6 +53,13 @@ export type ReviewCitation = z.infer<typeof ReviewCitation>;
 export type ReviewLine = z.infer<typeof ReviewLine>;
 
 const PrintWidth = z.number().int().min(10).max(500);
+const TextPreview = z.object({ text: z.string() });
+const PreviewError = z.object({ error: z.string() });
+export const ImagePreviewInfo = z.object({
+  mime: z.string().regex(/^image\/[a-z\d][a-z\d.+-]*$/i),
+  size: z.number().int().positive().max(MAX_IMAGE_PREVIEW_BYTES),
+});
+export type ImagePreviewInfo = z.infer<typeof ImagePreviewInfo>;
 
 export const VOCABULARY_MAX_TERMS = 100;
 export const VocabularyFile = z.array(VocabularyTerm).max(VOCABULARY_MAX_TERMS);
@@ -87,9 +97,17 @@ export const VoxPilotRpc = Rpc.define({
     },
     readTextPreview: {
       input: z.object({ path: z.string().min(1) }),
+      output: z.union([TextPreview, PreviewError]),
+    },
+    readFilePreview: {
+      input: z.object({
+        path: z.string().min(1),
+        imageOnly: z.boolean().optional(),
+      }),
       output: z.union([
-        z.object({ text: z.string() }),
-        z.object({ error: z.string() }),
+        TextPreview,
+        z.object({ image: ImagePreviewInfo }),
+        PreviewError,
       ]),
     },
     formatCodePreview: {

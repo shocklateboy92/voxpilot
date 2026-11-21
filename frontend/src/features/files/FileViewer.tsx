@@ -21,7 +21,7 @@ import {
   navigateApp,
   resolveViewerLink,
 } from "../../app/routing";
-import { client, serverUrl } from "../../platform/connection";
+import { serverUrl } from "../../platform/connection";
 import { configuredServer } from "../../platform/connection-config";
 import { rpc } from "../../platform/rpc";
 import { Button } from "../../ui/Button";
@@ -31,19 +31,11 @@ import { MarkdownView } from "../../ui/MarkdownView";
 import { Spinner } from "../../ui/Spinner";
 import type { ReadingControls } from "../chat/reading-controls";
 import { CodePreview } from "./CodePreview";
-import { fileReadRequest, fileUrl } from "./file-state";
+import { fileUrl } from "./file-state";
+import { IMAGE_DECODE_ERROR, ImagePreview } from "./ImagePreview";
+import { readEmbeddedImage, readImageBlob } from "./image-preview";
 
 const NO_SWIPE = () => false;
-const imageTypes: Record<string, string> = {
-  png: "image/png",
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  gif: "image/gif",
-  webp: "image/webp",
-  svg: "image/svg+xml",
-  avif: "image/avif",
-  bmp: "image/bmp",
-};
 
 interface FileViewerProps {
   composerHeight: number;
@@ -87,10 +79,18 @@ function OpenFileViewer(props: FileViewerProps) {
     const controller = new AbortController();
     pendingRead = controller;
     try {
-      const result = await rpc.readTextPreview(
+      const result = await rpc.readFilePreview(
         { path: request.path },
         { signal: controller.signal },
       );
+      if ("image" in result) {
+        const blob = await readImageBlob(
+          request.path,
+          result.image,
+          controller.signal,
+        );
+        return { request, blob };
+      }
       return { request, ...result };
     } catch (error) {
       // Loading failures stay inside the viewer, leaving navigation and refresh usable.
@@ -101,6 +101,11 @@ function OpenFileViewer(props: FileViewerProps) {
       };
     }
   });
+  const viewerLabel = () => {
+    const value = loaded.latest;
+    if (value?.blob && isCurrent(value.request)) return "Image viewer";
+    return isMarkdown() ? "Markdown viewer" : "Code viewer";
+  };
   const fileLinkContext = () => {
     const request = loaded()?.request ?? currentFile();
     if (!request) return undefined;
@@ -123,9 +128,10 @@ function OpenFileViewer(props: FileViewerProps) {
     // Link history metadata can re-render this body even at the same file URL.
     appLocation()?.state;
     const value = loaded();
-    if (!value || !("text" in value)) return;
+    if (!value) return;
     pane?.scrollTo({ top: 0 });
-    if (!isMarkdownPath(value.request.path) || !content) return;
+    if (!("text" in value) || !isMarkdownPath(value.request.path) || !content)
+      return;
     const element = content;
     const base = fileUrl(value.request);
     const controller = new AbortController();
@@ -135,7 +141,9 @@ function OpenFileViewer(props: FileViewerProps) {
       element.querySelectorAll("[id]").forEach((heading) => {
         if (heading.id === fragment) heading.scrollIntoView({ block: "start" });
       });
-    for (const image of element.querySelectorAll("img[src]")) {
+    for (const image of element.querySelectorAll(
+      "img[src], img[data-file-source]",
+    )) {
       const src =
         image.getAttribute("data-file-source") ?? image.getAttribute("src");
       if (!src) continue;
@@ -148,18 +156,17 @@ function OpenFileViewer(props: FileViewerProps) {
       image.setAttribute("data-file-source", url.href);
       image.removeAttribute("src");
       const path = decodeURIComponent(url.pathname);
-      void client.file
-        .read(fileReadRequest({ location: value.request.location, path }), {
-          signal: controller.signal,
-        })
-        .then((bytes) => {
+      void readEmbeddedImage(path, controller.signal)
+        .then((blob) => {
           if (controller.signal.aborted) return;
-          const extension = path.split(".").at(-1)?.toLowerCase() ?? "";
-          const blob = new Blob([new Uint8Array(bytes)], {
-            type: imageTypes[extension] ?? "application/octet-stream",
-          });
           const objectUrl = URL.createObjectURL(blob);
           objectUrls.push(objectUrl);
+          image.addEventListener(
+            "error",
+            () => image.setAttribute("title", IMAGE_DECODE_ERROR),
+            { once: true, signal: controller.signal },
+          );
+          image.removeAttribute("title");
           image.setAttribute("src", objectUrl);
         })
         .catch((error: unknown) => {
@@ -180,7 +187,7 @@ function OpenFileViewer(props: FileViewerProps) {
     <section
       ref={region}
       tabIndex={-1}
-      aria-label={isMarkdown() ? "Markdown viewer" : "Code viewer"}
+      aria-label={viewerLabel()}
       class="absolute inset-0 flex flex-col bg-bg text-left outline-none [--status-bar-clearance:calc(4.5rem+var(--safe-top))]"
     >
       <ContentShell
@@ -235,6 +242,11 @@ function OpenFileViewer(props: FileViewerProps) {
           <Show when={loaded()} keyed>
             {(value) => (
               <div class="text-[0.9rem] wrap-break-word">
+                <Show when={value.blob}>
+                  {(blob) => (
+                    <ImagePreview blob={blob()} path={value.request.path} />
+                  )}
+                </Show>
                 <Show when={"error" in value ? value.error : undefined}>
                   {(message) => (
                     <div role="alert" class="p-4 text-error">
