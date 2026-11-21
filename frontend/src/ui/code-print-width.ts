@@ -1,9 +1,10 @@
-import { MAX_PRINT_WIDTH } from "@plugin/rpc";
-
 /** Typical monospace advance at the default code size, if canvas is unavailable. */
 const FALLBACK_CHAR_WIDTH = 7.2;
-/** Review diffs stay readable by scrolling rather than wrapping below this. */
-const DEFAULT_MIN_COLUMNS = 40;
+
+export interface PrintWidthBounds {
+  min: number;
+  max: number;
+}
 
 let measureContext: CanvasRenderingContext2D | null | undefined;
 
@@ -13,7 +14,10 @@ function cssToPx(value: string, rootFontSize: number): number {
 }
 
 /** Use the same font and spacing as the rendered code. */
-function computePrintWidth(container: HTMLElement, minColumns: number): number {
+function computePrintWidth(
+  container: HTMLElement,
+  bounds: PrintWidthBounds,
+): number {
   const probe = document.createElement("span");
   probe.style.cssText =
     "position:absolute;visibility:hidden;white-space:pre;" +
@@ -43,15 +47,15 @@ function computePrintWidth(container: HTMLElement, minColumns: number): number {
   const columns = Math.floor(
     (container.clientWidth - gutterWidth - 2 * cellPadding) / charWidth,
   );
-  return Math.min(MAX_PRINT_WIDTH, Math.max(minColumns, columns));
+  return Math.min(bounds.max, Math.max(bounds.min, columns));
 }
 
 export function observePrintWidth(
   container: HTMLElement,
   onWidth: (columns: number) => void,
-  minColumns: number = DEFAULT_MIN_COLUMNS,
+  bounds: PrintWidthBounds,
 ): () => void {
-  const measure = () => onWidth(computePrintWidth(container, minColumns));
+  const measure = () => onWidth(computePrintWidth(container, bounds));
   measure();
   let lastWidth = container.clientWidth;
   let resizeTimer: ReturnType<typeof setTimeout> | undefined;

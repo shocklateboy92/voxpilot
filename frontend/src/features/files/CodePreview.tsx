@@ -1,5 +1,5 @@
 import { errorMessage } from "@plugin/file-preview";
-import { MIN_PRINT_WIDTH } from "@plugin/rpc";
+import { MAX_PRINT_WIDTH, MIN_PRINT_WIDTH } from "@plugin/rpc";
 import {
   createEffect,
   createResource,
@@ -26,7 +26,12 @@ export function CodePreview(props: { request: FileRequest; text: string }) {
   const [width, setWidth] = createSignal<number>();
   onMount(() => {
     if (container)
-      onCleanup(observePrintWidth(container, setWidth, MIN_PRINT_WIDTH));
+      onCleanup(
+        observePrintWidth(container, setWidth, {
+          min: MIN_PRINT_WIDTH,
+          max: MAX_PRINT_WIDTH,
+        }),
+      );
   });
   onCleanup(() => pending?.abort());
 

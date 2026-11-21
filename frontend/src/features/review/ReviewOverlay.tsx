@@ -15,6 +15,7 @@
  * - Status bar shows "change N of M" counter
  */
 
+import { MAX_PRINT_WIDTH } from "@plugin/rpc";
 import X from "lucide-solid/icons/x";
 import {
   createEffect,
@@ -44,6 +45,9 @@ const SCROLL_TOP_PADDING = 32;
 
 /** CSS class applied to rows belonging to the current change region. */
 const CURRENT_CHANGE_CLASS = "current-change";
+
+/** Diffs stay readable by scrolling rather than wrapping below this width. */
+const MIN_REVIEW_COLUMNS = 40;
 
 export function ReviewOverlay(props: {
   composerHeight: number;
@@ -178,7 +182,12 @@ export function ReviewOverlay(props: {
 
   createEffect(() => {
     if (!open() || !containerRef) return;
-    onCleanup(observePrintWidth(containerRef, setPrintWidth));
+    onCleanup(
+      observePrintWidth(containerRef, setPrintWidth, {
+        min: MIN_REVIEW_COLUMNS,
+        max: MAX_PRINT_WIDTH,
+      }),
+    );
   });
 
   // ---------------------------------------------------------------------------
