@@ -31,11 +31,17 @@ import { MarkdownView } from "../../ui/MarkdownView";
 import { Spinner } from "../../ui/Spinner";
 import type { ReadingControls } from "../chat/reading-controls";
 import { CodePreview } from "./CodePreview";
-import { fileUrl } from "./file-state";
+import { type FileRequest, fileUrl } from "./file-state";
 import { IMAGE_DECODE_ERROR, ImagePreview } from "./ImagePreview";
 import { readEmbeddedImage, readImageBlob } from "./image-preview";
 
 const NO_SWIPE = () => false;
+
+type LoadedFile = { request: FileRequest } & (
+  | { kind: "markdown" | "code"; text: string }
+  | { kind: "image"; blob: Blob }
+  | { kind: "error"; error: string }
+);
 
 interface FileViewerProps {
   composerHeight: number;
@@ -73,41 +79,42 @@ function OpenFileViewer(props: FileViewerProps) {
       active.location?.directory === request.location?.directory
     );
   };
-  const [loaded, { refetch }] = createResource(currentFile, async (request) => {
-    pendingRead?.abort();
-    const controller = new AbortController();
-    pendingRead = controller;
-    try {
-      const result = await rpc.readFilePreview(
-        { path: request.path },
-        { signal: controller.signal },
-      );
-      if ("error" in result)
-        return { kind: "error" as const, request, error: result.error };
-      if ("image" in result) {
-        const blob = await readImageBlob(
-          request.path,
-          result.image,
-          controller.signal,
+  const [loaded, { refetch }] = createResource(
+    currentFile,
+    async (request): Promise<LoadedFile> => {
+      pendingRead?.abort();
+      const controller = new AbortController();
+      pendingRead = controller;
+      try {
+        const result = await rpc.readFilePreview(
+          { path: request.path },
+          { signal: controller.signal },
         );
-        return { kind: "image" as const, request, blob };
+        if ("error" in result)
+          return { kind: "error", request, error: result.error };
+        if ("image" in result) {
+          const blob = await readImageBlob(
+            request.path,
+            result.image,
+            controller.signal,
+          );
+          return { kind: "image", request, blob };
+        }
+        return {
+          kind: isMarkdownPath(request.path) ? "markdown" : "code",
+          request,
+          text: result.text,
+        };
+      } catch (error) {
+        // Loading failures stay inside the viewer, leaving navigation and refresh usable.
+        return {
+          kind: "error",
+          request,
+          error: errorMessage(error, "Unable to load this file."),
+        };
       }
-      return {
-        kind: isMarkdownPath(request.path)
-          ? ("markdown" as const)
-          : ("code" as const),
-        request,
-        text: result.text,
-      };
-    } catch (error) {
-      // Loading failures stay inside the viewer, leaving navigation and refresh usable.
-      return {
-        kind: "error" as const,
-        request,
-        error: errorMessage(error, "Unable to load this file."),
-      };
-    }
-  });
+    },
+  );
   const viewerLabel = () => {
     const value = loaded.latest;
     if (value?.kind === "image" && isCurrent(value.request))
