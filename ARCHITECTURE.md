@@ -41,13 +41,12 @@ changed from the bottom navigation, or with `?connect=1`.
 Central hosting requires each API host to allow the exact frontend origin via
 `--cors`. HTTPS frontends require HTTPS API endpoints (typically homelab Caddy
 reverse proxies). An authenticated browser talks directly to OpenCode; there is no
-credential-injecting VoxPilot proxy. OpenCode 2.0.22's CORS responses do not permit
-cross-origin credentialed fetch; remote connections use an explicit Authorization
-header and omit browser cookies. Pairing cookies are used only on the same origin.
+credential-injecting VoxPilot proxy. Remote connections use an explicit
+Authorization header and omit browser cookies. Pairing cookies are used only on the same origin.
 
 `rpc.ts` calls `client.rpc(VoxPilotRpc)`. The contract in `plugin/src/rpc.ts` uses
 Zod Standard Schema and infers request, handler and frontend response types without
-Hono, code generation, or manually synchronized interfaces. It is browser-safe.
+code generation or manually synchronized interfaces. It is browser-safe.
 
 The native live-only event stream reconnects and reconciles HTTP snapshots on
 `server.connected`. Existing per-message fragment revision handling and paginated
@@ -73,12 +72,10 @@ key is held only by the speech service, read from a private development file or
 its encrypted homelab systemd credential. Neither static assets, Caddy's runtime
 config generator nor OpenCode backends receive the key.
 
-Normal voice Finish is a transcription-and-chat action, not clip collection.
-The user has selected OpenAI dictation for this deployment; no per-recording
-permission checkbox or local-only playback/download step is shown. The complete
-utterance is transcribed with OpenAI
-`gpt-transcribe` and `keywords[]`, without a separate LLM cleanup pass or live
-transcript. ffmpeg pipe-only decoding checks actual duration; WebRTC VAD rejects
+Voice Finish transcribes the complete utterance with OpenAI `gpt-transcribe` and `keywords[]`, without a separate LLM cleanup pass or live
+transcript (see [the speech recognition decision](docs/decisions/speech-recognition.md)).
+Recordings are limited to five minutes, and microphone capture needs HTTPS or
+localhost. ffmpeg pipe-only decoding checks actual duration; WebRTC VAD rejects
 silence/quiet noise before cloud calls. The guard is not a guarantee against
 background speech or all transcription inventions.
 
@@ -94,14 +91,37 @@ Transcription and chat admission remain separate. The composer captures original
 draft/session/backend ownership before async work, retains correction/retry and
 Type paths, and consumes only an accepted send snapshot. Pasted references keep
 their stable numbers and images use the existing native prompt file flow.
-There is no sample collector or audio-storage RPC in the coding plugin.
-The microphone-capture widget sends its result to a callback captured before
-microphone permission awaits. Backgrounding cancels capture. Normal recordings
-allocate no audio preview object URL, and recovery never requires audio playback.
+Backgrounding cancels capture. Audio stays in browser memory only until the
+draft is sent, discarded or replaced. Deployment is described in
+`packaging/SPEECH.md`.
 
-Homelab activation is currently chapel-only, with a supervised non-root Quadlet,
-read-only credential mount and resource limits. Production activation requires
-a separate operator decision. See `packaging/SPEECH.md`.
+### Speech vocabulary
+
+The plugin's authenticated `vocabulary` RPC merges three plain JSON arrays of
+canonical spellings: the user list (`$XDG_CONFIG_HOME/voxpilot/vocabulary.json`),
+the active checkout's shared `.voxpilot/vocabulary.json`, and the canonical
+checkout's private `.voxpilot/vocabulary.local.json`. It resolves locations from
+OpenCode's `project.directory` and `project.canonical` metadata. Lists merge
+user → shared → private, deduplicating case-insensitively while preserving the
+most-specific spelling. Missing files mean empty lists. Private and user lists
+never sync across hosts.
+
+Parsed files are cached; filesystem identity, size and modification/change times
+are checked per read so edits take effect without a restart. Files are bounded to
+100 terms, 120 characters per term, and 64 KiB; symlinks, control characters and
+angle brackets are rejected. Invalid files fail clearly instead of silently using
+stale words. Transcription context is bounded to 30 terms / 2000 characters.
+
+Vocabulary is checked when the project loads and again before upload.
+Invalid or over-budget lists disable recording with a persistent composer error
+until fixed and refreshed; Type remains usable. No terms are silently dropped.
+Transcription snapshots the original project's vocabulary.
+
+The plugin injects a short agent-loop instruction so agents edit these files with
+normal file tools. List contents are data, never agent instructions.
+`scripts/install-vocabulary-ignore.py` adds the private-file pattern to a host
+user's global Git ignore file. `VOXPILOT_USER_VOCABULARY_FILE` overrides the user
+list path; test servers use it to isolate test agents from real vocabulary.
 
 ## Message attachments
 
@@ -135,39 +155,11 @@ Prettier, Ruff, rustfmt, or clang-format, reflows supported comments, recomputes
 returns escaped diff HTML. Formatting never edits the repository. Existing
 formatter fallback behavior preserves raw code when a formatter cannot run.
 
-### Narrow-width formatting policy
+See [narrow-width formatting policy](docs/formatting.md) for per-language
+display profiles and fallback behavior.
 
-- The requested character width is a target, not a hard limit. Long identifiers,
-  strings, macros and deeply nested code can still overflow; never truncate code
-  or split string literals merely to fit a phone screen.
-- C/C++ uses an explicit LLVM-based display profile with two-space block and
-  continuation indentation, no tabs or operand alignment, and no packing of
-  wrapped arguments/parameters. Bracket block indentation avoids aligning
-  continuations under long function names. Include order is preserved and the
-  existing comment reflow pass handles prose rather than clang-format.
-- Rust uses stable rustfmt on stdin with two-space indentation and `max_width`
-  set to the requested width. Its default block layout and wrapping heuristics
-  handle calls, chains and signatures; no nightly-only options are required.
-  Imports and modules are not reordered. Ambient rustfmt configuration is ignored
-  so both historical and current snapshots use the same display profile.
-  Reviews use best-effort output: exit 0 or 1 is accepted only with nonblank
-  stdout (opaque macros retaining whitespace can trigger exit 1). Empty input
-  bypasses rustfmt; empty or whitespace-only output never replaces a nonempty
-  snapshot, even on exit 0. Stderr is not parsed. This may also accept output
-  from other internal formatting errors; it
-  is a display policy, not proof of formatting correctness. Other exit codes,
-  signal termination, launch failures and timeouts fall back to the original
-  snapshot. String contents are never trimmed to suppress whitespace errors.
-- Rust snapshots are parsed as Rust 2024 without Cargo manifest/edition lookup.
-  Edition-incompatible or malformed code normally produces no output and falls
-  back to the original text.
-  No filename is passed to rustfmt, so external module files are not followed or
-  modified. Rust comments (including rustdoc) are left intact: the generic reflow
-  pass does not understand Rust raw strings or nested block comments.
-
-Snapshots use `snapshot/<uuid>` keys in plugin storage. There is no VoxPilot
-database or Drizzle migration system. Review references created by the retired
-backend are intentionally unsupported.
+Snapshots use `snapshot/<uuid>` keys in plugin storage; there is no separate
+VoxPilot database.
 
 ## Packages and release
 

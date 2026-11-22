@@ -1,7 +1,7 @@
 # Deploy VoxPilot
 
 For the usual release, homelab frontend, and dev-setup backend update workflow,
-see [Personal deployment](https://github.com/shocklateboy92/voxpilot#personal-deployment).
+see [Personal deployment](PERSONAL.md).
 This guide covers host setup and manual installation.
 
 One static frontend can connect to multiple OpenCode hosts. Each host runs only
