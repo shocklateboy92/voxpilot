@@ -11,17 +11,18 @@ conversation you’re using, not just the code. Say, “Move this chat into a ne
 worktree,” or “Fork this conversation from before we changed the API,” then
 keep talking.
 
+<p align="center">
+  <img src="docs/images/iphone-chat-commit.png" width="300" alt="Asking VoxPilot to commit and push from iPhone">
+</p>
+
 **Format first, then diff.** VoxPilot formats both the before and after versions
 to your screen width, using tools like Prettier for TypeScript and Ruff for
 Python, then compares them. A long function call breaks across lines at its
 arguments instead of wherever the screen runs out of room. The files on disk
 stay untouched, so the review won’t line up line-for-line with them.
 
-Review a change at phone width, then ask VoxPilot to commit and push.
-
 <p align="center">
   <img src="docs/images/iphone-review-diff.png" width="300" alt="Reviewing a formatted TypeScript change on iPhone">
-  <img src="docs/images/iphone-chat-commit.png" width="300" alt="Asking VoxPilot to commit and push from iPhone">
 </p>
 
 ## Architecture
