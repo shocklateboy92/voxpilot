@@ -12,7 +12,7 @@ worktree,” or “Fork this conversation from before we changed the API,” the
 keep talking.
 
 <p align="center">
-  <img src="docs/images/iphone-chat-commit.png" width="300" alt="Asking VoxPilot to commit and push from iPhone">
+  <img src="docs/images/iphone-chat-commit.png" width="300" alt="Asking VoxPilot to commit and push from iPhone, split diagonally between light and dark themes">
 </p>
 
 **Format first, then diff.** VoxPilot formats both the before and after versions
