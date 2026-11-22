@@ -25,6 +25,20 @@ stay untouched, so the review won’t line up line-for-line with them.
   <img src="docs/images/iphone-review-diff.png" width="300" alt="Reviewing a formatted TypeScript change on iPhone">
 </p>
 
+**Think out loud.** Paste links or snippets and refer to them by number. You can
+record for up to five minutes. While you talk, you see a waveform and a timer,
+not a live transcript. Ramble, backtrack, or change your mind mid-sentence
+without watching for transcription mistakes. Don’t waste time polishing your
+thoughts. The agent doesn’t care.
+
+<p align="center">
+  <img src="docs/images/iphone-voice-recording.png" width="300" alt="Voice recording in progress on iPhone, with three numbered paste pills, a waveform, and a five-minute limit">
+</p>
+
+**Swipe to get around.** Swipe sideways to switch between conversations, or to
+move from one change to the next in a diff. A swipe is easier to hit with a
+finger than a small button, so you don’t have to aim.
+
 ## Architecture
 
 - **Static frontend:** build once, serve on your Caddy host, connect to any host.
