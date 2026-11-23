@@ -1,8 +1,6 @@
 # VoxPilot
 
-Mobile-first coding UI for [OpenCode 2](https://opencode.ai/v2/docs/). VoxPilot
-formats both versions of a file to the phone's character width **before**
-computing the diff, including comment reflow.
+Mobile-first coding UI for [OpenCode 2](https://opencode.ai/v2/docs/).
 
 ## Highlights
 
