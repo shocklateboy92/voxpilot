@@ -169,6 +169,88 @@ test("touch swipes navigate conversations but horizontal code-block scrolling do
   await expect.poll(() => new URL(app.url()).hash).toBe(`#${newer.id}`);
 });
 
+test("swiping between conversations in the same worktree keeps Git status visible", async ({
+  app,
+  workspace,
+}) => {
+  test.skip(
+    Boolean(process.env.VOXPILOT_E2E_CDP),
+    "Touch input uses isolated Chromium",
+  );
+  await workspace.git("restore", "sample.txt", "second.txt");
+  const older = await history(workspace.directory, "Older Git conversation", [
+    assistant([{ type: "text", text: "Older reply" }]),
+  ]);
+  const newer = await history(workspace.directory, "Newer Git conversation", [
+    assistant([{ type: "text", text: "Newer reply" }]),
+  ]);
+  await openSession(app, newer.id);
+  const status = app.getByRole("button", {
+    name: "Session status",
+    exact: true,
+  });
+  await expect(status).toContainText(/main\s*·\s*clean/);
+
+  // Hold the real branch response so navigation cannot hide a cleared status
+  // by coincidentally finishing the Git lookup before the assertion.
+  let release = () => {};
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const isBranch = (url: URL) => url.pathname === "/api/vcs";
+  let requests = 0;
+  await app.route(isBranch, async (route) => {
+    requests++;
+    await pending;
+    await route.continue();
+  });
+  try {
+    const pane = app.locator(".messages");
+    await swipe(app, pane, "left");
+    await expect.poll(() => new URL(app.url()).hash).toBe(`#${older.id}`);
+    await expect(pane).toContainText("Older reply");
+    await status.click();
+    const details = app.getByRole("region", { name: "Session status details" });
+    await expect(details.getByText("main", { exact: true })).toBeVisible({
+      timeout: 2000,
+    });
+    await expect(details.getByText("Clean — no changed files")).toBeVisible();
+    await expect.poll(() => requests).toBeGreaterThan(0);
+    await status.click();
+    await swipe(app, pane, "right");
+    await expect.poll(() => new URL(app.url()).hash).toBe(`#${newer.id}`);
+    await expect(status).toContainText(/main\s*·\s*clean/);
+  } finally {
+    release();
+    await app.unroute(isBranch);
+  }
+});
+
+test("switching worktrees loads the destination branch and working copy", async ({
+  app,
+  workspace,
+}) => {
+  const worktree = await client.worktree.create({
+    projectID: workspace.projectID,
+    name: "git-status",
+  });
+  const branch = "git-status-branch";
+  await workspace.git("-C", worktree.directory, "switch", "-c", branch);
+  const main = await history(workspace.directory, "Main checkout");
+  await history(worktree.directory, "Separate worktree");
+  await openSession(app, main.id);
+  const status = app.getByRole("button", {
+    name: "Session status",
+    exact: true,
+  });
+  await expect(status).toContainText(/main\s*·\s*2\s*changed/);
+  await selectSession(app, "Separate worktree");
+  await expect(status.getByText(branch, { exact: true })).toBeVisible();
+  await expect(status.getByText("clean", { exact: true })).toBeVisible();
+  await selectSession(app, "Main checkout");
+  await expect(status).toContainText(/main\s*·\s*2\s*changed/);
+});
+
 test("tables and other overflow containers scroll horizontally without session swipes", async ({
   app,
   workspace,

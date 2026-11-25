@@ -1,5 +1,5 @@
 /** Native V2 events, with frame-batched content and guarded snapshot recovery. */
-import { batch, createEffect, createRoot, on } from "solid-js";
+import { batch, createEffect, createMemo, createRoot, on } from "solid-js";
 import { produce, reconcile } from "solid-js/store";
 import { effectiveAgent } from "../features/chat/agent-selection";
 import { discardComposerDraft } from "../features/chat/create-composer-draft";
@@ -474,17 +474,15 @@ async function refreshPending(sessionID: string): Promise<void> {
 }
 
 async function refreshFiles(): Promise<void> {
-  const sessionID = activeSessionId();
   const directory = activeSession()?.location.directory;
-  if (!sessionID || !directory) return;
-  const version = generation;
+  if (!directory) return;
   const request = ++filesRequest;
   const [branch, files] = await Promise.all([
     fetchGitBranch(directory),
     fetchFileStatus(directory),
   ]);
   if (
-    !isCurrent(sessionID, version) ||
+    disposed ||
     request !== filesRequest ||
     activeSession()?.location.directory !== directory
   )
@@ -789,8 +787,10 @@ function handleEvent(event: Event): void {
       if (
         event.type === "session.revert.committed" &&
         event.data.sessionID === activeSessionId()
-      )
+      ) {
         resetActive();
+        void refreshFiles();
+      }
       void refreshHistory(event.data.sessionID);
       void refreshSession(event.data.sessionID);
       break;
@@ -822,11 +822,8 @@ function handleEvent(event: Event): void {
 
 function resetActive(): void {
   ++generation;
-  ++filesRequest;
   if (raf !== undefined) cancelAnimationFrame(raf);
-  if (filesTimer !== undefined) clearTimeout(filesTimer);
   raf = undefined;
-  filesTimer = undefined;
   pendingContent.clear();
   touchedMessages.clear();
   textRevisions.clear();
@@ -835,11 +832,10 @@ function resetActive(): void {
   messageRequests.clear();
   dirtyMessages.clear();
   replaceMessages([]);
-  setStore("gitBranch", null);
-  setStore("changedFiles", []);
 }
 
 const dispose = createRoot((dispose) => {
+  const activeDirectory = createMemo(() => activeSession()?.location.directory);
   createEffect(
     on(activeSessionId, (sessionID) => {
       resetActive();
@@ -860,12 +856,20 @@ const dispose = createRoot((dispose) => {
     }),
   );
   createEffect(
-    on(
-      () => activeSession()?.location.directory,
-      () => {
-        void refreshFiles();
-      },
-    ),
+    on([activeSessionId, activeDirectory], ([, directory], previous) => {
+      // Git status belongs to the working copy, not the conversation. Keep
+      // the last result on same-directory switches while revalidating it.
+      if (directory !== previous?.[1]) {
+        ++filesRequest;
+        if (filesTimer !== undefined) clearTimeout(filesTimer);
+        filesTimer = undefined;
+        batch(() => {
+          setStore("gitBranch", null);
+          setStore("changedFiles", []);
+        });
+      }
+      void refreshFiles();
+    }),
   );
   return dispose;
 });
